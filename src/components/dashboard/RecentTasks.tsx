@@ -61,7 +61,7 @@ export function RecentTasks() {
   return (
     <Card className="shadow-card">
       <CardHeader className="flex flex-row items-center justify-between pb-2">
-        <CardTitle className="text-base font-semibold">最新代办</CardTitle>
+        <CardTitle className="text-base font-semibold">最新待办</CardTitle>
         <Button 
           variant="ghost" 
           size="sm" 
