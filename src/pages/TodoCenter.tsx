@@ -119,7 +119,7 @@ export default function TodoCenter() {
   };
 
   return (
-    <AppLayout title="代办中心">
+    <AppLayout title="待办中心">
       <div className="space-y-6">
         {/* Header */}
         <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
@@ -228,9 +228,8 @@ export default function TodoCenter() {
                         size="sm" 
                         className="h-8 gradient-primary"
                         onClick={() => handleProcessTask(task)}
-                        disabled={task.status === "submitted"}
                       >
-                        {task.status === "submitted" ? "已提交" : "处理"}
+                        {task.status === "submitted" ? "查看" : "处理"}
                       </Button>
                     </div>
                   </div>

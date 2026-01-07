@@ -34,7 +34,7 @@ import {
 
 const mainNavItems = [
   { title: "工作台", url: "/", icon: LayoutDashboard },
-  { title: "代办中心", url: "/todos", icon: ClipboardList },
+  { title: "待办中心", url: "/todos", icon: ClipboardList },
   { title: "任务中心", url: "/tasks", icon: FolderKanban },
   { title: "文档中心", url: "/documents", icon: FileText },
 ];
