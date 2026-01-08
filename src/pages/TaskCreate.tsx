@@ -25,7 +25,7 @@ import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 
 const steps = [
-  { id: 1, title: "基础定义", icon: FileText },
+  { id: 1, title: "基础信息", icon: FileText },
   { id: 2, title: "任务拆解", icon: Users },
   { id: 3, title: "时限配置", icon: Calendar },
   { id: 4, title: "预览发布", icon: Rocket },
@@ -148,7 +148,7 @@ export default function TaskCreate() {
           {currentStep === 1 && (
             <>
               <CardHeader>
-                <CardTitle>基础信息</CardTitle>
+                <CardTitle>基础定义</CardTitle>
                 <CardDescription>选择任务类型、填写名称并上传模板</CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
