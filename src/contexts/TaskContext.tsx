@@ -48,6 +48,7 @@ interface TaskContextType {
   getTasksForEmployee: (employeeName: string) => { task: Task; assignee: Assignee }[];
   submitWork: (taskId: string, assigneeId: string, submission: Omit<Submission, "id" | "status">) => void;
   reviewSubmission: (taskId: string, assigneeId: string, submissionId: string, approved: boolean, feedback?: string) => void;
+  deleteTask: (taskId: string) => void;
 }
 
 const TaskContext = createContext<TaskContextType | undefined>(undefined);
@@ -331,6 +332,10 @@ export function TaskProvider({ children }: { children: ReactNode }) {
     }));
   };
 
+  const deleteTask = (taskId: string) => {
+    setTasks(prev => prev.filter(task => task.id !== taskId));
+  };
+
   return (
     <TaskContext.Provider value={{ 
       tasks, 
@@ -338,7 +343,8 @@ export function TaskProvider({ children }: { children: ReactNode }) {
       getTaskById, 
       getTasksForEmployee,
       submitWork,
-      reviewSubmission
+      reviewSubmission,
+      deleteTask
     }}>
       {children}
     </TaskContext.Provider>

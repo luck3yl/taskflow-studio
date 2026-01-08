@@ -8,7 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
-import { 
+import {
   ChevronRight,
   ChevronLeft,
   Upload,
@@ -16,12 +16,21 @@ import {
   X,
   FileText,
   Users,
-  Calendar,
+  Calendar as CalendarIcon,
   CheckCircle2,
   Rocket,
   FileSpreadsheet,
   AlertCircle
 } from "lucide-react";
+import { format } from "date-fns";
+import { zhCN } from "date-fns/locale";
+import { Calendar } from "@/components/ui/calendar";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { cn } from "@/lib/utils";
 import {
   Select,
   SelectContent,
@@ -36,7 +45,7 @@ import { useTaskContext, Assignee } from "@/contexts/TaskContext";
 const steps = [
   { id: 1, title: "基础定义", icon: FileText },
   { id: 2, title: "任务拆解", icon: Users },
-  { id: 3, title: "时限配置", icon: Calendar },
+  { id: 3, title: "时限配置", icon: CalendarIcon },
   { id: 4, title: "预览发布", icon: Rocket },
 ];
 
@@ -47,6 +56,13 @@ const teamMembers = [
   { id: "4", name: "赵强", department: "市场部", avatar: "赵" },
   { id: "5", name: "陈静", department: "运营部", avatar: "陈" },
   { id: "6", name: "刘洋", department: "产品部", avatar: "刘" },
+];
+
+const reviewerOptions = [
+  { id: "wang", name: "王总", title: "总经理" },
+  { id: "li", name: "李经理", title: "部门经理" },
+  { id: "zhang", name: "张主管", title: "项目主管" },
+  { id: "chen", name: "陈总监", title: "技术总监" },
 ];
 
 const departmentOptions = [
@@ -72,8 +88,9 @@ export default function TaskCreate() {
   const [templateFile, setTemplateFile] = useState<File | null>(null);
   const [templatePageCount, setTemplatePageCount] = useState<number>(0);
   const [assignments, setAssignments] = useState<Assignment[]>([]);
-  const [deadline, setDeadline] = useState("");
-  const [reviewer, setReviewer] = useState("self");
+  const [deadlineDate, setDeadlineDate] = useState<Date>();
+  const [deadlineTime, setDeadlineTime] = useState("18:00");
+  const [reviewer, setReviewer] = useState("wang");
   const navigate = useNavigate();
   const { toast } = useToast();
   const { addTask } = useTaskContext();
@@ -187,11 +204,15 @@ export default function TaskCreate() {
       };
     });
 
+    const formattedDeadline = deadlineDate 
+      ? `${format(deadlineDate, "yyyy-MM-dd")} ${deadlineTime}`
+      : new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 16).replace('T', ' ');
+
     addTask({
       title: taskTitle,
       type: taskType as "PPT" | "日报" | "周报" | "审核",
       department: taskDepartment,
-      deadline: deadline || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 16).replace('T', ' '),
+      deadline: formattedDeadline,
       createdBy: "当前用户",
       createdByAvatar: "我",
       templateFileName: templateFile?.name,
@@ -529,24 +550,53 @@ export default function TaskCreate() {
               </CardHeader>
               <CardContent className="space-y-6">
                 <div className="space-y-2">
-                  <Label>截止时间</Label>
-                  <Input
-                    type="datetime-local"
-                    value={deadline}
-                    onChange={(e) => setDeadline(e.target.value)}
-                  />
+                  <Label>截止日期</Label>
+                  <div className="flex gap-3">
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="outline"
+                          className={cn(
+                            "w-[200px] justify-start text-left font-normal",
+                            !deadlineDate && "text-muted-foreground"
+                          )}
+                        >
+                          <CalendarIcon className="mr-2 h-4 w-4" />
+                          {deadlineDate ? format(deadlineDate, "yyyy年MM月dd日", { locale: zhCN }) : "选择日期"}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <Calendar
+                          mode="single"
+                          selected={deadlineDate}
+                          onSelect={setDeadlineDate}
+                          initialFocus
+                          className={cn("p-3 pointer-events-auto")}
+                        />
+                      </PopoverContent>
+                    </Popover>
+                    <Input
+                      type="time"
+                      value={deadlineTime}
+                      onChange={(e) => setDeadlineTime(e.target.value)}
+                      className="w-[120px]"
+                    />
+                  </div>
                 </div>
 
                 <div className="space-y-2">
                   <Label>审核人</Label>
                   <Select value={reviewer} onValueChange={setReviewer}>
                     <SelectTrigger>
-                      <SelectValue placeholder="选择审核人（默认为自己）" />
+                      <SelectValue placeholder="选择审核人" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="self">我自己</SelectItem>
-                      <SelectItem value="wang">王总</SelectItem>
-                      <SelectItem value="li">李经理</SelectItem>
+                      {reviewerOptions.map((r) => (
+                        <SelectItem key={r.id} value={r.id}>
+                          <span className="font-medium">{r.name}</span>
+                          <span className="text-muted-foreground ml-2">({r.title})</span>
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
@@ -587,7 +637,20 @@ export default function TaskCreate() {
                   </div>
                   <div className="flex items-center justify-between py-2 border-b border-border">
                     <span className="text-muted-foreground">截止时间</span>
-                    <span>{deadline || "未设置"}</span>
+                    <span>
+                      {deadlineDate 
+                        ? `${format(deadlineDate, "yyyy年MM月dd日", { locale: zhCN })} ${deadlineTime}`
+                        : "未设置"}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between py-2 border-b border-border">
+                    <span className="text-muted-foreground">审核人</span>
+                    <span>
+                      {reviewerOptions.find(r => r.id === reviewer)?.name || ""} 
+                      <span className="text-muted-foreground ml-1">
+                        ({reviewerOptions.find(r => r.id === reviewer)?.title || ""})
+                      </span>
+                    </span>
                   </div>
                 </div>
 

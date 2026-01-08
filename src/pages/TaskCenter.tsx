@@ -16,7 +16,8 @@ import {
   FileText,
   Users,
   Calendar,
-  MoreHorizontal
+  MoreHorizontal,
+  Trash2
 } from "lucide-react";
 import {
   Select,
@@ -75,7 +76,7 @@ export default function TaskCenter() {
     assignee: Assignee;
   } | null>(null);
   const navigate = useNavigate();
-  const { tasks, reviewSubmission } = useTaskContext();
+  const { tasks, reviewSubmission, deleteTask } = useTaskContext();
 
   const toggleExpand = (taskId: string) => {
     setExpandedTasks(prev => 
@@ -311,8 +312,15 @@ export default function TaskCenter() {
                             <DropdownMenuContent align="end">
                               <DropdownMenuItem>编辑任务</DropdownMenuItem>
                               <DropdownMenuItem>催办提醒</DropdownMenuItem>
-                              <DropdownMenuItem className="text-destructive">
-                                结束任务
+                              <DropdownMenuItem 
+                                className="text-destructive focus:text-destructive"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  deleteTask(task.id);
+                                }}
+                              >
+                                <Trash2 className="h-4 w-4 mr-2" />
+                                删除任务
                               </DropdownMenuItem>
                             </DropdownMenuContent>
                           </DropdownMenu>
