@@ -22,100 +22,86 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { TaskProcessDrawer } from "@/components/drawers/TaskProcessDrawer";
-
-const tasks = [
-  {
-    id: "1",
-    title: "Q4季度汇报PPT制作",
-    leader: "王总",
-    leaderAvatar: "王",
-    requirement: "制作3页PPT，包含公司简介、业务数据、未来规划",
-    deadline: "2024-01-15 18:00",
-    status: "pending",
-    statusText: "待处理",
-    urgent: true,
-    hasTemplate: true,
-  },
-  {
-    id: "2",
-    title: "产品功能演示文档",
-    leader: "李经理",
-    leaderAvatar: "李",
-    requirement: "整理产品核心功能，制作演示PPT",
-    deadline: "2024-01-16 12:00",
-    status: "pending",
-    statusText: "待处理",
-    urgent: false,
-    hasTemplate: true,
-  },
-  {
-    id: "3",
-    title: "年度总结报告",
-    leader: "张总",
-    leaderAvatar: "张",
-    requirement: "完成技术部年度工作总结",
-    deadline: "2024-01-18 17:00",
-    status: "rejected",
-    statusText: "已驳回",
-    urgent: false,
-    hasTemplate: false,
-    rejectReason: "数据有误，请核实后重新提交",
-  },
-  {
-    id: "4",
-    title: "客户案例分析PPT",
-    leader: "赵总",
-    leaderAvatar: "赵",
-    requirement: "分析近期成功案例，总结经验",
-    deadline: "2024-01-20 17:00",
-    status: "submitted",
-    statusText: "已提交",
-    urgent: false,
-    hasTemplate: true,
-  },
-  {
-    id: "5",
-    title: "项目进度报告",
-    leader: "王总",
-    leaderAvatar: "王",
-    requirement: "汇报当前项目进度和风险点",
-    deadline: "2024-01-14 18:00",
-    status: "pending",
-    statusText: "待处理",
-    urgent: true,
-    hasTemplate: false,
-  },
-];
+import { useTaskContext, Task, Assignee } from "@/contexts/TaskContext";
 
 const statusStyles = {
   pending: "bg-warning/10 text-warning border-warning/20",
-  submitted: "bg-success/10 text-success border-success/20",
+  submitted: "bg-info/10 text-info border-info/20",
+  approved: "bg-success/10 text-success border-success/20",
   rejected: "bg-destructive/10 text-destructive border-destructive/20",
+};
+
+const statusLabels = {
+  pending: "待处理",
+  submitted: "已提交",
+  approved: "已通过",
+  rejected: "已驳回",
 };
 
 const statusFilters = [
   { value: "all", label: "全部状态" },
   { value: "pending", label: "待处理" },
   { value: "submitted", label: "已提交" },
+  { value: "approved", label: "已通过" },
   { value: "rejected", label: "已驳回" },
 ];
+
+// Current user (simulated - in real app would come from auth)
+const CURRENT_USER = "张明";
 
 export default function TodoCenter() {
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
-  const [selectedTask, setSelectedTask] = useState<typeof tasks[0] | null>(null);
+  const [selectedItem, setSelectedItem] = useState<{ task: Task; assignee: Assignee } | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
+  
+  const { tasks, submitWork } = useTaskContext();
 
-  const filteredTasks = tasks.filter((task) => {
+  // Get tasks assigned to current user
+  const myTasks = tasks.flatMap(task => {
+    const assignee = task.assignees.find(a => a.name === CURRENT_USER);
+    if (assignee) {
+      return [{ task, assignee }];
+    }
+    return [];
+  });
+
+  const filteredTasks = myTasks.filter(({ task, assignee }) => {
     const matchesSearch = task.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      task.leader.includes(searchQuery);
-    const matchesStatus = statusFilter === "all" || task.status === statusFilter;
+      task.createdBy.includes(searchQuery);
+    const matchesStatus = statusFilter === "all" || assignee.status === statusFilter;
     return matchesSearch && matchesStatus;
   });
 
-  const handleProcessTask = (task: typeof tasks[0]) => {
-    setSelectedTask(task);
+  const handleProcessTask = (task: Task, assignee: Assignee) => {
+    setSelectedItem({ task, assignee });
     setDrawerOpen(true);
+  };
+
+  const handleSubmit = (file: File, note: string) => {
+    if (!selectedItem) return;
+    
+    submitWork(selectedItem.task.id, selectedItem.assignee.id, {
+      fileName: file.name,
+      fileSize: file.size / (1024 * 1024),
+      submittedAt: new Date().toISOString().replace('T', ' ').slice(0, 16),
+      note,
+    });
+    
+    setDrawerOpen(false);
+  };
+
+  // Calculate deadline urgency
+  const getDeadlineInfo = (deadline: string) => {
+    const deadlineDate = new Date(deadline);
+    const now = new Date();
+    const diff = deadlineDate.getTime() - now.getTime();
+    const hours = Math.floor(diff / (1000 * 60 * 60));
+    return {
+      hours,
+      isUrgent: hours > 0 && hours < 24,
+      isOverdue: hours <= 0,
+    };
   };
 
   return (
@@ -157,86 +143,106 @@ export default function TodoCenter() {
 
         {/* Task Cards */}
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {filteredTasks.map((task, index) => (
-            <Card 
-              key={task.id}
-              className="shadow-card hover:shadow-elevated transition-all duration-200 hover:border-primary/30 animate-slide-up"
-              style={{ animationDelay: `${index * 50}ms` }}
-            >
-              <CardContent className="p-5">
-                <div className="space-y-4">
-                  {/* Header */}
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1">
-                        <h3 className="font-semibold text-foreground truncate">
-                          {task.title}
-                        </h3>
-                        {task.urgent && (
-                          <Badge variant="destructive" className="shrink-0 text-[10px] px-1.5 py-0">
-                            紧急
-                          </Badge>
-                        )}
+          {filteredTasks.map(({ task, assignee }, index) => {
+            const deadlineInfo = getDeadlineInfo(task.deadline);
+            const latestSubmission = assignee.submissions[assignee.submissions.length - 1];
+            
+            return (
+              <Card 
+                key={`${task.id}-${assignee.id}`}
+                className="shadow-card hover:shadow-elevated transition-all duration-200 hover:border-primary/30 animate-slide-up"
+                style={{ animationDelay: `${index * 50}ms` }}
+              >
+                <CardContent className="p-5">
+                  <div className="space-y-4">
+                    {/* Header */}
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1">
+                          <h3 className="font-semibold text-foreground truncate">
+                            {task.title}
+                          </h3>
+                          {deadlineInfo.isUrgent && (
+                            <Badge variant="destructive" className="shrink-0 text-[10px] px-1.5 py-0">
+                              紧急
+                            </Badge>
+                          )}
+                        </div>
+                        <Badge className={statusStyles[assignee.status]}>
+                          {statusLabels[assignee.status]}
+                        </Badge>
                       </div>
-                      <Badge className={statusStyles[task.status as keyof typeof statusStyles]}>
-                        {task.statusText}
+                    </div>
+
+                    {/* Leader Info */}
+                    <div className="flex items-center gap-2">
+                      <Avatar className="h-6 w-6">
+                        <AvatarFallback className="bg-primary/10 text-primary text-xs">
+                          {task.createdByAvatar}
+                        </AvatarFallback>
+                      </Avatar>
+                      <span className="text-sm text-muted-foreground">
+                        <User className="inline h-3 w-3 mr-1" />
+                        {task.createdBy}
+                      </span>
+                    </div>
+
+                    {/* Task Description */}
+                    <p className="text-sm text-muted-foreground line-clamp-2">
+                      <FileText className="inline h-3 w-3 mr-1" />
+                      {assignee.taskDescription}
+                    </p>
+
+                    {/* Page Range */}
+                    {assignee.pageRange && (
+                      <Badge variant="outline" className="text-xs">
+                        负责第 {assignee.pageRange} 页
                       </Badge>
-                    </div>
-                  </div>
+                    )}
 
-                  {/* Leader Info */}
-                  <div className="flex items-center gap-2">
-                    <Avatar className="h-6 w-6">
-                      <AvatarFallback className="bg-primary/10 text-primary text-xs">
-                        {task.leaderAvatar}
-                      </AvatarFallback>
-                    </Avatar>
-                    <span className="text-sm text-muted-foreground">
-                      <User className="inline h-3 w-3 mr-1" />
-                      {task.leader}
-                    </span>
-                  </div>
+                    {/* Reject Reason */}
+                    {assignee.status === "rejected" && latestSubmission?.feedback && (
+                      <div className="rounded-lg bg-destructive/5 border border-destructive/20 p-3">
+                        <p className="text-xs text-destructive font-medium">驳回原因</p>
+                        <p className="text-sm text-destructive/80 mt-1">{latestSubmission.feedback}</p>
+                      </div>
+                    )}
 
-                  {/* Requirement */}
-                  <p className="text-sm text-muted-foreground line-clamp-2">
-                    <FileText className="inline h-3 w-3 mr-1" />
-                    {task.requirement}
-                  </p>
+                    {/* Approval Info */}
+                    {assignee.status === "approved" && latestSubmission?.feedback && (
+                      <div className="rounded-lg bg-success/5 border border-success/20 p-3">
+                        <p className="text-xs text-success font-medium">审批通过</p>
+                        <p className="text-sm text-success/80 mt-1">{latestSubmission.feedback}</p>
+                      </div>
+                    )}
 
-                  {/* Reject Reason */}
-                  {task.status === "rejected" && task.rejectReason && (
-                    <div className="rounded-lg bg-destructive/5 border border-destructive/20 p-3">
-                      <p className="text-xs text-destructive font-medium">驳回原因</p>
-                      <p className="text-sm text-destructive/80 mt-1">{task.rejectReason}</p>
-                    </div>
-                  )}
-
-                  {/* Footer */}
-                  <div className="flex items-center justify-between pt-2 border-t border-border">
-                    <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                      <Calendar className="h-3 w-3" />
-                      <span>截止：{task.deadline}</span>
-                    </div>
-                    
-                    <div className="flex gap-2">
-                      {task.hasTemplate && (
-                        <Button variant="ghost" size="sm" className="h-8 px-2">
-                          <Download className="h-4 w-4" />
+                    {/* Footer */}
+                    <div className="flex items-center justify-between pt-2 border-t border-border">
+                      <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                        <Calendar className="h-3 w-3" />
+                        <span>截止：{task.deadline}</span>
+                      </div>
+                      
+                      <div className="flex gap-2">
+                        {task.templateFileName && (
+                          <Button variant="ghost" size="sm" className="h-8 px-2">
+                            <Download className="h-4 w-4" />
+                          </Button>
+                        )}
+                        <Button 
+                          size="sm" 
+                          className="h-8 gradient-primary"
+                          onClick={() => handleProcessTask(task, assignee)}
+                        >
+                          {assignee.status === "pending" || assignee.status === "rejected" ? "处理" : "查看"}
                         </Button>
-                      )}
-                      <Button 
-                        size="sm" 
-                        className="h-8 gradient-primary"
-                        onClick={() => handleProcessTask(task)}
-                      >
-                        {task.status === "submitted" ? "查看" : "处理"}
-                      </Button>
+                      </div>
                     </div>
                   </div>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+                </CardContent>
+              </Card>
+            );
+          })}
         </div>
 
         {filteredTasks.length === 0 && (
@@ -254,7 +260,9 @@ export default function TodoCenter() {
       <TaskProcessDrawer
         open={drawerOpen}
         onOpenChange={setDrawerOpen}
-        task={selectedTask}
+        task={selectedItem?.task}
+        assignee={selectedItem?.assignee}
+        onSubmit={handleSubmit}
       />
     </AppLayout>
   );

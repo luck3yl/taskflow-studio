@@ -38,75 +38,7 @@ import {
 } from "@/components/ui/collapsible";
 import { useNavigate } from "react-router-dom";
 import { ReviewDrawer } from "@/components/drawers/ReviewDrawer";
-
-const tasks = [
-  {
-    id: "1",
-    title: "Q4季度汇报PPT",
-    type: "PPT",
-    department: "技术部",
-    createdAt: "2024-01-10",
-    deadline: "2024-01-15",
-    totalAssignees: 5,
-    completedCount: 3,
-    status: "in_progress",
-    assignees: [
-      { id: "a1", name: "张明", avatar: "张", status: "submitted", submittedAt: "2024-01-13 14:30", taskDescription: "负责前3页：公司简介与业务概述" },
-      { id: "a2", name: "李华", avatar: "李", status: "pending", submittedAt: null, taskDescription: "负责第4-6页：财务数据与分析" },
-      { id: "a3", name: "王芳", avatar: "王", status: "approved", submittedAt: "2024-01-12 10:00", taskDescription: "负责第7-9页：市场趋势分析" },
-      { id: "a4", name: "赵强", avatar: "赵", status: "approved", submittedAt: "2024-01-11 16:45", taskDescription: "负责第10-12页：未来规划" },
-      { id: "a5", name: "陈静", avatar: "陈", status: "rejected", submittedAt: "2024-01-13 09:00", taskDescription: "负责最后3页：总结与致谢" },
-    ],
-  },
-  {
-    id: "2",
-    title: "产品功能演示",
-    type: "PPT",
-    department: "产品部",
-    createdAt: "2024-01-08",
-    deadline: "2024-01-18",
-    totalAssignees: 3,
-    completedCount: 1,
-    status: "in_progress",
-    assignees: [
-      { id: "b1", name: "刘洋", avatar: "刘", status: "approved", submittedAt: "2024-01-12 11:30", taskDescription: "产品核心功能介绍" },
-      { id: "b2", name: "周婷", avatar: "周", status: "pending", submittedAt: null, taskDescription: "用户操作流程演示" },
-      { id: "b3", name: "吴磊", avatar: "吴", status: "pending", submittedAt: null, taskDescription: "竞品对比分析" },
-    ],
-  },
-  {
-    id: "3",
-    title: "年度工作总结",
-    type: "日报",
-    department: "全公司",
-    createdAt: "2024-01-05",
-    deadline: "2024-01-20",
-    totalAssignees: 8,
-    completedCount: 6,
-    status: "in_progress",
-    assignees: [
-      { id: "c1", name: "郑伟", avatar: "郑", status: "approved", submittedAt: "2024-01-10 09:00", taskDescription: "技术部年度总结" },
-      { id: "c2", name: "孙丽", avatar: "孙", status: "approved", submittedAt: "2024-01-10 10:30", taskDescription: "人事部年度总结" },
-      { id: "c3", name: "马超", avatar: "马", status: "submitted", submittedAt: "2024-01-14 15:00", taskDescription: "市场部年度总结" },
-      { id: "c4", name: "朱敏", avatar: "朱", status: "pending", submittedAt: null, taskDescription: "财务部年度总结" },
-    ],
-  },
-  {
-    id: "4",
-    title: "客户方案设计",
-    type: "PPT",
-    department: "销售部",
-    createdAt: "2024-01-12",
-    deadline: "2024-01-22",
-    totalAssignees: 2,
-    completedCount: 0,
-    status: "in_progress",
-    assignees: [
-      { id: "d1", name: "黄伟", avatar: "黄", status: "pending", submittedAt: null, taskDescription: "客户需求分析与方案框架" },
-      { id: "d2", name: "林涛", avatar: "林", status: "pending", submittedAt: null, taskDescription: "报价方案与服务条款" },
-    ],
-  },
-];
+import { useTaskContext, Task, Assignee } from "@/contexts/TaskContext";
 
 const statusStyles = {
   pending: { bg: "bg-muted", dot: "bg-muted-foreground" },
@@ -127,6 +59,8 @@ const departmentFilters = [
   { value: "技术部", label: "技术部" },
   { value: "产品部", label: "产品部" },
   { value: "销售部", label: "销售部" },
+  { value: "市场部", label: "市场部" },
+  { value: "运营部", label: "运营部" },
   { value: "全公司", label: "全公司" },
 ];
 
@@ -134,13 +68,14 @@ export default function TaskCenter() {
   const [searchQuery, setSearchQuery] = useState("");
   const [typeFilter, setTypeFilter] = useState("all");
   const [departmentFilter, setDepartmentFilter] = useState("all");
-  const [expandedTasks, setExpandedTasks] = useState<string[]>(["1"]);
+  const [expandedTasks, setExpandedTasks] = useState<string[]>([]);
   const [reviewDrawerOpen, setReviewDrawerOpen] = useState(false);
-  const [selectedAssignee, setSelectedAssignee] = useState<{
-    taskTitle: string;
-    assignee: typeof tasks[0]["assignees"][0];
+  const [selectedReview, setSelectedReview] = useState<{
+    task: Task;
+    assignee: Assignee;
   } | null>(null);
   const navigate = useNavigate();
+  const { tasks, reviewSubmission } = useTaskContext();
 
   const toggleExpand = (taskId: string) => {
     setExpandedTasks(prev => 
@@ -150,9 +85,39 @@ export default function TaskCenter() {
     );
   };
 
-  const handleReview = (taskTitle: string, assignee: typeof tasks[0]["assignees"][0]) => {
-    setSelectedAssignee({ taskTitle, assignee });
+  const handleReview = (task: Task, assignee: Assignee) => {
+    setSelectedReview({ task, assignee });
     setReviewDrawerOpen(true);
+  };
+
+  const handleApprove = () => {
+    if (!selectedReview) return;
+    const latestSubmission = selectedReview.assignee.submissions[selectedReview.assignee.submissions.length - 1];
+    if (latestSubmission) {
+      reviewSubmission(
+        selectedReview.task.id,
+        selectedReview.assignee.id,
+        latestSubmission.id,
+        true,
+        "准予通过"
+      );
+    }
+    setReviewDrawerOpen(false);
+  };
+
+  const handleReject = (feedback: string) => {
+    if (!selectedReview) return;
+    const latestSubmission = selectedReview.assignee.submissions[selectedReview.assignee.submissions.length - 1];
+    if (latestSubmission) {
+      reviewSubmission(
+        selectedReview.task.id,
+        selectedReview.assignee.id,
+        latestSubmission.id,
+        false,
+        feedback
+      );
+    }
+    setReviewDrawerOpen(false);
   };
 
   const filteredTasks = tasks.filter((task) => {
@@ -161,6 +126,12 @@ export default function TaskCenter() {
     const matchesDepartment = departmentFilter === "all" || task.department === departmentFilter;
     return matchesSearch && matchesType && matchesDepartment;
   });
+
+  // Calculate stats
+  const totalParticipants = tasks.reduce((sum, t) => sum + t.totalAssignees, 0);
+  const totalCompleted = tasks.reduce((sum, t) => sum + t.completedCount, 0);
+  const totalTotal = tasks.reduce((sum, t) => sum + t.totalAssignees, 0);
+  const overallProgress = totalTotal > 0 ? Math.round((totalCompleted / totalTotal) * 100) : 0;
 
   return (
     <AppLayout title="任务中心">
@@ -235,7 +206,7 @@ export default function TaskCenter() {
                 <Users className="h-6 w-6 text-primary-foreground" />
               </div>
               <div>
-                <p className="text-2xl font-bold">16</p>
+                <p className="text-2xl font-bold">{totalParticipants}</p>
                 <p className="text-sm text-muted-foreground">参与人员</p>
               </div>
             </CardContent>
@@ -246,7 +217,7 @@ export default function TaskCenter() {
                 <Calendar className="h-6 w-6 text-primary-foreground" />
               </div>
               <div>
-                <p className="text-2xl font-bold">62%</p>
+                <p className="text-2xl font-bold">{overallProgress}%</p>
                 <p className="text-sm text-muted-foreground">整体完成率</p>
               </div>
             </CardContent>
@@ -257,7 +228,9 @@ export default function TaskCenter() {
         <div className="space-y-4">
           {filteredTasks.map((task, index) => {
             const isExpanded = expandedTasks.includes(task.id);
-            const progress = (task.completedCount / task.totalAssignees) * 100;
+            const progress = task.totalAssignees > 0 
+              ? (task.completedCount / task.totalAssignees) * 100 
+              : 0;
 
             return (
               <Collapsible 
@@ -287,6 +260,11 @@ export default function TaskCenter() {
                               <Badge variant="secondary" className="text-xs">
                                 {task.department}
                               </Badge>
+                              {task.templatePageCount && (
+                                <Badge variant="outline" className="text-xs text-primary border-primary/30">
+                                  {task.templatePageCount}页
+                                </Badge>
+                              )}
                               <span className="text-xs text-muted-foreground">
                                 截止：{task.deadline}
                               </span>
@@ -302,7 +280,7 @@ export default function TaskCenter() {
                                 key={assignee.id} 
                                 className="h-8 w-8 border-2 border-card"
                               >
-                                <AvatarFallback className={`text-xs ${statusStyles[assignee.status as keyof typeof statusStyles].bg}`}>
+                                <AvatarFallback className={`text-xs ${statusStyles[assignee.status].bg}`}>
                                   {assignee.avatar}
                                 </AvatarFallback>
                               </Avatar>
@@ -363,7 +341,7 @@ export default function TaskCenter() {
                                         {assignee.avatar}
                                       </AvatarFallback>
                                     </Avatar>
-                                    <div className={`absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-card ${statusStyles[assignee.status as keyof typeof statusStyles].dot}`} />
+                                    <div className={`absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-card ${statusStyles[assignee.status].dot}`} />
                                   </div>
                                   <div>
                                     <p className="text-sm font-medium">{assignee.name}</p>
@@ -375,12 +353,12 @@ export default function TaskCenter() {
                                     </p>
                                   </div>
                                 </div>
-                                {(assignee.status === "submitted" || assignee.status === "approved") && (
+                                {(assignee.status === "submitted" || assignee.status === "approved" || assignee.status === "rejected") && (
                                   <Button 
                                     variant="ghost" 
                                     size="sm"
                                     className="h-7 px-2"
-                                    onClick={() => handleReview(task.title, assignee)}
+                                    onClick={() => handleReview(task, assignee)}
                                   >
                                     <Eye className="h-3.5 w-3.5 mr-1" />
                                     查看
@@ -391,6 +369,11 @@ export default function TaskCenter() {
                                 <FileText className="inline h-3 w-3 mr-1" />
                                 {assignee.taskDescription}
                               </div>
+                              {assignee.pageRange && (
+                                <Badge variant="outline" className="text-xs mt-2 w-fit">
+                                  第 {assignee.pageRange} 页
+                                </Badge>
+                              )}
                             </div>
                           ))}
                         </div>
@@ -401,6 +384,16 @@ export default function TaskCenter() {
               </Collapsible>
             );
           })}
+
+          {filteredTasks.length === 0 && (
+            <div className="flex flex-col items-center justify-center py-16 text-center">
+              <div className="h-16 w-16 rounded-full bg-muted flex items-center justify-center mb-4">
+                <FileText className="h-8 w-8 text-muted-foreground" />
+              </div>
+              <h3 className="font-medium text-foreground">暂无任务</h3>
+              <p className="text-sm text-muted-foreground mt-1">点击"创建任务"开始分派工作</p>
+            </div>
+          )}
         </div>
       </div>
 
@@ -408,8 +401,10 @@ export default function TaskCenter() {
       <ReviewDrawer
         open={reviewDrawerOpen}
         onOpenChange={setReviewDrawerOpen}
-        taskTitle={selectedAssignee?.taskTitle}
-        assignee={selectedAssignee?.assignee}
+        task={selectedReview?.task}
+        assignee={selectedReview?.assignee}
+        onApprove={handleApprove}
+        onReject={handleReject}
       />
     </AppLayout>
   );
