@@ -15,11 +15,12 @@ import {
   CheckCircle2,
   XCircle,
   Clock,
-  Monitor
+  Eye
 } from "lucide-react";
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { Task, Assignee } from "@/contexts/TaskContext";
+import { FilePreviewDialog } from "@/components/ppt/FilePreviewDialog";
 import { PPTistViewer } from "@/components/ppt/PPTistViewer";
 
 interface ReviewDrawerProps {
@@ -49,6 +50,7 @@ export function ReviewDrawer({
 }: ReviewDrawerProps) {
   const [feedback, setFeedback] = useState("");
   const [showPPTist, setShowPPTist] = useState(false);
+  const [filePreviewOpen, setFilePreviewOpen] = useState(false);
   const { toast } = useToast();
 
   if (!task || !assignee) return null;
@@ -148,6 +150,14 @@ export function ReviewDrawer({
                     {latestSubmission.fileSize?.toFixed(2)} MB
                   </p>
                 </div>
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={() => setFilePreviewOpen(true)}
+                >
+                  <Eye className="h-4 w-4 mr-1" />
+                  预览
+                </Button>
                 <Button variant="outline" size="sm">
                   <Download className="h-4 w-4 mr-1" />
                   下载
@@ -159,46 +169,41 @@ export function ReviewDrawer({
                   <p className="text-sm mt-1">{latestSubmission.note}</p>
                 </div>
               )}
+              
+              <FilePreviewDialog
+                open={filePreviewOpen}
+                onOpenChange={setFilePreviewOpen}
+                fileName={latestSubmission.fileName}
+                fileUrl={latestSubmission.fileUrl}
+              />
             </div>
           )}
 
-          {/* PPT Preview */}
+          {/* PPTist Demo Preview */}
           <div className="space-y-3">
             <div className="flex items-center justify-between">
-              <h4 className="font-semibold text-foreground">成果预览</h4>
+              <h4 className="font-semibold text-foreground">PPTist 演示</h4>
               <Button 
                 variant={showPPTist ? "default" : "outline"} 
                 size="sm"
                 onClick={() => setShowPPTist(!showPPTist)}
               >
-                <Monitor className="h-4 w-4 mr-2" />
-                {showPPTist ? "关闭预览" : "在线预览"}
+                <Eye className="h-4 w-4 mr-2" />
+                {showPPTist ? "关闭演示" : "打开演示"}
               </Button>
             </div>
             
-            {showPPTist ? (
-              <PPTistViewer 
-                title={`${assignee.name} - ${assignee.pageRange ? `第${assignee.pageRange}页` : "提交内容"}`}
-                height="400px"
-                mode="screen"
-                defaultScreen={true}
-              />
-            ) : (
-              <div className="rounded-xl border border-border bg-muted/30 overflow-hidden">
-                <div className="aspect-[16/9] flex items-center justify-center bg-gradient-to-br from-primary/5 to-primary/10">
-                  <div className="text-center p-8">
-                    <FileText className="h-16 w-16 mx-auto text-primary/40 mb-4" />
-                    <p className="text-lg font-medium text-foreground">PPT 预览区域</p>
-                    <p className="text-sm text-muted-foreground mt-1">
-                      点击"在线预览"查看完整PPT
-                    </p>
-                    {assignee.pageRange && (
-                      <Badge variant="outline" className="mt-3">
-                        负责第 {assignee.pageRange} 页
-                      </Badge>
-                    )}
-                  </div>
-                </div>
+            {showPPTist && (
+              <div className="space-y-2">
+                <PPTistViewer 
+                  title="PPTist 在线演示"
+                  height="400px"
+                  mode="screen"
+                  defaultScreen={true}
+                />
+                <p className="text-xs text-muted-foreground text-center">
+                  提示：点击"放映"按钮进入全屏无编辑区域的演示模式
+                </p>
               </div>
             )}
           </div>
