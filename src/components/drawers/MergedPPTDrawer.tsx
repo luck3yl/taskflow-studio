@@ -13,10 +13,13 @@ import {
   FileText, 
   CheckCircle2,
   Clock,
-  Layers
+  Layers,
+  Eye
 } from "lucide-react";
+import { useState } from "react";
 import { Task } from "@/contexts/TaskContext";
 import { PPTistViewer } from "@/components/ppt/PPTistViewer";
+import { FilePreviewDialog } from "@/components/ppt/FilePreviewDialog";
 
 interface MergedPPTDrawerProps {
   open: boolean;
@@ -29,6 +32,11 @@ export function MergedPPTDrawer({
   onOpenChange, 
   task 
 }: MergedPPTDrawerProps) {
+  const [selectedFilePreview, setSelectedFilePreview] = useState<{
+    fileName: string;
+    fileUrl?: string;
+  } | null>(null);
+
   if (!task) return null;
 
   const approvedAssignees = task.assignees.filter(a => a.status === "approved");
@@ -125,6 +133,19 @@ export function MergedPPTDrawer({
                       </p>
                     </div>
                     <div className="flex items-center gap-2">
+                      {latestSubmission?.fileUrl && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 px-2"
+                          onClick={() => setSelectedFilePreview({
+                            fileName: latestSubmission.fileName,
+                            fileUrl: latestSubmission.fileUrl
+                          })}
+                        >
+                          <Eye className="h-3.5 w-3.5" />
+                        </Button>
+                      )}
                       {assignee.status === "approved" ? (
                         <CheckCircle2 className="h-4 w-4 text-success" />
                       ) : assignee.status === "submitted" ? (
@@ -153,10 +174,10 @@ export function MergedPPTDrawer({
 
           <Separator />
 
-          {/* PPTist Preview - 使用放映模式，最大化预览区域 */}
+          {/* PPTist Preview - 演示用 */}
           <div className="space-y-3">
             <div className="flex items-center justify-between">
-              <h4 className="font-semibold text-foreground">在线预览</h4>
+              <h4 className="font-semibold text-foreground">PPTist 演示</h4>
               <Button variant="outline" size="sm">
                 <Download className="h-4 w-4 mr-2" />
                 下载合并PPT
@@ -168,8 +189,18 @@ export function MergedPPTDrawer({
               mode="screen"
               defaultScreen={true}
             />
+            <p className="text-xs text-muted-foreground text-center">
+              提示：这是PPTist在线演示，点击PPT内的"放映"按钮可进入全屏无编辑区模式
+            </p>
           </div>
 
+          {/* File Preview Dialog */}
+          <FilePreviewDialog
+            open={!!selectedFilePreview}
+            onOpenChange={(open) => !open && setSelectedFilePreview(null)}
+            fileName={selectedFilePreview?.fileName || ""}
+            fileUrl={selectedFilePreview?.fileUrl}
+          />
           {/* Merged File Info */}
           {allApproved && (
             <>

@@ -22,6 +22,7 @@ import {
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { Task, Assignee } from "@/contexts/TaskContext";
+import { FilePreviewDialog } from "@/components/ppt/FilePreviewDialog";
 
 interface TaskProcessDrawerProps {
   open: boolean;
@@ -40,6 +41,7 @@ export function TaskProcessDrawer({
 }: TaskProcessDrawerProps) {
   const [note, setNote] = useState("");
   const [file, setFile] = useState<File | null>(null);
+  const [templatePreviewOpen, setTemplatePreviewOpen] = useState(false);
   const { toast } = useToast();
 
   if (!task || !assignee) return null;
@@ -138,26 +140,38 @@ export function TaskProcessDrawer({
             </div>
           </div>
 
-          {/* Template Download */}
+          {/* Template Download & Preview */}
           {task.templateFileName && (
             <div className="space-y-3">
               <h4 className="font-semibold text-foreground flex items-center gap-2">
                 <Download className="h-4 w-4 text-primary" />
                 模板文件
               </h4>
-              <Button variant="outline" className="w-full justify-start">
-                <FileText className="h-4 w-4 mr-2" />
-                <div className="flex-1 text-left">
-                  <span>{task.templateFileName}</span>
-                  {task.templatePageCount && (
-                    <span className="ml-2 text-xs text-muted-foreground">
-                      ({task.templatePageCount}页)
-                    </span>
-                  )}
-                </div>
-                <Eye className="h-4 w-4 mr-2 text-muted-foreground" />
-                <Download className="h-4 w-4" />
-              </Button>
+              <div className="flex gap-2">
+                <Button 
+                  variant="outline" 
+                  className="flex-1 justify-start"
+                  onClick={() => setTemplatePreviewOpen(true)}
+                >
+                  <FileText className="h-4 w-4 mr-2" />
+                  <div className="flex-1 text-left">
+                    <span>{task.templateFileName}</span>
+                    {task.templatePageCount && (
+                      <span className="ml-2 text-xs text-muted-foreground">
+                        ({task.templatePageCount}页)
+                      </span>
+                    )}
+                  </div>
+                  <Eye className="h-4 w-4" />
+                </Button>
+              </div>
+              
+              <FilePreviewDialog
+                open={templatePreviewOpen}
+                onOpenChange={setTemplatePreviewOpen}
+                fileName={task.templateFileName}
+                fileUrl={task.templateFileUrl}
+              />
             </div>
           )}
 

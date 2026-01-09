@@ -4,6 +4,7 @@ export interface Submission {
   id: string;
   fileName: string;
   fileSize: number;
+  fileUrl?: string; // 文件的URL，用于预览
   submittedAt: string;
   note?: string;
   status: "pending" | "approved" | "rejected";
@@ -35,6 +36,7 @@ export interface Task {
   templateFileName?: string;
   templateFileSize?: number;
   templatePageCount?: number;
+  templateFileUrl?: string; // 模板文件的URL，用于预览
   totalAssignees: number;
   completedCount: number;
   status: "in_progress" | "completed";
@@ -54,6 +56,9 @@ interface TaskContextType {
 const TaskContext = createContext<TaskContextType | undefined>(undefined);
 
 // Initial demo data
+// 示例PPT文件URL（公开可访问的示例文件）
+const DEMO_PPT_URL = "https://scholar.harvard.edu/files/torber/files/sample-slides.pptx";
+
 const initialTasks: Task[] = [
   {
     id: "task-1",
@@ -67,6 +72,7 @@ const initialTasks: Task[] = [
     templateFileName: "Q4季度模板.pptx",
     templateFileSize: 2.5,
     templatePageCount: 15,
+    templateFileUrl: DEMO_PPT_URL,
     totalAssignees: 5,
     completedCount: 2,
     status: "in_progress",
@@ -85,6 +91,7 @@ const initialTasks: Task[] = [
             id: "sub-1",
             fileName: "公司简介_张明.pptx",
             fileSize: 1.2,
+            fileUrl: DEMO_PPT_URL,
             submittedAt: "2024-01-13 14:30",
             note: "已完成公司简介部分",
             status: "pending",
@@ -116,6 +123,7 @@ const initialTasks: Task[] = [
             id: "sub-2",
             fileName: "市场分析_王芳.pptx",
             fileSize: 1.5,
+            fileUrl: DEMO_PPT_URL,
             submittedAt: "2024-01-12 10:00",
             status: "approved",
             feedback: "内容完整，准予通过",
@@ -137,6 +145,7 @@ const initialTasks: Task[] = [
             id: "sub-3",
             fileName: "未来规划_赵强.pptx",
             fileSize: 1.8,
+            fileUrl: DEMO_PPT_URL,
             submittedAt: "2024-01-11 16:45",
             status: "approved",
             feedback: "准予通过",
@@ -158,6 +167,7 @@ const initialTasks: Task[] = [
             id: "sub-4",
             fileName: "总结_陈静.pptx",
             fileSize: 0.8,
+            fileUrl: DEMO_PPT_URL,
             submittedAt: "2024-01-13 09:00",
             status: "rejected",
             feedback: "数据有误，请核实后重新提交",
@@ -179,6 +189,7 @@ const initialTasks: Task[] = [
     templateFileName: "产品演示模板.pptx",
     templateFileSize: 3.2,
     templatePageCount: 12,
+    templateFileUrl: DEMO_PPT_URL,
     totalAssignees: 3,
     completedCount: 1,
     status: "in_progress",
@@ -197,6 +208,7 @@ const initialTasks: Task[] = [
             id: "sub-5",
             fileName: "核心功能_刘洋.pptx",
             fileSize: 2.1,
+            fileUrl: DEMO_PPT_URL,
             submittedAt: "2024-01-12 11:30",
             status: "approved",
             feedback: "演示清晰，通过",
