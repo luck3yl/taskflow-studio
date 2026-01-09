@@ -125,8 +125,8 @@ export function PPTistViewer({
       </div>
       <iframe
         src={getPPTistUrl(currentMode)}
-        style={{ height }}
-        className="w-full border-0"
+        style={{ height: height === "100%" ? "100%" : height }}
+        className={cn("w-full border-0", height === "100%" && "h-full")}
         title={title}
         allow="fullscreen"
       />
