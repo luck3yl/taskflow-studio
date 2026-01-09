@@ -26,7 +26,7 @@ export interface Assignee {
 export interface Task {
   id: string;
   title: string;
-  type: "PPT" | "日报" | "周报" | "审核";
+  type: "周报" | "月报" | "年报" | "专项报告";
   department: string;
   createdAt: string;
   deadline: string;
@@ -58,7 +58,7 @@ const initialTasks: Task[] = [
   {
     id: "task-1",
     title: "Q4季度汇报PPT",
-    type: "PPT",
+    type: "年报",
     department: "技术部",
     createdAt: "2024-01-10",
     deadline: "2024-01-15 18:00",
@@ -170,7 +170,7 @@ const initialTasks: Task[] = [
   {
     id: "task-2",
     title: "产品功能演示",
-    type: "PPT",
+    type: "月报",
     department: "产品部",
     createdAt: "2024-01-08",
     deadline: "2024-01-18 12:00",

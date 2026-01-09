@@ -15,13 +15,12 @@ import {
   CheckCircle2,
   XCircle,
   Clock,
-  ChevronLeft,
-  ChevronRight,
-  Eye
+  Monitor
 } from "lucide-react";
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { Task, Assignee } from "@/contexts/TaskContext";
+import { PPTistViewer } from "@/components/ppt/PPTistViewer";
 
 interface ReviewDrawerProps {
   open: boolean;
@@ -49,13 +48,12 @@ export function ReviewDrawer({
   onReject
 }: ReviewDrawerProps) {
   const [feedback, setFeedback] = useState("");
-  const [currentSlide, setCurrentSlide] = useState(1);
+  const [showPPTist, setShowPPTist] = useState(false);
   const { toast } = useToast();
 
   if (!task || !assignee) return null;
 
   const latestSubmission = assignee.submissions[assignee.submissions.length - 1];
-  const totalSlides = task.templatePageCount || 6;
 
   const handleApprove = () => {
     if (onApprove) {
@@ -168,72 +166,39 @@ export function ReviewDrawer({
           <div className="space-y-3">
             <div className="flex items-center justify-between">
               <h4 className="font-semibold text-foreground">成果预览</h4>
-              <Button variant="outline" size="sm">
-                <Eye className="h-4 w-4 mr-2" />
-                全屏预览
+              <Button 
+                variant={showPPTist ? "default" : "outline"} 
+                size="sm"
+                onClick={() => setShowPPTist(!showPPTist)}
+              >
+                <Monitor className="h-4 w-4 mr-2" />
+                {showPPTist ? "关闭在线预览" : "在线预览"}
               </Button>
             </div>
             
-            {/* Preview Container */}
-            <div className="relative rounded-xl border border-border bg-muted/30 overflow-hidden">
-              {/* Slide Preview */}
-              <div className="aspect-[16/9] flex items-center justify-center bg-gradient-to-br from-primary/5 to-primary/10">
-                <div className="text-center p-8">
-                  <FileText className="h-16 w-16 mx-auto text-primary/40 mb-4" />
-                  <p className="text-lg font-medium text-foreground">PPT 预览区域</p>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    第 {currentSlide} 页 / 共 {totalSlides} 页
-                  </p>
+            {showPPTist ? (
+              <PPTistViewer 
+                title={`${assignee.name} - ${assignee.pageRange ? `第${assignee.pageRange}页` : "提交内容"}`}
+                height="400px"
+              />
+            ) : (
+              <div className="rounded-xl border border-border bg-muted/30 overflow-hidden">
+                <div className="aspect-[16/9] flex items-center justify-center bg-gradient-to-br from-primary/5 to-primary/10">
+                  <div className="text-center p-8">
+                    <FileText className="h-16 w-16 mx-auto text-primary/40 mb-4" />
+                    <p className="text-lg font-medium text-foreground">PPT 预览区域</p>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      点击"在线预览"查看完整PPT
+                    </p>
+                    {assignee.pageRange && (
+                      <Badge variant="outline" className="mt-3">
+                        负责第 {assignee.pageRange} 页
+                      </Badge>
+                    )}
+                  </div>
                 </div>
               </div>
-              
-              {/* Navigation */}
-              <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-2 bg-card/90 backdrop-blur-sm rounded-full px-3 py-1.5 shadow-md border border-border">
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-8 w-8"
-                  onClick={() => setCurrentSlide(Math.max(1, currentSlide - 1))}
-                  disabled={currentSlide === 1}
-                >
-                  <ChevronLeft className="h-4 w-4" />
-                </Button>
-                <span className="text-sm font-medium min-w-[60px] text-center">
-                  {currentSlide} / {totalSlides}
-                </span>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-8 w-8"
-                  onClick={() => setCurrentSlide(Math.min(totalSlides, currentSlide + 1))}
-                  disabled={currentSlide === totalSlides}
-                >
-                  <ChevronRight className="h-4 w-4" />
-                </Button>
-              </div>
-            </div>
-
-            {/* Thumbnail Strip */}
-            <div className="flex gap-2 overflow-x-auto pb-2">
-              {Array.from({ length: Math.min(totalSlides, 10) }).map((_, i) => (
-                <button
-                  key={i}
-                  onClick={() => setCurrentSlide(i + 1)}
-                  className={`shrink-0 w-20 h-12 rounded-lg border-2 transition-all ${
-                    currentSlide === i + 1 
-                      ? "border-primary bg-primary/10" 
-                      : "border-border bg-muted/30 hover:border-primary/50"
-                  }`}
-                >
-                  <span className="text-xs text-muted-foreground">{i + 1}</span>
-                </button>
-              ))}
-              {totalSlides > 10 && (
-                <div className="shrink-0 w-20 h-12 rounded-lg border border-border bg-muted/30 flex items-center justify-center">
-                  <span className="text-xs text-muted-foreground">+{totalSlides - 10}</span>
-                </div>
-              )}
-            </div>
+            )}
           </div>
 
           <Separator />
