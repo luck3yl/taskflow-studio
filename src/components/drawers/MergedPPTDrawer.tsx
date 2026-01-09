@@ -14,11 +14,13 @@ import {
   CheckCircle2,
   Clock,
   Layers,
-  Eye
+  Eye,
+  Play
 } from "lucide-react";
 import { useState } from "react";
 import { Task } from "@/contexts/TaskContext";
 import { FilePreviewDialog } from "@/components/ppt/FilePreviewDialog";
+import { PPTistViewer } from "@/components/ppt/PPTistViewer";
 
 interface MergedPPTDrawerProps {
   open: boolean;
@@ -132,7 +134,7 @@ export function MergedPPTDrawer({
                       </p>
                     </div>
                     <div className="flex items-center gap-2">
-                      {latestSubmission?.fileUrl && (
+                      {latestSubmission && (
                         <Button
                           variant="ghost"
                           size="sm"
@@ -141,8 +143,10 @@ export function MergedPPTDrawer({
                             fileName: latestSubmission.fileName,
                             fileUrl: latestSubmission.fileUrl
                           })}
+                          title="预览PPT"
                         >
-                          <Eye className="h-3.5 w-3.5" />
+                          <Eye className="h-3.5 w-3.5 mr-1" />
+                          <span className="text-xs">预览</span>
                         </Button>
                       )}
                       {assignee.status === "approved" ? (
@@ -173,24 +177,21 @@ export function MergedPPTDrawer({
 
           <Separator />
 
-          {/* 合并PPT下载 */}
+          {/* 合并PPT预览 */}
           <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <h4 className="font-semibold text-foreground">合并预览</h4>
-              <Button variant="outline" size="sm">
-                <Download className="h-4 w-4 mr-2" />
-                下载合并PPT
-              </Button>
+            <h4 className="font-semibold text-foreground">合并预览</h4>
+            <div className="rounded-lg border border-border overflow-hidden">
+              <PPTistViewer
+                title="合并PPT预览"
+                height="450px"
+                mode="screen"
+                defaultScreen={true}
+              />
             </div>
-            <div className="rounded-lg border border-border bg-muted/30 p-8 text-center">
-              <FileText className="h-12 w-12 mx-auto text-muted-foreground/50 mb-3" />
-              <p className="text-sm text-muted-foreground">
-                点击上方各成员的预览按钮查看其提交的PPT内容
-              </p>
-              <p className="text-xs text-muted-foreground mt-1">
-                全部通过审核后可下载合并版本
-              </p>
-            </div>
+            <p className="text-xs text-muted-foreground text-center">
+              <Play className="h-3 w-3 inline mr-1" />
+              提示：点击 "从头开始" 或 "从当前开始" 按钮进入纯放映模式
+            </p>
           </div>
 
           {/* File Preview Dialog */}
