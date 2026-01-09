@@ -1,9 +1,8 @@
-import { useState, useMemo } from "react";
-import DocViewer, { DocViewerRenderers } from "@cyntler/react-doc-viewer";
-import "@cyntler/react-doc-viewer/dist/index.css";
+import { useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { FileText, Download, Maximize2 } from "lucide-react";
+import { FileText, Download, Minimize2, Play } from "lucide-react";
+import { PPTistViewer } from "./PPTistViewer";
 
 interface FilePreviewDialogProps {
   open: boolean;
@@ -19,8 +18,8 @@ interface FilePreviewDialogProps {
 /**
  * 文件预览对话框
  * 
- * 使用 @cyntler/react-doc-viewer 在浏览器中直接渲染文档
- * 支持 PPTX, DOCX, PDF 等多种格式
+ * 使用PPTist进行PPT在线演示预览
+ * 由于本地PPT文件无法直接在浏览器中渲染，使用PPTist作为演示工具
  */
 export function FilePreviewDialog({ 
   open,
@@ -30,23 +29,6 @@ export function FilePreviewDialog({
   fileUrl
 }: FilePreviewDialogProps) {
   const [isFullscreen, setIsFullscreen] = useState(false);
-
-  // 生成用于预览的文档配置
-  const docs = useMemo(() => {
-    if (file) {
-      const blobUrl = URL.createObjectURL(file);
-      return [{ 
-        uri: blobUrl,
-        fileName: file.name,
-      }];
-    } else if (fileUrl) {
-      return [{ 
-        uri: fileUrl,
-        fileName: fileName,
-      }];
-    }
-    return [];
-  }, [file, fileUrl, fileName]);
 
   const handleDownload = () => {
     if (file) {
@@ -61,11 +43,11 @@ export function FilePreviewDialog({
     }
   };
 
-  // 全屏预览
+  // 全屏预览模式 - 最大化PPTist展示区域
   if (isFullscreen) {
     return (
       <div className="fixed inset-0 z-[100] bg-background flex flex-col">
-        <div className="flex items-center justify-between px-4 py-2 border-b border-border bg-muted/50">
+        <div className="flex items-center justify-between px-4 py-2 border-b border-border bg-muted/50 shrink-0">
           <div className="flex items-center gap-2">
             <FileText className="h-5 w-5 text-primary" />
             <span className="font-medium">{fileName}</span>
@@ -76,26 +58,25 @@ export function FilePreviewDialog({
               下载
             </Button>
             <Button variant="secondary" size="sm" onClick={() => setIsFullscreen(false)}>
+              <Minimize2 className="h-4 w-4 mr-2" />
               退出全屏
             </Button>
           </div>
         </div>
         <div className="flex-1 overflow-hidden">
-          {docs.length > 0 ? (
-            <DocViewer
-              documents={docs}
-              pluginRenderers={DocViewerRenderers}
-              config={{
-                header: { disableHeader: true },
-                pdfVerticalScrollByDefault: true
-              }}
-              style={{ height: "100%" }}
-            />
-          ) : (
-            <div className="flex items-center justify-center h-full">
-              <p className="text-muted-foreground">无法预览此文件</p>
-            </div>
-          )}
+          <PPTistViewer
+            title={fileName}
+            height="100%"
+            className="h-full border-0 rounded-none"
+            mode="screen"
+            defaultScreen={true}
+          />
+        </div>
+        <div className="px-4 py-2 border-t border-border bg-muted/30 text-center shrink-0">
+          <p className="text-xs text-muted-foreground">
+            <Play className="h-3 w-3 inline mr-1" />
+            提示：点击PPT区域内的 "从头开始" 或 "从当前开始" 按钮进入纯放映模式（无编辑区域）
+          </p>
         </div>
       </div>
     );
@@ -103,48 +84,42 @@ export function FilePreviewDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-5xl max-h-[90vh] flex flex-col">
-        <DialogHeader className="flex-shrink-0">
-          <DialogTitle className="flex items-center gap-2">
-            <FileText className="h-5 w-5 text-primary" />
-            {fileName}
-          </DialogTitle>
-        </DialogHeader>
-        
-        <div className="flex gap-2 mb-2">
-          <Button variant="outline" size="sm" onClick={() => setIsFullscreen(true)}>
-            <Maximize2 className="h-4 w-4 mr-2" />
-            全屏
-          </Button>
-          <Button variant="outline" size="sm" onClick={handleDownload}>
-            <Download className="h-4 w-4 mr-2" />
-            下载
-          </Button>
-        </div>
-
-        <div className="flex-1 overflow-hidden rounded-lg border border-border min-h-[500px]">
-          {docs.length > 0 ? (
-            <DocViewer
-              documents={docs}
-              pluginRenderers={DocViewerRenderers}
-              config={{
-                header: { disableHeader: true },
-                pdfVerticalScrollByDefault: true
-              }}
-              style={{ height: "100%", minHeight: "500px" }}
-            />
-          ) : (
-            <div className="flex items-center justify-center h-full min-h-[500px] bg-muted/30">
-              <div className="text-center">
-                <FileText className="h-16 w-16 mx-auto text-muted-foreground/40 mb-4" />
-                <p className="text-muted-foreground">无法预览此文件</p>
-                <Button variant="outline" size="sm" className="mt-4" onClick={handleDownload}>
-                  <Download className="h-4 w-4 mr-2" />
-                  下载文件
-                </Button>
-              </div>
+      <DialogContent className="max-w-[95vw] w-[1400px] h-[90vh] max-h-[90vh] flex flex-col p-0 overflow-hidden">
+        <DialogHeader className="px-6 py-4 border-b border-border shrink-0">
+          <div className="flex items-center justify-between">
+            <DialogTitle className="flex items-center gap-2">
+              <FileText className="h-5 w-5 text-primary" />
+              {fileName}
+            </DialogTitle>
+            <div className="flex gap-2">
+              <Button variant="outline" size="sm" onClick={() => setIsFullscreen(true)}>
+                全屏预览
+              </Button>
+              <Button variant="outline" size="sm" onClick={handleDownload}>
+                <Download className="h-4 w-4 mr-2" />
+                下载
+              </Button>
             </div>
-          )}
+          </div>
+        </DialogHeader>
+
+        {/* PPTist 预览区域 - 放大展示 */}
+        <div className="flex-1 overflow-hidden">
+          <PPTistViewer
+            title={fileName}
+            height="100%"
+            className="h-full border-0 rounded-none"
+            mode="screen"
+            defaultScreen={true}
+          />
+        </div>
+        
+        {/* 使用提示 */}
+        <div className="px-6 py-3 border-t border-border bg-muted/30 shrink-0">
+          <p className="text-xs text-muted-foreground text-center">
+            <Play className="h-3 w-3 inline mr-1" />
+            提示：点击PPT区域内的 "从头开始" 或 "从当前开始" 按钮进入纯放映模式（无编辑区域）
+          </p>
         </div>
       </DialogContent>
     </Dialog>
