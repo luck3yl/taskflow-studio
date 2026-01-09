@@ -66,7 +66,7 @@ export function MergedPPTDrawer({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="w-full sm:max-w-3xl overflow-y-auto">
+      <SheetContent className="w-full sm:max-w-5xl overflow-y-auto">
         <SheetHeader className="pb-4">
           <SheetTitle className="text-xl flex items-center gap-2">
             <Layers className="h-5 w-5 text-primary" />
@@ -183,7 +183,7 @@ export function MergedPPTDrawer({
             <div className="rounded-lg border border-border overflow-hidden">
               <PPTistViewer
                 title="合并PPT预览"
-                height="450px"
+                height="600px"
                 mode="screen"
                 defaultScreen={true}
               />
