@@ -17,7 +17,8 @@ import {
   Users,
   Calendar,
   MoreHorizontal,
-  Trash2
+  Trash2,
+  Layers
 } from "lucide-react";
 import {
   Select,
@@ -39,6 +40,7 @@ import {
 } from "@/components/ui/collapsible";
 import { useNavigate } from "react-router-dom";
 import { ReviewDrawer } from "@/components/drawers/ReviewDrawer";
+import { MergedPPTDrawer } from "@/components/drawers/MergedPPTDrawer";
 import { useTaskContext, Task, Assignee } from "@/contexts/TaskContext";
 
 const statusStyles = {
@@ -50,9 +52,10 @@ const statusStyles = {
 
 const typeFilters = [
   { value: "all", label: "全部类型" },
-  { value: "PPT", label: "PPT" },
-  { value: "日报", label: "日报" },
   { value: "周报", label: "周报" },
+  { value: "月报", label: "月报" },
+  { value: "年报", label: "年报" },
+  { value: "专项报告", label: "专项报告" },
 ];
 
 const departmentFilters = [
@@ -71,12 +74,19 @@ export default function TaskCenter() {
   const [departmentFilter, setDepartmentFilter] = useState("all");
   const [expandedTasks, setExpandedTasks] = useState<string[]>([]);
   const [reviewDrawerOpen, setReviewDrawerOpen] = useState(false);
+  const [mergedDrawerOpen, setMergedDrawerOpen] = useState(false);
+  const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [selectedReview, setSelectedReview] = useState<{
     task: Task;
     assignee: Assignee;
   } | null>(null);
   const navigate = useNavigate();
   const { tasks, reviewSubmission, deleteTask } = useTaskContext();
+
+  const handleViewMerged = (task: Task) => {
+    setSelectedTask(task);
+    setMergedDrawerOpen(true);
+  };
 
   const toggleExpand = (taskId: string) => {
     setExpandedTasks(prev => 
@@ -332,9 +342,29 @@ export default function TaskCenter() {
                   <CollapsibleContent>
                     <CardContent className="pt-0 pb-4">
                       <div className="border-t border-border pt-4">
-                        <h4 className="text-sm font-medium text-muted-foreground mb-3">
-                          子任务列表
-                        </h4>
+                        <div className="flex items-center justify-between mb-3">
+                          <h4 className="text-sm font-medium text-muted-foreground">
+                            子任务列表
+                          </h4>
+                          {/* View Merged PPT Button */}
+                          {task.assignees.some(a => a.status === "approved" || a.status === "submitted") && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleViewMerged(task);
+                              }}
+                              className="h-7"
+                            >
+                              <Layers className="h-3.5 w-3.5 mr-1.5" />
+                              查看合并PPT
+                              <Badge variant="secondary" className="ml-2 text-xs px-1.5 py-0">
+                                {task.completedCount}/{task.totalAssignees}
+                              </Badge>
+                            </Button>
+                          )}
+                        </div>
                         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                           {task.assignees.map((assignee) => (
                             <div 
@@ -413,6 +443,13 @@ export default function TaskCenter() {
         assignee={selectedReview?.assignee}
         onApprove={handleApprove}
         onReject={handleReject}
+      />
+
+      {/* Merged PPT Drawer */}
+      <MergedPPTDrawer
+        open={mergedDrawerOpen}
+        onOpenChange={setMergedDrawerOpen}
+        task={selectedTask || undefined}
       />
     </AppLayout>
   );

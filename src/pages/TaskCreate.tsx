@@ -210,7 +210,7 @@ export default function TaskCreate() {
 
     addTask({
       title: taskTitle,
-      type: taskType as "PPT" | "日报" | "周报" | "审核",
+      type: taskType as "周报" | "月报" | "年报" | "专项报告",
       department: taskDepartment,
       deadline: formattedDeadline,
       createdBy: "当前用户",
@@ -288,10 +288,10 @@ export default function TaskCreate() {
                         <SelectValue placeholder="选择任务类型" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="PPT">PPT 制作</SelectItem>
-                        <SelectItem value="日报">日报</SelectItem>
                         <SelectItem value="周报">周报</SelectItem>
-                        <SelectItem value="审核">审核任务</SelectItem>
+                        <SelectItem value="月报">月报</SelectItem>
+                        <SelectItem value="年报">年报</SelectItem>
+                        <SelectItem value="专项报告">专项报告</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
