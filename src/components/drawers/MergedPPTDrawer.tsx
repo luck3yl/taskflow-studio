@@ -18,7 +18,6 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import { Task } from "@/contexts/TaskContext";
-import { PPTistViewer } from "@/components/ppt/PPTistViewer";
 import { FilePreviewDialog } from "@/components/ppt/FilePreviewDialog";
 
 interface MergedPPTDrawerProps {
@@ -174,24 +173,24 @@ export function MergedPPTDrawer({
 
           <Separator />
 
-          {/* PPTist Preview - 演示用 */}
+          {/* 合并PPT下载 */}
           <div className="space-y-3">
             <div className="flex items-center justify-between">
-              <h4 className="font-semibold text-foreground">PPTist 演示</h4>
+              <h4 className="font-semibold text-foreground">合并预览</h4>
               <Button variant="outline" size="sm">
                 <Download className="h-4 w-4 mr-2" />
                 下载合并PPT
               </Button>
             </div>
-            <PPTistViewer 
-              title={`${task.title} - 合并预览`}
-              height="500px"
-              mode="screen"
-              defaultScreen={true}
-            />
-            <p className="text-xs text-muted-foreground text-center">
-              提示：这是PPTist在线演示，点击PPT内的"放映"按钮可进入全屏无编辑区模式
-            </p>
+            <div className="rounded-lg border border-border bg-muted/30 p-8 text-center">
+              <FileText className="h-12 w-12 mx-auto text-muted-foreground/50 mb-3" />
+              <p className="text-sm text-muted-foreground">
+                点击上方各成员的预览按钮查看其提交的PPT内容
+              </p>
+              <p className="text-xs text-muted-foreground mt-1">
+                全部通过审核后可下载合并版本
+              </p>
+            </div>
           </div>
 
           {/* File Preview Dialog */}

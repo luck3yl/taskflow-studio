@@ -21,7 +21,6 @@ import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { Task, Assignee } from "@/contexts/TaskContext";
 import { FilePreviewDialog } from "@/components/ppt/FilePreviewDialog";
-import { PPTistViewer } from "@/components/ppt/PPTistViewer";
 
 interface ReviewDrawerProps {
   open: boolean;
@@ -49,7 +48,6 @@ export function ReviewDrawer({
   onReject
 }: ReviewDrawerProps) {
   const [feedback, setFeedback] = useState("");
-  const [showPPTist, setShowPPTist] = useState(false);
   const [filePreviewOpen, setFilePreviewOpen] = useState(false);
   const { toast } = useToast();
 
@@ -178,35 +176,6 @@ export function ReviewDrawer({
               />
             </div>
           )}
-
-          {/* PPTist Demo Preview */}
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <h4 className="font-semibold text-foreground">PPTist 演示</h4>
-              <Button 
-                variant={showPPTist ? "default" : "outline"} 
-                size="sm"
-                onClick={() => setShowPPTist(!showPPTist)}
-              >
-                <Eye className="h-4 w-4 mr-2" />
-                {showPPTist ? "关闭演示" : "打开演示"}
-              </Button>
-            </div>
-            
-            {showPPTist && (
-              <div className="space-y-2">
-                <PPTistViewer 
-                  title="PPTist 在线演示"
-                  height="400px"
-                  mode="screen"
-                  defaultScreen={true}
-                />
-                <p className="text-xs text-muted-foreground text-center">
-                  提示：点击"放映"按钮进入全屏无编辑区域的演示模式
-                </p>
-              </div>
-            )}
-          </div>
 
           <Separator />
 
