@@ -172,7 +172,7 @@ export function ReviewDrawer({
                 onClick={() => setShowPPTist(!showPPTist)}
               >
                 <Monitor className="h-4 w-4 mr-2" />
-                {showPPTist ? "关闭在线预览" : "在线预览"}
+                {showPPTist ? "关闭预览" : "在线预览"}
               </Button>
             </div>
             
@@ -180,6 +180,8 @@ export function ReviewDrawer({
               <PPTistViewer 
                 title={`${assignee.name} - ${assignee.pageRange ? `第${assignee.pageRange}页` : "提交内容"}`}
                 height="400px"
+                mode="screen"
+                defaultScreen={true}
               />
             ) : (
               <div className="rounded-xl border border-border bg-muted/30 overflow-hidden">

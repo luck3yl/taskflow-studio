@@ -153,7 +153,7 @@ export function MergedPPTDrawer({
 
           <Separator />
 
-          {/* PPTist Preview */}
+          {/* PPTist Preview - 使用放映模式，最大化预览区域 */}
           <div className="space-y-3">
             <div className="flex items-center justify-between">
               <h4 className="font-semibold text-foreground">在线预览</h4>
@@ -164,7 +164,9 @@ export function MergedPPTDrawer({
             </div>
             <PPTistViewer 
               title={`${task.title} - 合并预览`}
-              height="450px"
+              height="500px"
+              mode="screen"
+              defaultScreen={true}
             />
           </div>
 
