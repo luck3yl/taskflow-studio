@@ -74,7 +74,7 @@ export function AppSidebar() {
       <SidebarContent className="px-3">
         <SidebarGroup>
           <SidebarGroupContent>
-            <SidebarMenu className="space-y-1">
+            <SidebarMenu className="space-y-2">
               {mainNavItems.map((item) => {
                 const isActive = location.pathname === item.url;
                 return (
@@ -87,24 +87,24 @@ export function AppSidebar() {
                       <NavLink 
                         to={item.url}
                         className={cn(
-                          "group flex items-center gap-3 rounded-lg px-3 py-2.5 transition-all duration-200",
+                          "group flex items-center gap-3.5 rounded-xl px-4 py-3.5 transition-all duration-200",
                           isActive 
                             ? "bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-600/25" 
                             : "text-sidebar-foreground hover:bg-white/60 dark:hover:bg-white/10"
                         )}
                       >
                         <item.icon className={cn(
-                          "h-5 w-5 shrink-0 transition-colors",
+                          "h-6 w-6 shrink-0 transition-colors",
                           isActive ? "text-white" : "text-sidebar-muted group-hover:text-primary"
                         )} />
                         {!collapsed && (
                           <>
                             <span className={cn(
-                              "font-medium transition-colors",
+                              "text-base font-medium transition-colors",
                               isActive ? "text-white" : "group-hover:text-foreground"
                             )}>{item.title}</span>
                             {isActive && (
-                              <ChevronRight className="ml-auto h-4 w-4 text-white/70" />
+                              <ChevronRight className="ml-auto h-5 w-5 text-white/70" />
                             )}
                           </>
                         )}
