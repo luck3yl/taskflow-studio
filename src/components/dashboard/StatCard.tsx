@@ -17,27 +17,32 @@ const variantStyles = {
   default: {
     card: "bg-white dark:bg-card border-border/50",
     icon: "bg-secondary text-secondary-foreground",
-    iconGlow: "",
+    iconBg: "from-slate-100 to-slate-200 dark:from-slate-700 dark:to-slate-800",
+    iconColor: "text-slate-600 dark:text-slate-300",
   },
   primary: {
     card: "bg-white dark:bg-card border-primary/20",
-    icon: "gradient-primary text-primary-foreground shadow-lg shadow-primary/20",
-    iconGlow: "shadow-glow",
+    icon: "shadow-lg shadow-primary/25",
+    iconBg: "from-primary to-blue-600",
+    iconColor: "text-white",
   },
   success: {
     card: "bg-white dark:bg-card border-success/20",
-    icon: "gradient-success text-success-foreground shadow-lg shadow-success/20",
-    iconGlow: "",
+    icon: "shadow-lg shadow-success/25",
+    iconBg: "from-success to-emerald-500",
+    iconColor: "text-white",
   },
   warning: {
     card: "bg-white dark:bg-card border-warning/20",
-    icon: "bg-gradient-to-br from-warning to-orange-500 text-warning-foreground shadow-lg shadow-warning/20",
-    iconGlow: "",
+    icon: "shadow-lg shadow-warning/25",
+    iconBg: "from-warning to-orange-500",
+    iconColor: "text-white",
   },
   destructive: {
     card: "bg-white dark:bg-card border-destructive/20",
-    icon: "bg-gradient-to-br from-destructive to-rose-600 text-destructive-foreground shadow-lg shadow-destructive/20",
-    iconGlow: "",
+    icon: "shadow-lg shadow-destructive/25",
+    iconBg: "from-destructive to-rose-500",
+    iconColor: "text-white",
   },
 };
 
@@ -82,11 +87,11 @@ export function StatCard({
           )}
         </div>
         <div className={cn(
-          "flex h-14 w-14 items-center justify-center rounded-2xl transition-transform duration-300 group-hover:scale-110",
-          styles.icon,
-          styles.iconGlow
+          "flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br transition-transform duration-300 group-hover:scale-110",
+          styles.iconBg,
+          styles.icon
         )}>
-          <Icon className="h-7 w-7" />
+          <Icon className={cn("h-7 w-7", styles.iconColor)} />
         </div>
       </div>
     </div>

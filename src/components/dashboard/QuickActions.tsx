@@ -1,5 +1,5 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Plus, Upload, FileText, Users, ArrowUpRight } from "lucide-react";
+import { Plus, Upload, FileText, Users, ArrowUpRight, Zap } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
 const actions = [
@@ -41,11 +41,19 @@ export function QuickActions() {
   const navigate = useNavigate();
 
   return (
-    <Card className="bg-white dark:bg-card border-border/50 rounded-2xl shadow-card hover:shadow-card-hover transition-all duration-300">
-      <CardHeader className="pb-3">
-        <CardTitle className="text-lg font-semibold">快捷操作</CardTitle>
+    <Card className="bg-white dark:bg-card border-border/50 rounded-2xl shadow-card hover:shadow-card-hover transition-all duration-300 h-full">
+      <CardHeader className="pb-4">
+        <div className="flex items-center gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-accent to-orange-500 shadow-lg shadow-accent/20">
+            <Zap className="h-5 w-5 text-white" />
+          </div>
+          <div>
+            <CardTitle className="text-lg font-semibold">快捷操作</CardTitle>
+            <p className="text-sm text-muted-foreground mt-0.5">常用功能快速入口</p>
+          </div>
+        </div>
       </CardHeader>
-      <CardContent>
+      <CardContent className="pt-2">
         <div className="grid grid-cols-2 gap-3">
           {actions.map((action, index) => (
             <button
