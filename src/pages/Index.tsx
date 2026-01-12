@@ -13,7 +13,7 @@ const Index = () => {
     <AppLayout title="工作台">
       <div className="space-y-6">
         {/* Welcome Section */}
-        <div className="animate-fade-in bg-gradient-to-r from-primary/5 via-primary/10 to-accent/5 rounded-2xl p-6 border border-primary/10">
+        <div className="animate-fade-in">
           <div className="flex items-center gap-3 mb-1">
             <h2 className="text-2xl font-bold text-foreground">
               {greeting}，张明
@@ -31,7 +31,7 @@ const Index = () => {
         </div>
 
         {/* Stats Grid */}
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 bg-gradient-to-r from-primary/5 via-transparent to-accent/5 rounded-2xl p-4 border border-border/50">
           <StatCard
             title="待处理任务"
             value={8}
