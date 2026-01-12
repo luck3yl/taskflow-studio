@@ -175,6 +175,14 @@
   background: var(--gradient-primary);
 }
 
+.gradient-accent {
+  background: var(--gradient-accent);
+}
+
+.gradient-success {
+  background: var(--gradient-success);
+}
+
 .gradient-sidebar {
   background: var(--gradient-sidebar);
 }

@@ -73,12 +73,6 @@ export function AppSidebar() {
 
       <SidebarContent className="px-3">
         <SidebarGroup>
-          <SidebarGroupLabel className={cn(
-            "text-[10px] font-semibold text-sidebar-muted uppercase tracking-widest px-3 mb-2",
-            collapsed && "sr-only"
-          )}>
-            主导航
-          </SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu className="space-y-1">
               {mainNavItems.map((item) => {
