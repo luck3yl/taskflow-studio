@@ -27,16 +27,16 @@ const variantStyles = {
     iconShadow: "shadow-lg shadow-primary/25",
   },
   success: {
-    card: "bg-gradient-to-br from-teal-50 to-cyan-50 dark:from-teal-950/50 dark:to-cyan-950/50 border-success/20",
-    iconBg: "from-teal-500 to-cyan-500",
+    card: "bg-gradient-to-br from-emerald-50 to-green-50 dark:from-emerald-950/50 dark:to-green-950/50 border-success/20",
+    iconBg: "from-success to-emerald-500",
     iconColor: "text-white",
-    iconShadow: "shadow-lg shadow-teal-500/25",
+    iconShadow: "shadow-lg shadow-success/25",
   },
   warning: {
-    card: "bg-gradient-to-br from-violet-50 to-purple-50 dark:from-violet-950/50 dark:to-purple-950/50 border-violet-200",
-    iconBg: "from-violet-500 to-purple-600",
+    card: "bg-gradient-to-br from-amber-50 to-orange-50 dark:from-amber-950/50 dark:to-orange-950/50 border-warning/20",
+    iconBg: "from-warning to-orange-500",
     iconColor: "text-white",
-    iconShadow: "shadow-lg shadow-violet-500/25",
+    iconShadow: "shadow-lg shadow-warning/25",
   },
   destructive: {
     card: "bg-gradient-to-br from-rose-50 to-red-50 dark:from-rose-950/50 dark:to-red-950/50 border-destructive/20",
