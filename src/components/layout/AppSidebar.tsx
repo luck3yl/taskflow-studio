@@ -6,7 +6,8 @@ import {
   ChevronRight,
   LogOut,
   Settings,
-  User
+  User,
+  Sparkles
 } from "lucide-react";
 import { NavLink, useLocation } from "react-router-dom";
 import {
@@ -46,36 +47,40 @@ export function AppSidebar() {
 
   return (
     <Sidebar 
-      className="border-r border-sidebar-border"
+      className="border-r border-sidebar-border/50 gradient-sidebar shadow-sidebar"
       collapsible="icon"
     >
       <SidebarHeader className="p-4">
         <div className={cn(
-          "flex items-center gap-3 transition-all duration-200",
+          "flex items-center gap-3 transition-all duration-300",
           collapsed && "justify-center"
         )}>
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl gradient-primary shadow-md">
+          <div className="relative flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-primary/80 shadow-lg shadow-primary/25">
             <FolderKanban className="h-5 w-5 text-primary-foreground" />
+            <div className="absolute -top-1 -right-1 h-3 w-3 rounded-full bg-accent animate-pulse" />
           </div>
           {!collapsed && (
             <div className="flex flex-col animate-fade-in">
-              <span className="text-base font-semibold text-sidebar-foreground">任务协同</span>
-              <span className="text-xs text-sidebar-foreground/60">企业管理平台</span>
+              <span className="text-base font-semibold text-sidebar-foreground flex items-center gap-1.5">
+                任务协同
+                <Sparkles className="h-3.5 w-3.5 text-accent" />
+              </span>
+              <span className="text-xs text-sidebar-foreground/50">企业管理平台</span>
             </div>
           )}
         </div>
       </SidebarHeader>
 
-      <SidebarContent className="px-2">
+      <SidebarContent className="px-3">
         <SidebarGroup>
           <SidebarGroupLabel className={cn(
-            "text-xs font-medium text-sidebar-foreground/50 uppercase tracking-wider px-3 mb-2",
+            "text-[10px] font-semibold text-sidebar-foreground/40 uppercase tracking-widest px-3 mb-3",
             collapsed && "sr-only"
           )}>
             主导航
           </SidebarGroupLabel>
           <SidebarGroupContent>
-            <SidebarMenu>
+            <SidebarMenu className="space-y-1">
               {mainNavItems.map((item) => {
                 const isActive = location.pathname === item.url;
                 return (
@@ -88,16 +93,27 @@ export function AppSidebar() {
                       <NavLink 
                         to={item.url}
                         className={cn(
-                          "flex items-center gap-3 rounded-lg px-3 py-2.5 transition-all duration-200",
+                          "group flex items-center gap-3 rounded-xl px-3 py-2.5 transition-all duration-200",
                           isActive 
-                            ? "bg-sidebar-primary text-sidebar-primary-foreground shadow-md" 
-                            : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                            ? "bg-gradient-to-r from-primary to-primary/90 text-primary-foreground shadow-lg shadow-primary/20" 
+                            : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground hover:shadow-sm"
                         )}
                       >
-                        <item.icon className="h-5 w-5 shrink-0" />
-                        {!collapsed && <span className="font-medium">{item.title}</span>}
-                        {!collapsed && isActive && (
-                          <ChevronRight className="ml-auto h-4 w-4" />
+                        <div className={cn(
+                          "flex h-8 w-8 items-center justify-center rounded-lg transition-all duration-200",
+                          isActive 
+                            ? "bg-white/20" 
+                            : "bg-sidebar-accent/50 group-hover:bg-sidebar-accent"
+                        )}>
+                          <item.icon className="h-4 w-4 shrink-0" />
+                        </div>
+                        {!collapsed && (
+                          <>
+                            <span className="font-medium">{item.title}</span>
+                            {isActive && (
+                              <ChevronRight className="ml-auto h-4 w-4 animate-slide-right" />
+                            )}
+                          </>
                         )}
                       </NavLink>
                     </SidebarMenuButton>
@@ -109,40 +125,43 @@ export function AppSidebar() {
         </SidebarGroup>
       </SidebarContent>
 
-      <SidebarFooter className="p-3 border-t border-sidebar-border">
+      <SidebarFooter className="p-3 border-t border-sidebar-border/50">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button className={cn(
-              "flex items-center gap-3 w-full rounded-lg p-2 hover:bg-sidebar-accent transition-colors",
+              "group flex items-center gap-3 w-full rounded-xl p-2.5 hover:bg-sidebar-accent transition-all duration-200",
               collapsed && "justify-center"
             )}>
-              <Avatar className="h-9 w-9 border-2 border-sidebar-primary/30">
-                <AvatarImage src="" />
-                <AvatarFallback className="bg-sidebar-primary text-sidebar-primary-foreground text-sm font-medium">
-                  张
-                </AvatarFallback>
-              </Avatar>
+              <div className="relative">
+                <Avatar className="h-9 w-9 ring-2 ring-primary/20 ring-offset-2 ring-offset-sidebar-background transition-all group-hover:ring-primary/40">
+                  <AvatarImage src="" />
+                  <AvatarFallback className="bg-gradient-to-br from-primary to-primary/80 text-primary-foreground text-sm font-semibold">
+                    张
+                  </AvatarFallback>
+                </Avatar>
+                <div className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full bg-green-500 ring-2 ring-sidebar-background" />
+              </div>
               {!collapsed && (
-                <div className="flex flex-col items-start text-left">
+                <div className="flex flex-col items-start animate-fade-in">
                   <span className="text-sm font-medium text-sidebar-foreground">张明</span>
-                  <span className="text-xs text-sidebar-foreground/60">技术部 · 经理</span>
+                  <span className="text-xs text-sidebar-foreground/50">产品经理</span>
                 </div>
               )}
             </button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-48">
-            <DropdownMenuItem>
+          <DropdownMenuContent align="end" className="w-56">
+            <DropdownMenuItem className="cursor-pointer">
               <User className="mr-2 h-4 w-4" />
-              个人信息
+              <span>个人信息</span>
             </DropdownMenuItem>
-            <DropdownMenuItem>
+            <DropdownMenuItem className="cursor-pointer">
               <Settings className="mr-2 h-4 w-4" />
-              系统设置
+              <span>设置</span>
             </DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem className="text-destructive">
+            <DropdownMenuItem className="cursor-pointer text-destructive focus:text-destructive">
               <LogOut className="mr-2 h-4 w-4" />
-              退出登录
+              <span>退出登录</span>
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
