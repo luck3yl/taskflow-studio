@@ -45,16 +45,16 @@
   
   --radius: 0.5rem;
 
-  /* Modern Sidebar - Deep Blue Theme */
-  --sidebar-background: 222 47% 14%;
-  --sidebar-foreground: 210 40% 90%;
-  --sidebar-primary: 217 91% 55%;
+  /* Modern Sidebar - Soft Blue Gradient */
+  --sidebar-background: 215 50% 94%;
+  --sidebar-foreground: 222 47% 20%;
+  --sidebar-primary: 217 91% 50%;
   --sidebar-primary-foreground: 0 0% 100%;
-  --sidebar-accent: 222 40% 20%;
-  --sidebar-accent-foreground: 210 40% 95%;
-  --sidebar-border: 222 35% 22%;
-  --sidebar-ring: 217 91% 55%;
-  --sidebar-muted: 215 20% 60%;
+  --sidebar-accent: 215 60% 88%;
+  --sidebar-accent-foreground: 217 91% 35%;
+  --sidebar-border: 215 40% 85%;
+  --sidebar-ring: 217 91% 50%;
+  --sidebar-muted: 215 25% 55%;
 
   /* Chart colors */
   --chart-1: 217 91% 50%;
@@ -67,7 +67,7 @@
   --gradient-primary: linear-gradient(135deg, hsl(217, 91%, 50%) 0%, hsl(230, 91%, 60%) 100%);
   --gradient-accent: linear-gradient(135deg, hsl(25, 95%, 53%) 0%, hsl(38, 92%, 50%) 100%);
   --gradient-success: linear-gradient(135deg, hsl(142, 76%, 36%) 0%, hsl(142, 76%, 46%) 100%);
-  --gradient-sidebar: linear-gradient(180deg, hsl(222, 47%, 16%) 0%, hsl(225, 50%, 12%) 100%);
+  --gradient-sidebar: linear-gradient(180deg, hsl(215, 55%, 96%) 0%, hsl(217, 50%, 90%) 100%);
   
   /* Shadows */
   --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
