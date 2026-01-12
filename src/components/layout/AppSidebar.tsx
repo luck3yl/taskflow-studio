@@ -55,8 +55,8 @@ export function AppSidebar() {
           "flex items-center gap-3 transition-all duration-300",
           collapsed && "justify-center"
         )}>
-          <div className="relative flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-primary/80 shadow-lg shadow-primary/25">
-            <FolderKanban className="h-5 w-5 text-primary-foreground" />
+          <div className="relative flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-blue-600 shadow-lg shadow-primary/25">
+            <FolderKanban className="h-5 w-5 text-white" />
             <div className="absolute -top-1 -right-1 h-3 w-3 rounded-full bg-accent animate-pulse" />
           </div>
           {!collapsed && (
@@ -65,7 +65,7 @@ export function AppSidebar() {
                 任务协同
                 <Sparkles className="h-3.5 w-3.5 text-accent" />
               </span>
-              <span className="text-xs text-sidebar-foreground/50">企业管理平台</span>
+              <span className="text-xs text-sidebar-muted">企业管理平台</span>
             </div>
           )}
         </div>
@@ -74,13 +74,13 @@ export function AppSidebar() {
       <SidebarContent className="px-3">
         <SidebarGroup>
           <SidebarGroupLabel className={cn(
-            "text-[10px] font-semibold text-sidebar-foreground/40 uppercase tracking-widest px-3 mb-3",
+            "text-[10px] font-semibold text-sidebar-muted uppercase tracking-widest px-3 mb-3",
             collapsed && "sr-only"
           )}>
             主导航
           </SidebarGroupLabel>
           <SidebarGroupContent>
-            <SidebarMenu className="space-y-1">
+            <SidebarMenu className="space-y-1.5">
               {mainNavItems.map((item) => {
                 const isActive = location.pathname === item.url;
                 return (
@@ -95,23 +95,29 @@ export function AppSidebar() {
                         className={cn(
                           "group flex items-center gap-3 rounded-xl px-3 py-2.5 transition-all duration-200",
                           isActive 
-                            ? "bg-gradient-to-r from-primary to-primary/90 text-primary-foreground shadow-lg shadow-primary/20" 
-                            : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground hover:shadow-sm"
+                            ? "bg-primary text-white shadow-md shadow-primary/30" 
+                            : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
                         )}
                       >
                         <div className={cn(
-                          "flex h-8 w-8 items-center justify-center rounded-lg transition-all duration-200",
+                          "flex h-9 w-9 items-center justify-center rounded-lg transition-all duration-200",
                           isActive 
                             ? "bg-white/20" 
-                            : "bg-sidebar-accent/50 group-hover:bg-sidebar-accent"
+                            : "bg-sidebar-accent group-hover:bg-primary/10"
                         )}>
-                          <item.icon className="h-4 w-4 shrink-0" />
+                          <item.icon className={cn(
+                            "h-[18px] w-[18px] shrink-0",
+                            isActive ? "text-white" : "text-sidebar-foreground"
+                          )} />
                         </div>
                         {!collapsed && (
                           <>
-                            <span className="font-medium">{item.title}</span>
+                            <span className={cn(
+                              "font-medium",
+                              isActive ? "text-white" : ""
+                            )}>{item.title}</span>
                             {isActive && (
-                              <ChevronRight className="ml-auto h-4 w-4 animate-slide-right" />
+                              <ChevronRight className="ml-auto h-4 w-4 text-white/80" />
                             )}
                           </>
                         )}
@@ -133,9 +139,9 @@ export function AppSidebar() {
               collapsed && "justify-center"
             )}>
               <div className="relative">
-                <Avatar className="h-9 w-9 ring-2 ring-primary/20 ring-offset-2 ring-offset-sidebar-background transition-all group-hover:ring-primary/40">
+                <Avatar className="h-10 w-10 ring-2 ring-primary/20 ring-offset-2 ring-offset-sidebar-background transition-all group-hover:ring-primary/40">
                   <AvatarImage src="" />
-                  <AvatarFallback className="bg-gradient-to-br from-primary to-primary/80 text-primary-foreground text-sm font-semibold">
+                  <AvatarFallback className="bg-gradient-to-br from-primary to-blue-600 text-white text-sm font-semibold">
                     张
                   </AvatarFallback>
                 </Avatar>
@@ -144,7 +150,7 @@ export function AppSidebar() {
               {!collapsed && (
                 <div className="flex flex-col items-start animate-fade-in">
                   <span className="text-sm font-medium text-sidebar-foreground">张明</span>
-                  <span className="text-xs text-sidebar-foreground/50">产品经理</span>
+                  <span className="text-xs text-sidebar-muted">产品经理</span>
                 </div>
               )}
             </button>

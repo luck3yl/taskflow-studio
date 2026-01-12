@@ -3,7 +3,7 @@ import { StatCard } from "@/components/dashboard/StatCard";
 import { TaskProgressChart } from "@/components/dashboard/TaskProgressChart";
 import { RecentTasks } from "@/components/dashboard/RecentTasks";
 import { QuickActions } from "@/components/dashboard/QuickActions";
-import { ClipboardList, Clock, CheckCircle2, AlertCircle, Sparkles } from "lucide-react";
+import { ClipboardList, Clock, CheckCircle2, AlertCircle } from "lucide-react";
 
 const Index = () => {
   const currentHour = new Date().getHours();
@@ -11,27 +11,27 @@ const Index = () => {
 
   return (
     <AppLayout title="工作台">
-      <div className="space-y-8">
+      <div className="space-y-6">
         {/* Welcome Section */}
-        <div className="animate-fade-in">
-          <div className="flex items-center gap-3 mb-2">
-            <h2 className="text-3xl font-bold text-foreground">
+        <div className="animate-fade-in bg-gradient-to-r from-primary/5 via-primary/10 to-accent/5 rounded-2xl p-6 border border-primary/10">
+          <div className="flex items-center gap-3 mb-1">
+            <h2 className="text-2xl font-bold text-foreground">
               {greeting}，张明
             </h2>
-            <span className="text-3xl">👋</span>
+            <span className="text-2xl">👋</span>
           </div>
-          <p className="text-muted-foreground text-lg">
+          <p className="text-muted-foreground">
             今天是 {new Date().toLocaleDateString("zh-CN", { 
               year: "numeric", 
               month: "long", 
               day: "numeric",
               weekday: "long"
-            })}
+            })}，祝您工作顺利！
           </p>
         </div>
 
         {/* Stats Grid */}
-        <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
           <StatCard
             title="待处理任务"
             value={8}
@@ -63,7 +63,7 @@ const Index = () => {
           />
         </div>
 
-        {/* Main Content Grid */}
+        {/* Main Content Grid - Equal Height */}
         <div className="grid gap-6 lg:grid-cols-3">
           {/* Left Column - Chart */}
           <div className="lg:col-span-2">

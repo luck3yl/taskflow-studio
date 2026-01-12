@@ -1,6 +1,6 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
-import { TrendingUp } from "lucide-react";
+import { TrendingUp, BarChart3 } from "lucide-react";
 
 const data = [
   { name: "周一", 完成: 12, 新增: 8 },
@@ -14,21 +14,26 @@ const data = [
 
 export function TaskProgressChart() {
   return (
-    <Card className="bg-white dark:bg-card border-border/50 rounded-2xl shadow-card hover:shadow-card-hover transition-all duration-300">
-      <CardHeader className="pb-2">
+    <Card className="bg-white dark:bg-card border-border/50 rounded-2xl shadow-card hover:shadow-card-hover transition-all duration-300 h-full">
+      <CardHeader className="pb-4">
         <div className="flex items-center justify-between">
-          <div className="space-y-1">
-            <CardTitle className="text-lg font-semibold">任务进度趋势</CardTitle>
-            <p className="text-sm text-muted-foreground">过去一周的任务完成情况</p>
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-blue-600 shadow-lg shadow-primary/20">
+              <BarChart3 className="h-5 w-5 text-white" />
+            </div>
+            <div>
+              <CardTitle className="text-lg font-semibold">任务进度趋势</CardTitle>
+              <p className="text-sm text-muted-foreground mt-0.5">过去一周的任务完成情况</p>
+            </div>
           </div>
           <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-success/10 text-success">
             <TrendingUp className="h-4 w-4" />
-            <span className="text-sm font-medium">+18%</span>
+            <span className="text-sm font-semibold">+18%</span>
           </div>
         </div>
       </CardHeader>
-      <CardContent className="pt-4">
-        <div className="h-[280px] w-full">
+      <CardContent className="pt-2">
+        <div className="h-[240px] w-full">
           <ResponsiveContainer width="100%" height="100%">
             <AreaChart data={data} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
               <defs>
