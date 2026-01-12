@@ -27,13 +27,13 @@ const variantStyles = {
     iconShadow: "shadow-lg shadow-primary/25",
   },
   success: {
-    card: "bg-gradient-to-br from-emerald-50/60 to-green-50/40 dark:from-emerald-950/30 dark:to-green-950/30 border-success/15",
+    card: "bg-gradient-to-br from-emerald-50 to-green-50 dark:from-emerald-950/50 dark:to-green-950/50 border-success/20",
     iconBg: "from-success to-emerald-500",
     iconColor: "text-white",
     iconShadow: "shadow-lg shadow-success/25",
   },
   warning: {
-    card: "bg-gradient-to-br from-amber-50/60 to-orange-50/40 dark:from-amber-950/30 dark:to-orange-950/30 border-warning/15",
+    card: "bg-gradient-to-br from-amber-50 to-orange-50 dark:from-amber-950/50 dark:to-orange-950/50 border-warning/20",
     iconBg: "from-warning to-orange-500",
     iconColor: "text-white",
     iconShadow: "shadow-lg shadow-warning/25",
