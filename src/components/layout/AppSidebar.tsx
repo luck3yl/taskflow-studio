@@ -87,7 +87,7 @@ export function AppSidebar() {
                       <NavLink 
                         to={item.url}
                         className={cn(
-                          "group flex items-center gap-3 rounded-lg px-3 py-2.5 transition-all duration-200",
+                          "group flex items-center gap-3 rounded-xl px-4 py-3 transition-all duration-200",
                           isActive 
                             ? "bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-600/25" 
                             : "text-sidebar-foreground hover:bg-white/60 dark:hover:bg-white/10"
