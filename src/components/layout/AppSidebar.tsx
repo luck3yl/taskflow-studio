@@ -47,15 +47,15 @@ export function AppSidebar() {
 
   return (
     <Sidebar 
-      className="border-r border-sidebar-border/50 gradient-sidebar shadow-sidebar"
+      className="border-r border-sidebar-border bg-sidebar shadow-sidebar"
       collapsible="icon"
     >
-      <SidebarHeader className="p-4">
+      <SidebarHeader className="p-4 pb-6">
         <div className={cn(
           "flex items-center gap-3 transition-all duration-300",
           collapsed && "justify-center"
         )}>
-          <div className="relative flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-blue-600 shadow-lg shadow-primary/25">
+          <div className="relative flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br from-blue-600 to-indigo-700 shadow-lg shadow-blue-600/30">
             <FolderKanban className="h-5 w-5 text-white" />
             <div className="absolute -top-1 -right-1 h-3 w-3 rounded-full bg-accent animate-pulse" />
           </div>
@@ -74,13 +74,13 @@ export function AppSidebar() {
       <SidebarContent className="px-3">
         <SidebarGroup>
           <SidebarGroupLabel className={cn(
-            "text-[10px] font-semibold text-sidebar-muted uppercase tracking-widest px-3 mb-3",
+            "text-[10px] font-semibold text-sidebar-muted uppercase tracking-widest px-3 mb-2",
             collapsed && "sr-only"
           )}>
             主导航
           </SidebarGroupLabel>
           <SidebarGroupContent>
-            <SidebarMenu className="space-y-1.5">
+            <SidebarMenu className="space-y-1">
               {mainNavItems.map((item) => {
                 const isActive = location.pathname === item.url;
                 return (
@@ -93,31 +93,24 @@ export function AppSidebar() {
                       <NavLink 
                         to={item.url}
                         className={cn(
-                          "group flex items-center gap-3 rounded-xl px-3 py-2.5 transition-all duration-200",
+                          "group flex items-center gap-3 rounded-lg px-3 py-2.5 transition-all duration-200",
                           isActive 
-                            ? "bg-primary text-white shadow-md shadow-primary/30" 
-                            : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                            ? "bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-600/25" 
+                            : "text-sidebar-foreground hover:bg-white/60 dark:hover:bg-white/10"
                         )}
                       >
-                        <div className={cn(
-                          "flex h-9 w-9 items-center justify-center rounded-lg transition-all duration-200",
-                          isActive 
-                            ? "bg-white/20" 
-                            : "bg-sidebar-accent group-hover:bg-primary/10"
-                        )}>
-                          <item.icon className={cn(
-                            "h-[18px] w-[18px] shrink-0",
-                            isActive ? "text-white" : "text-sidebar-foreground"
-                          )} />
-                        </div>
+                        <item.icon className={cn(
+                          "h-5 w-5 shrink-0 transition-colors",
+                          isActive ? "text-white" : "text-sidebar-muted group-hover:text-primary"
+                        )} />
                         {!collapsed && (
                           <>
                             <span className={cn(
-                              "font-medium",
-                              isActive ? "text-white" : ""
+                              "font-medium transition-colors",
+                              isActive ? "text-white" : "group-hover:text-foreground"
                             )}>{item.title}</span>
                             {isActive && (
-                              <ChevronRight className="ml-auto h-4 w-4 text-white/80" />
+                              <ChevronRight className="ml-auto h-4 w-4 text-white/70" />
                             )}
                           </>
                         )}
@@ -131,17 +124,17 @@ export function AppSidebar() {
         </SidebarGroup>
       </SidebarContent>
 
-      <SidebarFooter className="p-3 border-t border-sidebar-border/50">
+      <SidebarFooter className="p-3 border-t border-sidebar-border">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button className={cn(
-              "group flex items-center gap-3 w-full rounded-xl p-2.5 hover:bg-sidebar-accent transition-all duration-200",
+              "group flex items-center gap-3 w-full rounded-lg p-2 hover:bg-white/60 dark:hover:bg-white/10 transition-all duration-200",
               collapsed && "justify-center"
             )}>
               <div className="relative">
-                <Avatar className="h-10 w-10 ring-2 ring-primary/20 ring-offset-2 ring-offset-sidebar-background transition-all group-hover:ring-primary/40">
+                <Avatar className="h-9 w-9 ring-2 ring-blue-600/20 ring-offset-2 ring-offset-sidebar-background transition-all group-hover:ring-blue-600/40">
                   <AvatarImage src="" />
-                  <AvatarFallback className="bg-gradient-to-br from-primary to-blue-600 text-white text-sm font-semibold">
+                  <AvatarFallback className="bg-gradient-to-br from-blue-600 to-indigo-700 text-white text-sm font-semibold">
                     张
                   </AvatarFallback>
                 </Avatar>
