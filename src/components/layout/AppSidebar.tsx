@@ -94,7 +94,7 @@ export function AppSidebar() {
                         )}
                       >
                         <item.icon className={cn(
-                          "h-8 w-8 shrink-0 transition-colors",
+                          "h-7 w-7 shrink-0 transition-colors",
                           isActive ? "text-white" : "text-sidebar-muted group-hover:text-primary"
                         )} />
                         {!collapsed && (
