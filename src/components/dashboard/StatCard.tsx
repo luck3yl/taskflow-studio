@@ -16,33 +16,33 @@ interface StatCardProps {
 const variantStyles = {
   default: {
     card: "bg-white dark:bg-card border-border/50",
+    icon: "bg-secondary text-secondary-foreground",
     iconBg: "from-slate-100 to-slate-200 dark:from-slate-700 dark:to-slate-800",
     iconColor: "text-slate-600 dark:text-slate-300",
-    iconShadow: "",
   },
   primary: {
-    card: "bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-950/50 dark:to-indigo-950/50 border-primary/20",
+    card: "bg-white dark:bg-card border-primary/20",
+    icon: "shadow-lg shadow-primary/25",
     iconBg: "from-primary to-blue-600",
     iconColor: "text-white",
-    iconShadow: "shadow-lg shadow-primary/25",
   },
   success: {
-    card: "bg-gradient-to-br from-emerald-50 to-green-50 dark:from-emerald-950/50 dark:to-green-950/50 border-success/20",
+    card: "bg-white dark:bg-card border-success/20",
+    icon: "shadow-lg shadow-success/25",
     iconBg: "from-success to-emerald-500",
     iconColor: "text-white",
-    iconShadow: "shadow-lg shadow-success/25",
   },
   warning: {
-    card: "bg-gradient-to-br from-amber-50 to-orange-50 dark:from-amber-950/50 dark:to-orange-950/50 border-warning/20",
+    card: "bg-white dark:bg-card border-warning/20",
+    icon: "shadow-lg shadow-warning/25",
     iconBg: "from-warning to-orange-500",
     iconColor: "text-white",
-    iconShadow: "shadow-lg shadow-warning/25",
   },
   destructive: {
-    card: "bg-gradient-to-br from-rose-50 to-red-50 dark:from-rose-950/50 dark:to-red-950/50 border-destructive/20",
+    card: "bg-white dark:bg-card border-destructive/20",
+    icon: "shadow-lg shadow-destructive/25",
     iconBg: "from-destructive to-rose-500",
     iconColor: "text-white",
-    iconShadow: "shadow-lg shadow-destructive/25",
   },
 };
 
@@ -89,7 +89,7 @@ export function StatCard({
         <div className={cn(
           "flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br transition-transform duration-300 group-hover:scale-110",
           styles.iconBg,
-          styles.iconShadow
+          styles.icon
         )}>
           <Icon className={cn("h-7 w-7", styles.iconColor)} />
         </div>

@@ -31,7 +31,7 @@ const Index = () => {
         </div>
 
         {/* Stats Grid */}
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 bg-gradient-to-r from-primary/5 via-transparent to-accent/5 rounded-2xl p-4 border border-border/50">
           <StatCard
             title="待处理任务"
             value={8}
