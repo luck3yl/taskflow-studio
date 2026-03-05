@@ -1,13 +1,14 @@
-import { 
-  LayoutDashboard, 
-  ClipboardList, 
-  FolderKanban, 
-  FileText, 
+import {
+  LayoutDashboard,
+  ClipboardList,
+  FolderKanban,
+  FileText,
   ChevronRight,
   LogOut,
   Settings,
   User,
-  Sparkles
+  Sparkles,
+  Workflow
 } from "lucide-react";
 import { NavLink, useLocation } from "react-router-dom";
 import {
@@ -37,6 +38,7 @@ const mainNavItems = [
   { title: "工作台", url: "/", icon: LayoutDashboard },
   { title: "待办中心", url: "/todos", icon: ClipboardList },
   { title: "任务中心", url: "/tasks", icon: FolderKanban },
+  { title: "流程中心", url: "/processes", icon: Workflow },
   { title: "文档中心", url: "/documents", icon: FileText },
 ];
 
@@ -46,7 +48,7 @@ export function AppSidebar() {
   const location = useLocation();
 
   return (
-    <Sidebar 
+    <Sidebar
       className="border-r border-sidebar-border bg-sidebar shadow-sidebar"
       collapsible="icon"
     >
@@ -79,17 +81,17 @@ export function AppSidebar() {
                 const isActive = location.pathname === item.url;
                 return (
                   <SidebarMenuItem key={item.title}>
-                    <SidebarMenuButton 
-                      asChild 
+                    <SidebarMenuButton
+                      asChild
                       isActive={isActive}
                       tooltip={item.title}
                     >
-                      <NavLink 
+                      <NavLink
                         to={item.url}
                         className={cn(
                           "group flex items-center gap-4 rounded-xl px-4 py-5 transition-all duration-200",
-                          isActive 
-                            ? "bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-600/25" 
+                          isActive
+                            ? "bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-600/25"
                             : "text-sidebar-foreground hover:bg-white/60 dark:hover:bg-white/10"
                         )}
                       >

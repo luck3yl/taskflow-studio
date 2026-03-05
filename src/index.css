@@ -368,3 +368,15 @@
     linear-gradient(90deg, hsl(var(--border) / 0.3) 1px, transparent 1px);
   background-size: 40px 40px;
 }
+
+/* BPMN Viewer Highlight */
+.bjs-container .highlight .djs-visual > :nth-child(1) {
+  stroke: hsl(var(--primary)) !important;
+  stroke-width: 3px !important;
+  fill: hsl(var(--primary) / 0.1) !important;
+}
+
+.bjs-container .highlight.djs-connection .djs-visual > :nth-child(1) {
+  stroke: hsl(var(--primary)) !important;
+  stroke-width: 4px !important;
+}
