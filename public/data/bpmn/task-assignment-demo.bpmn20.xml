@@ -1,0 +1,336 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL"
+             xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+             xmlns:flowable="http://flowable.org/bpmn"
+             xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI"
+             xmlns:omgdc="http://www.omg.org/spec/DD/20100524/DC"
+             xmlns:omgdi="http://www.omg.org/spec/DD/20100524/DI"
+             targetNamespace="http://flowable.org/test">
+
+    <process id="dynamicAssignmentDemo" name="动态分配演示流程" isExecutable="true">
+        
+        <startEvent id="startEvent" name="开始"/>
+        
+        <!-- 提交任务申请 -->
+        <userTask id="submitTask" name="提交任务申请" flowable:assignee="${applicant}">
+            <extensionElements>
+                <flowable:formProperty id="taskTitle" name="任务标题" type="string" required="true"/>
+                <flowable:formProperty id="taskDescription" name="任务描述" type="string" required="true"/>
+                <flowable:formProperty id="priority" name="优先级" type="enum" required="true">
+                    <flowable:value id="high" name="高"/>
+                    <flowable:value id="normal" name="普通"/>
+                    <flowable:value id="low" name="低"/>
+                </flowable:formProperty>
+            </extensionElements>
+        </userTask>
+        
+        <!-- 条件分配：根据优先级自动分配 -->
+        <exclusiveGateway id="priorityGateway" name="优先级判断"/>
+        
+        <!-- 高优先级：直接分配给经理 -->
+        <userTask id="managerReview" name="经理审核" flowable:assignee="manager001">
+            <extensionElements>
+                <flowable:formProperty id="approved" name="是否批准" type="enum" required="true">
+                    <flowable:value id="true" name="批准"/>
+                    <flowable:value id="false" name="拒绝"/>
+                </flowable:formProperty>
+                <flowable:formProperty id="comment" name="审核意见" type="string"/>
+                <flowable:formProperty id="needSubtasks" name="是否需要拆分子任务" type="enum" required="true">
+                    <flowable:value id="true" name="是"/>
+                    <flowable:value id="false" name="否"/>
+                </flowable:formProperty>
+                <flowable:formProperty id="nextApprover" name="下一级审批人" type="string"/>
+            </extensionElements>
+        </userTask>
+        
+        <!-- 普通/低优先级：分配给主管 -->
+        <userTask id="supervisorReview" name="主管审核" flowable:assignee="supervisor001">
+            <extensionElements>
+                <flowable:formProperty id="approved" name="是否批准" type="enum" required="true">
+                    <flowable:value id="true" name="批准"/>
+                    <flowable:value id="false" name="拒绝"/>
+                </flowable:formProperty>
+                <flowable:formProperty id="comment" name="审核意见" type="string"/>
+                <flowable:formProperty id="needSubtasks" name="是否需要拆分子任务" type="enum" required="true">
+                    <flowable:value id="true" name="是"/>
+                    <flowable:value id="false" name="否"/>
+                </flowable:formProperty>
+                <flowable:formProperty id="nextApprover" name="下一级审批人" type="string"/>
+            </extensionElements>
+        </userTask>
+        
+        <!-- 判断是否需要拆分子任务 -->
+        <exclusiveGateway id="subtaskGateway" name="是否拆分子任务"/>
+        
+        <!-- 子流程：包含子任务完成和审核的循环 -->
+        <subProcess id="subtaskSubProcess" name="子任务处理子流程">
+            <multiInstanceLoopCharacteristics isSequential="false" flowable:collection="${subtaskList}" flowable:elementVariable="subtaskItem">
+            </multiInstanceLoopCharacteristics>
+            
+            <!-- 子任务开始 -->
+            <startEvent id="subtaskStart"/>
+            
+            <!-- 子任务执行 -->
+            <userTask id="executeSubtask" name="PPT页面设计" flowable:assignee="${subtaskItem.subtaskAssignee}">
+                <extensionElements>
+                    <flowable:formProperty id="subtaskName" name="子任务名称" type="string"/>
+                    <flowable:formProperty id="pageRange" name="负责页面" type="string"/>
+                    <flowable:formProperty id="progress" name="完成进度" type="long" required="true"/>
+                    <flowable:formProperty id="result" name="完成结果" type="string" required="true"/>
+                </extensionElements>
+            </userTask>
+            
+            <!-- 子任务审核 -->
+            <userTask id="reviewSubtask" name="子任务审核" flowable:assignee="reviewer001">
+                <extensionElements>
+                    <flowable:formProperty id="subtaskApproved" name="审核结果" type="enum" required="true">
+                        <flowable:value id="true" name="通过"/>
+                        <flowable:value id="false" name="打回"/>
+                    </flowable:formProperty>
+                    <flowable:formProperty id="subtaskReviewComment" name="审核意见" type="string"/>
+                </extensionElements>
+            </userTask>
+            
+            <!-- 审核决策网关 -->
+            <exclusiveGateway id="reviewDecision" name="审核决策"/>
+            
+            <!-- 子任务结束 -->
+            <endEvent id="subtaskEnd"/>
+            
+            <!-- 子流程内的连线 -->
+            <sequenceFlow id="subflow1" sourceRef="subtaskStart" targetRef="executeSubtask"/>
+            <sequenceFlow id="subflow2" sourceRef="executeSubtask" targetRef="reviewSubtask"/>
+            <sequenceFlow id="subflow3" sourceRef="reviewSubtask" targetRef="reviewDecision"/>
+            
+            <!-- 审核通过，结束子流程 -->
+            <sequenceFlow id="subflow4" name="通过" sourceRef="reviewDecision" targetRef="subtaskEnd">
+                <conditionExpression xsi:type="tFormalExpression">
+                    <![CDATA[${subtaskApproved == true}]]>
+                </conditionExpression>
+            </sequenceFlow>
+            
+            <!-- 审核打回，返回子任务重做 -->
+            <sequenceFlow id="subflow5" name="打回" sourceRef="reviewDecision" targetRef="executeSubtask">
+                <conditionExpression xsi:type="tFormalExpression">
+                    <![CDATA[${subtaskApproved == false}]]>
+                </conditionExpression>
+            </sequenceFlow>
+        </subProcess>
+        
+        <!-- 总任务审批 -->
+        <userTask id="finalReview" name="总任务审批" flowable:assignee="reviewer001">
+            <extensionElements>
+                <flowable:formProperty id="finalApproved" name="审批结果" type="enum" required="true">
+                    <flowable:value id="true" name="通过"/>
+                    <flowable:value id="false" name="打回"/>
+                </flowable:formProperty>
+                <flowable:formProperty id="reviewComment" name="审批意见" type="string"/>
+                <flowable:formProperty id="rejectReason" name="打回原因" type="string"/>
+            </extensionElements>
+        </userTask>
+        
+        <!-- 审批决策 -->
+        <exclusiveGateway id="approvalGateway" name="审批决策"/>
+        
+        <!-- 通知申请人 -->
+        <userTask id="notifyApplicant" name="通知申请人" flowable:assignee="${applicant}">
+            <extensionElements>
+                <flowable:formProperty id="finalResult" name="最终结果" type="string" readonly="true"/>
+            </extensionElements>
+        </userTask>
+        
+        <endEvent id="endEvent" name="结束"/>
+        
+        <!-- 序列流 -->
+        <sequenceFlow id="flow1" sourceRef="startEvent" targetRef="submitTask"/>
+        <sequenceFlow id="flow2" sourceRef="submitTask" targetRef="priorityGateway"/>
+        
+        <!-- 条件分支：根据优先级自动分配 -->
+        <sequenceFlow id="flow3" name="高优先级" sourceRef="priorityGateway" targetRef="managerReview">
+            <conditionExpression xsi:type="tFormalExpression">
+                <![CDATA[${priority == 'high'}]]>
+            </conditionExpression>
+        </sequenceFlow>
+        
+        <sequenceFlow id="flow4" name="普通/低优先级" sourceRef="priorityGateway" targetRef="supervisorReview">
+            <conditionExpression xsi:type="tFormalExpression">
+                <![CDATA[${priority != 'high'}]]>
+            </conditionExpression>
+        </sequenceFlow>
+        
+        <!-- 审核后判断是否需要拆分子任务 -->
+        <sequenceFlow id="flow5" sourceRef="managerReview" targetRef="subtaskGateway"/>
+        <sequenceFlow id="flow6" sourceRef="supervisorReview" targetRef="subtaskGateway"/>
+        
+        <!-- 需要拆分子任务 -->
+        <sequenceFlow id="flow7" name="需要拆分" sourceRef="subtaskGateway" targetRef="subtaskSubProcess">
+            <conditionExpression xsi:type="tFormalExpression">
+                <![CDATA[${needSubtasks == true}]]>
+            </conditionExpression>
+        </sequenceFlow>
+        
+        <!-- 不需要拆分，直接进入总任务审批 -->
+        <sequenceFlow id="flow8" name="不需要拆分" sourceRef="subtaskGateway" targetRef="finalReview">
+            <conditionExpression xsi:type="tFormalExpression">
+                <![CDATA[${needSubtasks == false}]]>
+            </conditionExpression>
+        </sequenceFlow>
+        
+        <!-- 子流程完成后进入总审批 -->
+        <sequenceFlow id="flow9" sourceRef="subtaskSubProcess" targetRef="finalReview"/>
+        
+        <!-- 总任务审批后决策 -->
+        <sequenceFlow id="flow10" sourceRef="finalReview" targetRef="approvalGateway"/>
+        
+        <!-- 审批通过 -->
+        <sequenceFlow id="flow11" name="通过" sourceRef="approvalGateway" targetRef="notifyApplicant">
+            <conditionExpression xsi:type="tFormalExpression">
+                <![CDATA[${finalApproved == true}]]>
+            </conditionExpression>
+        </sequenceFlow>
+        
+        <!-- 审批打回：返回上一级（经理/主管审核） -->
+        <sequenceFlow id="flow12" name="打回" sourceRef="approvalGateway" targetRef="priorityGateway">
+            <conditionExpression xsi:type="tFormalExpression">
+                <![CDATA[${finalApproved == false}]]>
+            </conditionExpression>
+        </sequenceFlow>
+        
+        <!-- 结束 -->
+        <sequenceFlow id="flow13" sourceRef="notifyApplicant" targetRef="endEvent"/>
+        
+    </process>
+
+    <bpmndi:BPMNDiagram id="BPMNDiagram_dynamicAssignmentDemo">
+        <bpmndi:BPMNPlane bpmnElement="dynamicAssignmentDemo" id="BPMNPlane_dynamicAssignmentDemo">
+            
+            <bpmndi:BPMNShape bpmnElement="startEvent" id="BPMNShape_startEvent">
+                <omgdc:Bounds height="30.0" width="30.0" x="100.0" y="163.0"/>
+            </bpmndi:BPMNShape>
+            
+            <bpmndi:BPMNShape bpmnElement="submitTask" id="BPMNShape_submitTask">
+                <omgdc:Bounds height="80.0" width="100.0" x="180.0" y="138.0"/>
+            </bpmndi:BPMNShape>
+            
+            <bpmndi:BPMNShape bpmnElement="priorityGateway" id="BPMNShape_priorityGateway">
+                <omgdc:Bounds height="40.0" width="40.0" x="330.0" y="158.0"/>
+            </bpmndi:BPMNShape>
+            
+            <bpmndi:BPMNShape bpmnElement="managerReview" id="BPMNShape_managerReview">
+                <omgdc:Bounds height="80.0" width="100.0" x="420.0" y="60.0"/>
+            </bpmndi:BPMNShape>
+            
+            <bpmndi:BPMNShape bpmnElement="supervisorReview" id="BPMNShape_supervisorReview">
+                <omgdc:Bounds height="80.0" width="100.0" x="420.0" y="220.0"/>
+            </bpmndi:BPMNShape>
+            
+            <bpmndi:BPMNShape bpmnElement="subtaskGateway" id="BPMNShape_subtaskGateway">
+                <omgdc:Bounds height="40.0" width="40.0" x="570.0" y="158.0"/>
+            </bpmndi:BPMNShape>
+            
+            <bpmndi:BPMNShape bpmnElement="multiInstanceSubtask" id="BPMNShape_multiInstanceSubtask">
+                <omgdc:Bounds height="80.0" width="100.0" x="660.0" y="60.0"/>
+            </bpmndi:BPMNShape>
+            
+            <bpmndi:BPMNShape bpmnElement="subtaskReview" id="BPMNShape_subtaskReview">
+                <omgdc:Bounds height="80.0" width="100.0" x="810.0" y="60.0"/>
+            </bpmndi:BPMNShape>
+            
+            <bpmndi:BPMNShape bpmnElement="finalReview" id="BPMNShape_finalReview">
+                <omgdc:Bounds height="80.0" width="100.0" x="990.0" y="120.0"/>
+            </bpmndi:BPMNShape>
+            
+            <bpmndi:BPMNShape bpmnElement="approvalGateway" id="BPMNShape_approvalGateway">
+                <omgdc:Bounds height="40.0" width="40.0" x="1140.0" y="140.0"/>
+            </bpmndi:BPMNShape>
+            
+            <bpmndi:BPMNShape bpmnElement="notifyApplicant" id="BPMNShape_notifyApplicant">
+                <omgdc:Bounds height="80.0" width="100.0" x="1230.0" y="120.0"/>
+            </bpmndi:BPMNShape>
+            
+            <bpmndi:BPMNShape bpmnElement="endEvent" id="BPMNShape_endEvent">
+                <omgdc:Bounds height="28.0" width="28.0" x="1380.0" y="146.0"/>
+            </bpmndi:BPMNShape>
+            
+            <bpmndi:BPMNEdge bpmnElement="flow1" id="BPMNEdge_flow1">
+                <omgdi:waypoint x="130.0" y="178.0"/>
+                <omgdi:waypoint x="180.0" y="178.0"/>
+            </bpmndi:BPMNEdge>
+            
+            <bpmndi:BPMNEdge bpmnElement="flow2" id="BPMNEdge_flow2">
+                <omgdi:waypoint x="280.0" y="178.0"/>
+                <omgdi:waypoint x="330.0" y="178.0"/>
+            </bpmndi:BPMNEdge>
+            
+            <bpmndi:BPMNEdge bpmnElement="flow3" id="BPMNEdge_flow3">
+                <omgdi:waypoint x="350.0" y="158.0"/>
+                <omgdi:waypoint x="350.0" y="100.0"/>
+                <omgdi:waypoint x="420.0" y="100.0"/>
+            </bpmndi:BPMNEdge>
+            
+            <bpmndi:BPMNEdge bpmnElement="flow4" id="BPMNEdge_flow4">
+                <omgdi:waypoint x="350.0" y="198.0"/>
+                <omgdi:waypoint x="350.0" y="260.0"/>
+                <omgdi:waypoint x="420.0" y="260.0"/>
+            </bpmndi:BPMNEdge>
+            
+            <bpmndi:BPMNEdge bpmnElement="flow5" id="BPMNEdge_flow5">
+                <omgdi:waypoint x="520.0" y="100.0"/>
+                <omgdi:waypoint x="590.0" y="100.0"/>
+                <omgdi:waypoint x="590.0" y="158.0"/>
+            </bpmndi:BPMNEdge>
+            
+            <bpmndi:BPMNEdge bpmnElement="flow6" id="BPMNEdge_flow6">
+                <omgdi:waypoint x="520.0" y="260.0"/>
+                <omgdi:waypoint x="590.0" y="260.0"/>
+                <omgdi:waypoint x="590.0" y="198.0"/>
+            </bpmndi:BPMNEdge>
+            
+            <bpmndi:BPMNEdge bpmnElement="flow7" id="BPMNEdge_flow7">
+                <omgdi:waypoint x="590.0" y="158.0"/>
+                <omgdi:waypoint x="590.0" y="100.0"/>
+                <omgdi:waypoint x="660.0" y="100.0"/>
+            </bpmndi:BPMNEdge>
+            
+            <bpmndi:BPMNEdge bpmnElement="flow8" id="BPMNEdge_flow8">
+                <omgdi:waypoint x="610.0" y="178.0"/>
+                <omgdi:waypoint x="1040.0" y="178.0"/>
+                <omgdi:waypoint x="1040.0" y="120.0"/>
+            </bpmndi:BPMNEdge>
+            
+            <bpmndi:BPMNEdge bpmnElement="flow9" id="BPMNEdge_flow9">
+                <omgdi:waypoint x="760.0" y="100.0"/>
+                <omgdi:waypoint x="810.0" y="100.0"/>
+            </bpmndi:BPMNEdge>
+            
+            <bpmndi:BPMNEdge bpmnElement="flow10" id="BPMNEdge_flow10">
+                <omgdi:waypoint x="910.0" y="100.0"/>
+                <omgdi:waypoint x="1040.0" y="100.0"/>
+                <omgdi:waypoint x="1040.0" y="120.0"/>
+            </bpmndi:BPMNEdge>
+            
+            <bpmndi:BPMNEdge bpmnElement="flow11" id="BPMNEdge_flow11">
+                <omgdi:waypoint x="1090.0" y="160.0"/>
+                <omgdi:waypoint x="1140.0" y="160.0"/>
+            </bpmndi:BPMNEdge>
+            
+            <bpmndi:BPMNEdge bpmnElement="flow12" id="BPMNEdge_flow12">
+                <omgdi:waypoint x="1180.0" y="160.0"/>
+                <omgdi:waypoint x="1230.0" y="160.0"/>
+            </bpmndi:BPMNEdge>
+            
+            <bpmndi:BPMNEdge bpmnElement="flow13" id="BPMNEdge_flow13">
+                <omgdi:waypoint x="1160.0" y="180.0"/>
+                <omgdi:waypoint x="1160.0" y="350.0"/>
+                <omgdi:waypoint x="350.0" y="350.0"/>
+                <omgdi:waypoint x="350.0" y="198.0"/>
+            </bpmndi:BPMNEdge>
+            
+            <bpmndi:BPMNEdge bpmnElement="flow14" id="BPMNEdge_flow14">
+                <omgdi:waypoint x="1330.0" y="160.0"/>
+                <omgdi:waypoint x="1380.0" y="160.0"/>
+            </bpmndi:BPMNEdge>
+            
+        </bpmndi:BPMNPlane>
+    </bpmndi:BPMNDiagram>
+</definitions>

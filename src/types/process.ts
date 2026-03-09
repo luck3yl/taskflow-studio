@@ -7,6 +7,7 @@ export interface ProcessDefinition {
     version: number;
     status: ProcessStatus;
     xmlContent: string;
+    fileName?: string;
     deployTime?: string;
     creator: string;
     createTime: string;

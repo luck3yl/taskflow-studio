@@ -1,0 +1,206 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL"
+             xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+             xmlns:flowable="http://flowable.org/bpmn"
+             xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI"
+             xmlns:omgdc="http://www.omg.org/spec/DD/20100524/DC"
+             xmlns:omgdi="http://www.omg.org/spec/DD/20100524/DI"
+             targetNamespace="http://flowable.org/test">
+
+    <process id="budgetReportDemo" name="月度预算申报流程" isExecutable="true">
+        
+        <!-- 普通启动事件 -->
+        <startEvent id="start" name="开始"/>
+        
+        <!-- 各室填报预算 -->
+        <userTask id="fillBudget" name="填报预算" flowable:assignee="${assignee}">
+            <extensionElements>
+                <flowable:formProperty id="departmentName" name="部门名称" type="string" required="true"/>
+                <flowable:formProperty id="budgetAmount" name="预算金额" type="long" required="true"/>
+                <flowable:formProperty id="budgetDescription" name="预算说明" type="string" required="true"/>
+            </extensionElements>
+        </userTask>
+        
+        <!-- 超时提醒边界事件：1分钟 -->
+        <boundaryEvent id="reminderTimer" name="超时提醒" attachedToRef="fillBudget" cancelActivity="false">
+            <timerEventDefinition>
+                <timeDuration>PT1M</timeDuration>
+            </timerEventDefinition>
+        </boundaryEvent>
+        
+        <!-- 发送提醒 -->
+        <serviceTask id="sendReminder" name="发送提醒" flowable:class="com.flowable.delegate.SendReminderDelegate"/>
+        
+        <!-- 提醒结束 -->
+        <endEvent id="reminderEnd"/>
+        
+        <!-- 超时升级边界事件：3分钟 -->
+        <boundaryEvent id="escalationTimer" name="超时升级" attachedToRef="fillBudget" cancelActivity="true">
+            <timerEventDefinition>
+                <timeDuration>PT3M</timeDuration>
+            </timerEventDefinition>
+        </boundaryEvent>
+        
+        <!-- 升级给室主任 -->
+        <userTask id="managerHandle" name="室主任处理" flowable:assignee="manager001">
+            <extensionElements>
+                <flowable:formProperty id="handleReason" name="处理原因" type="string" required="true"/>
+                <flowable:formProperty id="handleAction" name="处理措施" type="string" required="true"/>
+            </extensionElements>
+        </userTask>
+        
+        <!-- 室主任审核 -->
+        <userTask id="managerReview" name="室主任审核" flowable:assignee="manager001">
+            <extensionElements>
+                <flowable:formProperty id="approved" name="是否批准" type="enum" required="true">
+                    <flowable:value id="true" name="批准"/>
+                    <flowable:value id="false" name="拒绝"/>
+                </flowable:formProperty>
+                <flowable:formProperty id="reviewComment" name="审核意见" type="string"/>
+            </extensionElements>
+        </userTask>
+        
+        <!-- 分管领导审核 -->
+        <userTask id="leaderReview" name="分管领导审核" flowable:assignee="leader001">
+            <extensionElements>
+                <flowable:formProperty id="finalApproved" name="是否批准" type="enum" required="true">
+                    <flowable:value id="true" name="批准"/>
+                    <flowable:value id="false" name="拒绝"/>
+                </flowable:formProperty>
+                <flowable:formProperty id="finalComment" name="审核意见" type="string"/>
+            </extensionElements>
+        </userTask>
+        
+        <!-- 生成Excel报表 -->
+        <serviceTask id="generateExcel" name="生成Excel报表" flowable:class="com.flowable.delegate.GenerateExcelDelegate"/>
+        
+        <!-- 流程结束 -->
+        <endEvent id="endEvent" name="结束"/>
+        
+        <!-- 序列流 -->
+        <sequenceFlow id="flow1" sourceRef="start" targetRef="fillBudget"/>
+        
+        <!-- 提醒分支 -->
+        <sequenceFlow id="flow3" sourceRef="reminderTimer" targetRef="sendReminder"/>
+        <sequenceFlow id="flow4" sourceRef="sendReminder" targetRef="reminderEnd"/>
+        
+        <!-- 升级分支 -->
+        <sequenceFlow id="flow5" sourceRef="escalationTimer" targetRef="managerHandle"/>
+        <sequenceFlow id="flow6" sourceRef="managerHandle" targetRef="managerReview"/>
+        
+        <!-- 正常完成分支 -->
+        <sequenceFlow id="flow7" sourceRef="fillBudget" targetRef="managerReview"/>
+        
+        <!-- 审核流程 -->
+        <sequenceFlow id="flow8" sourceRef="managerReview" targetRef="leaderReview"/>
+        <sequenceFlow id="flow9" sourceRef="leaderReview" targetRef="generateExcel"/>
+        <sequenceFlow id="flow10" sourceRef="generateExcel" targetRef="endEvent"/>
+        
+    </process>
+
+    <bpmndi:BPMNDiagram id="BPMNDiagram_budgetReportDemo">
+        <bpmndi:BPMNPlane bpmnElement="budgetReportDemo" id="BPMNPlane_budgetReportDemo">
+            
+            <bpmndi:BPMNShape bpmnElement="timerStart" id="BPMNShape_timerStart">
+                <omgdc:Bounds height="30.0" width="30.0" x="100.0" y="163.0"/>
+            </bpmndi:BPMNShape>
+            
+            <bpmndi:BPMNShape bpmnElement="notifyStart" id="BPMNShape_notifyStart">
+                <omgdc:Bounds height="80.0" width="100.0" x="180.0" y="138.0"/>
+            </bpmndi:BPMNShape>
+            
+            <bpmndi:BPMNShape bpmnElement="fillBudget" id="BPMNShape_fillBudget">
+                <omgdc:Bounds height="80.0" width="100.0" x="330.0" y="138.0"/>
+            </bpmndi:BPMNShape>
+            
+            <bpmndi:BPMNShape bpmnElement="reminderTimer" id="BPMNShape_reminderTimer">
+                <omgdc:Bounds height="30.0" width="30.0" x="365.0" y="203.0"/>
+            </bpmndi:BPMNShape>
+            
+            <bpmndi:BPMNShape bpmnElement="sendReminder" id="BPMNShape_sendReminder">
+                <omgdc:Bounds height="80.0" width="100.0" x="330.0" y="270.0"/>
+            </bpmndi:BPMNShape>
+            
+            <bpmndi:BPMNShape bpmnElement="reminderEnd" id="BPMNShape_reminderEnd">
+                <omgdc:Bounds height="28.0" width="28.0" x="366.0" y="390.0"/>
+            </bpmndi:BPMNShape>
+            
+            <bpmndi:BPMNShape bpmnElement="escalationTimer" id="BPMNShape_escalationTimer">
+                <omgdc:Bounds height="30.0" width="30.0" x="365.0" y="73.0"/>
+            </bpmndi:BPMNShape>
+            
+            <bpmndi:BPMNShape bpmnElement="managerHandle" id="BPMNShape_managerHandle">
+                <omgdc:Bounds height="80.0" width="100.0" x="480.0" y="48.0"/>
+            </bpmndi:BPMNShape>
+            
+            <bpmndi:BPMNShape bpmnElement="managerReview" id="BPMNShape_managerReview">
+                <omgdc:Bounds height="80.0" width="100.0" x="630.0" y="138.0"/>
+            </bpmndi:BPMNShape>
+            
+            <bpmndi:BPMNShape bpmnElement="leaderReview" id="BPMNShape_leaderReview">
+                <omgdc:Bounds height="80.0" width="100.0" x="780.0" y="138.0"/>
+            </bpmndi:BPMNShape>
+            
+            <bpmndi:BPMNShape bpmnElement="generateExcel" id="BPMNShape_generateExcel">
+                <omgdc:Bounds height="80.0" width="100.0" x="930.0" y="138.0"/>
+            </bpmndi:BPMNShape>
+            
+            <bpmndi:BPMNShape bpmnElement="endEvent" id="BPMNShape_endEvent">
+                <omgdc:Bounds height="28.0" width="28.0" x="1080.0" y="164.0"/>
+            </bpmndi:BPMNShape>
+            
+            <bpmndi:BPMNEdge bpmnElement="flow1" id="BPMNEdge_flow1">
+                <omgdi:waypoint x="130.0" y="178.0"/>
+                <omgdi:waypoint x="180.0" y="178.0"/>
+            </bpmndi:BPMNEdge>
+            
+            <bpmndi:BPMNEdge bpmnElement="flow2" id="BPMNEdge_flow2">
+                <omgdi:waypoint x="280.0" y="178.0"/>
+                <omgdi:waypoint x="330.0" y="178.0"/>
+            </bpmndi:BPMNEdge>
+            
+            <bpmndi:BPMNEdge bpmnElement="flow3" id="BPMNEdge_flow3">
+                <omgdi:waypoint x="380.0" y="233.0"/>
+                <omgdi:waypoint x="380.0" y="270.0"/>
+            </bpmndi:BPMNEdge>
+            
+            <bpmndi:BPMNEdge bpmnElement="flow4" id="BPMNEdge_flow4">
+                <omgdi:waypoint x="380.0" y="350.0"/>
+                <omgdi:waypoint x="380.0" y="390.0"/>
+            </bpmndi:BPMNEdge>
+            
+            <bpmndi:BPMNEdge bpmnElement="flow5" id="BPMNEdge_flow5">
+                <omgdi:waypoint x="380.0" y="73.0"/>
+                <omgdi:waypoint x="380.0" y="88.0"/>
+                <omgdi:waypoint x="480.0" y="88.0"/>
+            </bpmndi:BPMNEdge>
+            
+            <bpmndi:BPMNEdge bpmnElement="flow6" id="BPMNEdge_flow6">
+                <omgdi:waypoint x="580.0" y="88.0"/>
+                <omgdi:waypoint x="680.0" y="88.0"/>
+                <omgdi:waypoint x="680.0" y="138.0"/>
+            </bpmndi:BPMNEdge>
+            
+            <bpmndi:BPMNEdge bpmnElement="flow7" id="BPMNEdge_flow7">
+                <omgdi:waypoint x="430.0" y="178.0"/>
+                <omgdi:waypoint x="630.0" y="178.0"/>
+            </bpmndi:BPMNEdge>
+            
+            <bpmndi:BPMNEdge bpmnElement="flow8" id="BPMNEdge_flow8">
+                <omgdi:waypoint x="730.0" y="178.0"/>
+                <omgdi:waypoint x="780.0" y="178.0"/>
+            </bpmndi:BPMNEdge>
+            
+            <bpmndi:BPMNEdge bpmnElement="flow9" id="BPMNEdge_flow9">
+                <omgdi:waypoint x="880.0" y="178.0"/>
+                <omgdi:waypoint x="930.0" y="178.0"/>
+            </bpmndi:BPMNEdge>
+            
+            <bpmndi:BPMNEdge bpmnElement="flow10" id="BPMNEdge_flow10">
+                <omgdi:waypoint x="1030.0" y="178.0"/>
+                <omgdi:waypoint x="1080.0" y="178.0"/>
+            </bpmndi:BPMNEdge>
+            
+        </bpmndi:BPMNPlane>
+    </bpmndi:BPMNDiagram>
+</definitions>

@@ -3,23 +3,26 @@ import {
   SheetContent,
   SheetHeader,
   SheetTitle,
+  SheetDescription,
 } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { 
-  Clock, 
-  Download, 
-  Upload, 
-  FileText, 
+import {
+  Clock,
+  Download,
+  Upload,
+  FileText,
   CheckCircle2,
   AlertCircle,
   Calendar,
   Eye,
-  XCircle
+  XCircle,
+  Edit
 } from "lucide-react";
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import { Task, Assignee } from "@/contexts/TaskContext";
 import { FilePreviewDialog } from "@/components/ppt/FilePreviewDialog";
@@ -32,17 +35,18 @@ interface TaskProcessDrawerProps {
   onSubmit?: (file: File, note: string) => void;
 }
 
-export function TaskProcessDrawer({ 
-  open, 
-  onOpenChange, 
-  task, 
+export function TaskProcessDrawer({
+  open,
+  onOpenChange,
+  task,
   assignee,
-  onSubmit 
+  onSubmit
 }: TaskProcessDrawerProps) {
   const [note, setNote] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [templatePreviewOpen, setTemplatePreviewOpen] = useState(false);
   const { toast } = useToast();
+  const navigate = useNavigate();
 
   if (!task || !assignee) return null;
 
@@ -64,7 +68,7 @@ export function TaskProcessDrawer({
       title: "提交成功",
       description: "您的成果已提交，等待领导审核",
     });
-    
+
     setFile(null);
     setNote("");
     onOpenChange(false);
@@ -98,12 +102,12 @@ export function TaskProcessDrawer({
                 <Badge variant="outline" className="text-xs">
                   {task.createdBy}
                 </Badge>
-                <Badge 
+                <Badge
                   className={
-                    isOverdue 
+                    isOverdue
                       ? "bg-destructive/10 text-destructive border-destructive/20"
-                      : isUrgent 
-                        ? "bg-warning/10 text-warning border-warning/20" 
+                      : isUrgent
+                        ? "bg-warning/10 text-warning border-warning/20"
                         : "bg-muted text-muted-foreground"
                   }
                 >
@@ -148,8 +152,8 @@ export function TaskProcessDrawer({
                 模板文件
               </h4>
               <div className="flex gap-2">
-                <Button 
-                  variant="outline" 
+                <Button
+                  variant="outline"
                   className="flex-1 justify-start"
                   onClick={() => setTemplatePreviewOpen(true)}
                 >
@@ -164,8 +168,22 @@ export function TaskProcessDrawer({
                   </div>
                   <Eye className="h-4 w-4" />
                 </Button>
+
+                {task.templateFileUrl && (
+                  <Button
+                    variant="outline"
+                    className="gap-1.5 text-primary border-primary/30 hover:bg-primary/10 shrink-0"
+                    onClick={() => {
+                      onOpenChange(false);
+                      navigate(`/editor/${task.id}/${assignee.id}`);
+                    }}
+                  >
+                    <Edit className="h-4 w-4" />
+                    在线协作
+                  </Button>
+                )}
               </div>
-              
+
               <FilePreviewDialog
                 open={templatePreviewOpen}
                 onOpenChange={setTemplatePreviewOpen}
@@ -184,7 +202,7 @@ export function TaskProcessDrawer({
                 <Upload className="h-4 w-4 text-primary" />
                 提交成果
               </h4>
-              
+
               <div className="border-2 border-dashed border-border rounded-lg p-6 text-center hover:border-primary/50 transition-colors">
                 <input
                   type="file"
@@ -235,7 +253,7 @@ export function TaskProcessDrawer({
             {assignee.submissions.length > 0 ? (
               <div className="space-y-3">
                 {assignee.submissions.map((submission) => (
-                  <div 
+                  <div
                     key={submission.id}
                     className="rounded-lg border border-border p-3 space-y-2"
                   >
@@ -244,9 +262,9 @@ export function TaskProcessDrawer({
                         <FileText className="h-4 w-4 text-muted-foreground" />
                         <span className="text-sm font-medium">{submission.fileName}</span>
                       </div>
-                      <Badge 
+                      <Badge
                         className={
-                          submission.status === "rejected" 
+                          submission.status === "rejected"
                             ? "bg-destructive/10 text-destructive border-destructive/20"
                             : submission.status === "approved"
                               ? "bg-success/10 text-success border-success/20"
@@ -271,23 +289,20 @@ export function TaskProcessDrawer({
                       </p>
                     )}
                     {submission.feedback && (
-                      <div className={`rounded p-2 mt-2 ${
-                        submission.status === "rejected" 
-                          ? "bg-destructive/5" 
-                          : "bg-success/5"
-                      }`}>
-                        <p className={`text-xs font-medium ${
-                          submission.status === "rejected" 
-                            ? "text-destructive" 
-                            : "text-success"
+                      <div className={`rounded p-2 mt-2 ${submission.status === "rejected"
+                        ? "bg-destructive/5"
+                        : "bg-success/5"
                         }`}>
+                        <p className={`text-xs font-medium ${submission.status === "rejected"
+                          ? "text-destructive"
+                          : "text-success"
+                          }`}>
                           {submission.status === "rejected" ? "驳回原因" : "审批意见"}
                         </p>
-                        <p className={`text-xs mt-1 ${
-                          submission.status === "rejected" 
-                            ? "text-destructive/80" 
-                            : "text-success/80"
-                        }`}>
+                        <p className={`text-xs mt-1 ${submission.status === "rejected"
+                          ? "text-destructive/80"
+                          : "text-success/80"
+                          }`}>
                           {submission.feedback}
                         </p>
                         {submission.feedbackAt && (
@@ -310,8 +325,8 @@ export function TaskProcessDrawer({
           {/* Submit Button */}
           {canSubmit && (
             <div className="pt-4">
-              <Button 
-                className="w-full gradient-primary" 
+              <Button
+                className="w-full gradient-primary"
                 size="lg"
                 onClick={handleSubmit}
               >

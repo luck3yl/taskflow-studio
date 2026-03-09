@@ -1,18 +1,22 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { 
-  Search, 
-  Clock, 
-  FileText, 
+import {
+  Search,
+  Clock,
+  FileText,
   Download,
   Calendar,
   User,
-  Filter
+  Filter,
+  Edit,
+  AlertCircle,
+  CheckCircle2
 } from "lucide-react";
 import {
   Select,
@@ -23,6 +27,7 @@ import {
 } from "@/components/ui/select";
 import { TaskProcessDrawer } from "@/components/drawers/TaskProcessDrawer";
 import { useTaskContext, Task, Assignee } from "@/contexts/TaskContext";
+import { useUserContext } from "@/contexts/UserContext";
 
 const statusStyles = {
   pending: "bg-warning/10 text-warning border-warning/20",
@@ -46,20 +51,21 @@ const statusFilters = [
   { value: "rejected", label: "已驳回" },
 ];
 
-// Current user (simulated - in real app would come from auth)
-const CURRENT_USER = "张明";
+
 
 export default function TodoCenter() {
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [selectedItem, setSelectedItem] = useState<{ task: Task; assignee: Assignee } | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
-  
+
   const { tasks, submitWork } = useTaskContext();
+  const { currentUser } = useUserContext();
+  const navigate = useNavigate();
 
   // Get tasks assigned to current user
   const myTasks = tasks.flatMap(task => {
-    const assignee = task.assignees.find(a => a.name === CURRENT_USER);
+    const assignee = task.assignees.find(a => a.name === currentUser.name);
     if (assignee) {
       return [{ task, assignee }];
     }
@@ -80,14 +86,14 @@ export default function TodoCenter() {
 
   const handleSubmit = (file: File, note: string) => {
     if (!selectedItem) return;
-    
+
     submitWork(selectedItem.task.id, selectedItem.assignee.id, {
       fileName: file.name,
       fileSize: file.size / (1024 * 1024),
       submittedAt: new Date().toISOString().replace('T', ' ').slice(0, 16),
       note,
     });
-    
+
     setDrawerOpen(false);
   };
 
@@ -114,7 +120,7 @@ export default function TodoCenter() {
               共有 <span className="text-primary font-medium">{filteredTasks.length}</span> 个待办任务
             </p>
           </div>
-          
+
           <div className="flex flex-wrap gap-3 w-full sm:w-auto">
             <div className="relative flex-1 sm:flex-initial">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -146,98 +152,78 @@ export default function TodoCenter() {
           {filteredTasks.map(({ task, assignee }, index) => {
             const deadlineInfo = getDeadlineInfo(task.deadline);
             const latestSubmission = assignee.submissions[assignee.submissions.length - 1];
-            
+
             return (
-              <Card 
+              <Card
                 key={`${task.id}-${assignee.id}`}
-                className="shadow-card hover:shadow-elevated transition-all duration-200 hover:border-primary/30 animate-slide-up"
+                className="group relative overflow-hidden transition-all duration-200 border border-border/50 shadow-sm hover:shadow-md hover:border-primary/20 flex flex-col h-full bg-card"
                 style={{ animationDelay: `${index * 50}ms` }}
               >
-                <CardContent className="p-5">
-                  <div className="space-y-4">
-                    {/* Header */}
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-1">
-                          <h3 className="font-semibold text-foreground truncate">
-                            {task.title}
-                          </h3>
-                          {deadlineInfo.isUrgent && (
-                            <Badge variant="destructive" className="shrink-0 text-[10px] px-1.5 py-0">
-                              紧急
-                            </Badge>
-                          )}
-                        </div>
-                        <Badge className={statusStyles[assignee.status]}>
-                          {statusLabels[assignee.status]}
-                        </Badge>
-                      </div>
+                <CardContent className="p-5 flex-1 flex flex-col">
+                  {/* Status Top Bar */}
+                  <div className="flex items-center justify-between mb-3 shrink-0">
+                    <Badge className={`${statusStyles[assignee.status]} border-none shadow-none text-xs font-bold h-6 px-2.5 rounded`}>
+                      {statusLabels[assignee.status]}
+                    </Badge>
+                    <div className="flex items-center gap-1.5 text-xs text-muted-foreground font-medium">
+                      <Clock className="h-3.5 w-3.5" />
+                      <span>{deadlineInfo.isOverdue ? '已逾期' : '进行中'}</span>
                     </div>
+                  </div>
 
-                    {/* Leader Info */}
-                    <div className="flex items-center gap-2">
-                      <Avatar className="h-6 w-6">
-                        <AvatarFallback className="bg-primary/10 text-primary text-xs">
-                          {task.createdByAvatar}
-                        </AvatarFallback>
-                      </Avatar>
-                      <span className="text-sm text-muted-foreground">
-                        <User className="inline h-3 w-3 mr-1" />
-                        {task.createdBy}
-                      </span>
-                    </div>
-
-                    {/* Task Description */}
-                    <p className="text-sm text-muted-foreground line-clamp-2">
-                      <FileText className="inline h-3 w-3 mr-1" />
+                  {/* Title & Description */}
+                  <div className="space-y-2.5 mb-4">
+                    <h3 className="font-bold text-lg leading-snug line-clamp-2">
+                      {task.title}
+                    </h3>
+                    <p className="text-sm text-muted-foreground/90 leading-relaxed line-clamp-2">
                       {assignee.taskDescription}
                     </p>
+                  </div>
 
-                    {/* Page Range */}
-                    {assignee.pageRange && (
-                      <Badge variant="outline" className="text-xs">
-                        负责第 {assignee.pageRange} 页
-                      </Badge>
-                    )}
-
-                    {/* Reject Reason */}
-                    {assignee.status === "rejected" && latestSubmission?.feedback && (
-                      <div className="rounded-lg bg-destructive/5 border border-destructive/20 p-3">
-                        <p className="text-xs text-destructive font-medium">驳回原因</p>
-                        <p className="text-sm text-destructive/80 mt-1">{latestSubmission.feedback}</p>
+                  {/* Metadata */}
+                  <div className="flex flex-wrap items-center gap-4 mb-4">
+                    <div className="flex items-center gap-2">
+                      <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center text-xs font-bold text-primary border border-primary/20">
+                        {task.createdByAvatar}
                       </div>
-                    )}
-
-                    {/* Approval Info */}
-                    {assignee.status === "approved" && latestSubmission?.feedback && (
-                      <div className="rounded-lg bg-success/5 border border-success/20 p-3">
-                        <p className="text-xs text-success font-medium">审批通过</p>
-                        <p className="text-sm text-success/80 mt-1">{latestSubmission.feedback}</p>
-                      </div>
-                    )}
-
-                    {/* Footer */}
-                    <div className="flex items-center justify-between pt-2 border-t border-border">
-                      <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                        <Calendar className="h-3 w-3" />
-                        <span>截止：{task.deadline}</span>
-                      </div>
-                      
-                      <div className="flex gap-2">
-                        {task.templateFileName && (
-                          <Button variant="ghost" size="sm" className="h-8 px-2">
-                            <Download className="h-4 w-4" />
-                          </Button>
-                        )}
-                        <Button 
-                          size="sm" 
-                          className="h-8 gradient-primary"
-                          onClick={() => handleProcessTask(task, assignee)}
-                        >
-                          {assignee.status === "pending" || assignee.status === "rejected" ? "处理" : "查看"}
-                        </Button>
-                      </div>
+                      <span className="text-sm font-medium text-foreground/80">{task.createdBy}</span>
                     </div>
+
+                    {assignee.pageRange && (
+                      <div className="flex items-center gap-1.5 text-xs font-bold text-primary px-2 py-0.5 bg-primary/5 rounded border border-primary/10">
+                        第{assignee.pageRange}页
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Conditional Feedback */}
+                  {/* {(assignee.status === "rejected" || assignee.status === "approved") && latestSubmission?.feedback && (
+                    <div className={`mt-auto mb-4 p-3 rounded border-l-2 text-xs ${assignee.status === "rejected"
+                      ? "bg-destructive/[0.03] border-destructive/20 text-destructive/90"
+                      : "bg-success/[0.03] border-success/20 text-success/90"
+                      }`}>
+                      <span className="font-bold block text-[10px] uppercase tracking-wider opacity-70 mb-1">
+                        {assignee.status === "rejected" ? "驳回意见" : "审批通过"}
+                      </span>
+                      <p className="italic leading-relaxed line-clamp-2">"{latestSubmission.feedback}"</p>
+                    </div>
+                  )} */}
+
+                  {/* Action Footer */}
+                  <div className="mt-auto pt-4 border-t border-border/40 flex items-center justify-between">
+                    <div className="text-sm">
+                      <span className="opacity-60">截止时间: </span>
+                      <span className="font-medium text-foreground/70">{task.deadline}</span>
+                    </div>
+
+                    <Button
+                      size="sm"
+                      className="h-8 px-4 text-xs font-bold gradient-primary rounded shadow-sm hover:translate-x-0.5 transition-transform"
+                      onClick={() => handleProcessTask(task, assignee)}
+                    >
+                      {assignee.status === "pending" || assignee.status === "rejected" ? "立即处理" : "详情"}
+                    </Button>
                   </div>
                 </CardContent>
               </Card>

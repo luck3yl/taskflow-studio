@@ -1,0 +1,209 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL"
+             xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+             xmlns:flowable="http://flowable.org/bpmn"
+             xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI"
+             xmlns:omgdc="http://www.omg.org/spec/DD/20100524/DC"
+             xmlns:omgdi="http://www.omg.org/spec/DD/20100524/DI"
+             targetNamespace="http://flowable.org/test">
+
+    <process id="leaveApproval" name="请假审批流程" isExecutable="true">
+        
+        <startEvent id="startEvent" name="开始"/>
+        
+        <userTask id="submitLeave" name="提交请假申请" flowable:assignee="${applicant}">
+            <extensionElements>
+                <flowable:formProperty id="days" name="请假天数" type="long" required="true"/>
+                <flowable:formProperty id="reason" name="请假原因" type="string" required="true"/>
+                <flowable:formProperty id="startDate" name="开始日期" type="date" required="true"/>
+            </extensionElements>
+        </userTask>
+        
+        <userTask id="deptManagerApproval" name="部门经理审批" flowable:assignee="${deptManager}">
+            <extensionElements>
+                <flowable:formProperty id="deptApproved" name="部门经理意见" type="enum" required="true">
+                    <flowable:value id="true" name="同意"/>
+                    <flowable:value id="false" name="拒绝"/>
+                </flowable:formProperty>
+                <flowable:formProperty id="deptComment" name="审批意见" type="string"/>
+            </extensionElements>
+        </userTask>
+        
+        <exclusiveGateway id="checkDays" name="检查请假天数"/>
+        
+        <userTask id="hrApproval" name="HR审批" flowable:assignee="${hrManager}">
+            <extensionElements>
+                <flowable:formProperty id="hrApproved" name="HR意见" type="enum" required="true">
+                    <flowable:value id="true" name="同意"/>
+                    <flowable:value id="false" name="拒绝"/>
+                </flowable:formProperty>
+                <flowable:formProperty id="hrComment" name="HR意见" type="string"/>
+            </extensionElements>
+        </userTask>
+        
+        <userTask id="gmApproval" name="总经理审批" flowable:assignee="${generalManager}">
+            <extensionElements>
+                <flowable:formProperty id="gmApproved" name="总经理意见" type="enum" required="true">
+                    <flowable:value id="true" name="同意"/>
+                    <flowable:value id="false" name="拒绝"/>
+                </flowable:formProperty>
+                <flowable:formProperty id="gmComment" name="总经理意见" type="string"/>
+            </extensionElements>
+        </userTask>
+        
+        <parallelGateway id="parallelGatewayStart" name="并行审批开始"/>
+        <parallelGateway id="parallelGatewayEnd" name="并行审批结束"/>
+        <exclusiveGateway id="mergeGateway" name="汇总"/>
+        
+        <userTask id="notifyApplicant" name="通知申请人" flowable:assignee="${applicant}">
+            <extensionElements>
+                <flowable:formProperty id="finalResult" name="审批结果" type="string"/>
+            </extensionElements>
+        </userTask>
+        
+        <endEvent id="endEvent" name="结束"/>
+        
+        <sequenceFlow id="flow1" sourceRef="startEvent" targetRef="submitLeave"/>
+        <sequenceFlow id="flow2" sourceRef="submitLeave" targetRef="deptManagerApproval"/>
+        <sequenceFlow id="flow3" sourceRef="deptManagerApproval" targetRef="checkDays"/>
+        
+        <sequenceFlow id="flow4" name="≤3天" sourceRef="checkDays" targetRef="mergeGateway">
+            <conditionExpression xsi:type="tFormalExpression">
+                <![CDATA[${days <= 3}]]>
+            </conditionExpression>
+        </sequenceFlow>
+        
+        <sequenceFlow id="flow5" name=">3天" sourceRef="checkDays" targetRef="parallelGatewayStart">
+            <conditionExpression xsi:type="tFormalExpression">
+                <![CDATA[${days > 3}]]>
+            </conditionExpression>
+        </sequenceFlow>
+        
+        <sequenceFlow id="flow6" sourceRef="parallelGatewayStart" targetRef="hrApproval"/>
+        <sequenceFlow id="flow7" sourceRef="parallelGatewayStart" targetRef="gmApproval"/>
+        <sequenceFlow id="flow8" sourceRef="hrApproval" targetRef="parallelGatewayEnd"/>
+        <sequenceFlow id="flow9" sourceRef="gmApproval" targetRef="parallelGatewayEnd"/>
+        <sequenceFlow id="flow10" sourceRef="parallelGatewayEnd" targetRef="mergeGateway"/>
+        <sequenceFlow id="flow11" sourceRef="mergeGateway" targetRef="notifyApplicant"/>
+        <sequenceFlow id="flow12" sourceRef="notifyApplicant" targetRef="endEvent"/>
+        
+    </process>
+
+    <bpmndi:BPMNDiagram id="BPMNDiagram_leaveApproval">
+        <bpmndi:BPMNPlane bpmnElement="leaveApproval" id="BPMNPlane_leaveApproval">
+            
+            <bpmndi:BPMNShape bpmnElement="startEvent" id="BPMNShape_startEvent">
+                <omgdc:Bounds height="30.0" width="30.0" x="100.0" y="163.0"/>
+            </bpmndi:BPMNShape>
+            
+            <bpmndi:BPMNShape bpmnElement="submitLeave" id="BPMNShape_submitLeave">
+                <omgdc:Bounds height="80.0" width="100.0" x="180.0" y="138.0"/>
+            </bpmndi:BPMNShape>
+            
+            <bpmndi:BPMNShape bpmnElement="deptManagerApproval" id="BPMNShape_deptManagerApproval">
+                <omgdc:Bounds height="80.0" width="100.0" x="330.0" y="138.0"/>
+            </bpmndi:BPMNShape>
+            
+            <bpmndi:BPMNShape bpmnElement="checkDays" id="BPMNShape_checkDays">
+                <omgdc:Bounds height="40.0" width="40.0" x="480.0" y="158.0"/>
+            </bpmndi:BPMNShape>
+            
+            <bpmndi:BPMNShape bpmnElement="parallelGatewayStart" id="BPMNShape_parallelGatewayStart">
+                <omgdc:Bounds height="40.0" width="40.0" x="570.0" y="258.0"/>
+            </bpmndi:BPMNShape>
+            
+            <bpmndi:BPMNShape bpmnElement="hrApproval" id="BPMNShape_hrApproval">
+                <omgdc:Bounds height="80.0" width="100.0" x="660.0" y="198.0"/>
+            </bpmndi:BPMNShape>
+            
+            <bpmndi:BPMNShape bpmnElement="gmApproval" id="BPMNShape_gmApproval">
+                <omgdc:Bounds height="80.0" width="100.0" x="660.0" y="318.0"/>
+            </bpmndi:BPMNShape>
+            
+            <bpmndi:BPMNShape bpmnElement="parallelGatewayEnd" id="BPMNShape_parallelGatewayEnd">
+                <omgdc:Bounds height="40.0" width="40.0" x="810.0" y="258.0"/>
+            </bpmndi:BPMNShape>
+            
+            <bpmndi:BPMNShape bpmnElement="mergeGateway" id="BPMNShape_mergeGateway">
+                <omgdc:Bounds height="40.0" width="40.0" x="900.0" y="158.0"/>
+            </bpmndi:BPMNShape>
+            
+            <bpmndi:BPMNShape bpmnElement="notifyApplicant" id="BPMNShape_notifyApplicant">
+                <omgdc:Bounds height="80.0" width="100.0" x="990.0" y="138.0"/>
+            </bpmndi:BPMNShape>
+            
+            <bpmndi:BPMNShape bpmnElement="endEvent" id="BPMNShape_endEvent">
+                <omgdc:Bounds height="28.0" width="28.0" x="1140.0" y="164.0"/>
+            </bpmndi:BPMNShape>
+            
+            <bpmndi:BPMNEdge bpmnElement="flow1" id="BPMNEdge_flow1">
+                <omgdi:waypoint x="130.0" y="178.0"/>
+                <omgdi:waypoint x="180.0" y="178.0"/>
+            </bpmndi:BPMNEdge>
+            
+            <bpmndi:BPMNEdge bpmnElement="flow2" id="BPMNEdge_flow2">
+                <omgdi:waypoint x="280.0" y="178.0"/>
+                <omgdi:waypoint x="330.0" y="178.0"/>
+            </bpmndi:BPMNEdge>
+            
+            <bpmndi:BPMNEdge bpmnElement="flow3" id="BPMNEdge_flow3">
+                <omgdi:waypoint x="430.0" y="178.0"/>
+                <omgdi:waypoint x="480.0" y="178.0"/>
+            </bpmndi:BPMNEdge>
+            
+            <bpmndi:BPMNEdge bpmnElement="flow4" id="BPMNEdge_flow4">
+                <omgdi:waypoint x="500.0" y="158.0"/>
+                <omgdi:waypoint x="500.0" y="100.0"/>
+                <omgdi:waypoint x="920.0" y="100.0"/>
+                <omgdi:waypoint x="920.0" y="158.0"/>
+            </bpmndi:BPMNEdge>
+            
+            <bpmndi:BPMNEdge bpmnElement="flow5" id="BPMNEdge_flow5">
+                <omgdi:waypoint x="500.0" y="198.0"/>
+                <omgdi:waypoint x="500.0" y="278.0"/>
+                <omgdi:waypoint x="570.0" y="278.0"/>
+            </bpmndi:BPMNEdge>
+            
+            <bpmndi:BPMNEdge bpmnElement="flow6" id="BPMNEdge_flow6">
+                <omgdi:waypoint x="590.0" y="258.0"/>
+                <omgdi:waypoint x="590.0" y="238.0"/>
+                <omgdi:waypoint x="660.0" y="238.0"/>
+            </bpmndi:BPMNEdge>
+            
+            <bpmndi:BPMNEdge bpmnElement="flow7" id="BPMNEdge_flow7">
+                <omgdi:waypoint x="590.0" y="298.0"/>
+                <omgdi:waypoint x="590.0" y="358.0"/>
+                <omgdi:waypoint x="660.0" y="358.0"/>
+            </bpmndi:BPMNEdge>
+            
+            <bpmndi:BPMNEdge bpmnElement="flow8" id="BPMNEdge_flow8">
+                <omgdi:waypoint x="760.0" y="238.0"/>
+                <omgdi:waypoint x="830.0" y="238.0"/>
+                <omgdi:waypoint x="830.0" y="258.0"/>
+            </bpmndi:BPMNEdge>
+            
+            <bpmndi:BPMNEdge bpmnElement="flow9" id="BPMNEdge_flow9">
+                <omgdi:waypoint x="760.0" y="358.0"/>
+                <omgdi:waypoint x="830.0" y="358.0"/>
+                <omgdi:waypoint x="830.0" y="298.0"/>
+            </bpmndi:BPMNEdge>
+            
+            <bpmndi:BPMNEdge bpmnElement="flow10" id="BPMNEdge_flow10">
+                <omgdi:waypoint x="830.0" y="258.0"/>
+                <omgdi:waypoint x="830.0" y="178.0"/>
+                <omgdi:waypoint x="900.0" y="178.0"/>
+            </bpmndi:BPMNEdge>
+            
+            <bpmndi:BPMNEdge bpmnElement="flow11" id="BPMNEdge_flow11">
+                <omgdi:waypoint x="940.0" y="178.0"/>
+                <omgdi:waypoint x="990.0" y="178.0"/>
+            </bpmndi:BPMNEdge>
+            
+            <bpmndi:BPMNEdge bpmnElement="flow12" id="BPMNEdge_flow12">
+                <omgdi:waypoint x="1090.0" y="178.0"/>
+                <omgdi:waypoint x="1140.0" y="178.0"/>
+            </bpmndi:BPMNEdge>
+            
+        </bpmndi:BPMNPlane>
+    </bpmndi:BPMNDiagram>
+</definitions>

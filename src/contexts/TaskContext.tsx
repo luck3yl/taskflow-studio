@@ -56,20 +56,22 @@ interface TaskContextType {
 const TaskContext = createContext<TaskContextType | undefined>(undefined);
 
 // Initial demo data
-// 示例PPT文件URL（公开可访问的示例文件）
-const DEMO_PPT_URL = "https://scholar.harvard.edu/files/torber/files/sample-slides.pptx";
+// 模板文件URL（本地服务可访问）
+const DEMO_PPT_URL = "http://host.docker.internal:8080/data/工作报告ppt模板.pptx";
+const DEMO_WORD_URL = "http://host.docker.internal:8080/data/国家电网公司关于电网建设项目档案管理情况的汇报.doc";
+const DEMO_EXCEL_URL = "http://host.docker.internal:8080/data/电力技术文档问答对及其上下文.xlsx";
 
 const initialTasks: Task[] = [
   {
     id: "task-1",
-    title: "Q4季度汇报PPT",
-    type: "年报",
+    title: "Q1季度汇报PPT",
+    type: "专项报告",
     department: "技术部",
-    createdAt: "2024-01-10",
-    deadline: "2024-01-15 18:00",
+    createdAt: "2026-03-01",
+    deadline: "2026-03-30 18:00",
     createdBy: "王总",
     createdByAvatar: "王",
-    templateFileName: "Q4季度模板.pptx",
+    templateFileName: "Q1季度模板.pptx",
     templateFileSize: 2.5,
     templatePageCount: 15,
     templateFileUrl: DEMO_PPT_URL,
@@ -92,7 +94,7 @@ const initialTasks: Task[] = [
             fileName: "公司简介_张明.pptx",
             fileSize: 1.2,
             fileUrl: DEMO_PPT_URL,
-            submittedAt: "2024-01-13 14:30",
+            submittedAt: "2026-03-10 14:30",
             note: "已完成公司简介部分",
             status: "pending",
           }
@@ -124,32 +126,10 @@ const initialTasks: Task[] = [
             fileName: "市场分析_王芳.pptx",
             fileSize: 1.5,
             fileUrl: DEMO_PPT_URL,
-            submittedAt: "2024-01-12 10:00",
+            submittedAt: "2026-03-05 10:00",
             status: "approved",
             feedback: "内容完整，准予通过",
-            feedbackAt: "2024-01-12 15:00"
-          }
-        ]
-      },
-      {
-        id: "a4",
-        memberId: "4",
-        name: "赵强",
-        avatar: "赵",
-        department: "市场部",
-        taskDescription: "负责第10-12页：未来规划",
-        pageRange: "10-12",
-        status: "approved",
-        submissions: [
-          {
-            id: "sub-3",
-            fileName: "未来规划_赵强.pptx",
-            fileSize: 1.8,
-            fileUrl: DEMO_PPT_URL,
-            submittedAt: "2024-01-11 16:45",
-            status: "approved",
-            feedback: "准予通过",
-            feedbackAt: "2024-01-11 18:00"
+            feedbackAt: "2026-03-05 15:00"
           }
         ]
       },
@@ -168,73 +148,136 @@ const initialTasks: Task[] = [
             fileName: "总结_陈静.pptx",
             fileSize: 0.8,
             fileUrl: DEMO_PPT_URL,
-            submittedAt: "2024-01-13 09:00",
+            submittedAt: "2026-03-07 09:00",
             status: "rejected",
             feedback: "数据有误，请核实后重新提交",
-            feedbackAt: "2024-01-13 11:00"
+            feedbackAt: "2026-03-07 11:00"
           }
         ]
       }
     ]
   },
+  // {
+  //   id: "task-2",
+  //   title: "产品功能演示",
+  //   type: "月报",
+  //   department: "产品部",
+  //   createdAt: "2026-03-02",
+  //   deadline: "2026-05-20 12:00",
+  //   createdBy: "李经理",
+  //   createdByAvatar: "李",
+  //   templateFileName: "产品演示模板.pptx",
+  //   templateFileSize: 3.2,
+  //   templatePageCount: 12,
+  //   templateFileUrl: DEMO_PPT_URL,
+  //   totalAssignees: 3,
+  //   completedCount: 1,
+  //   status: "in_progress",
+  //   assignees: [
+  //     {
+  //       id: "b1",
+  //       memberId: "6",
+  //       name: "刘洋",
+  //       avatar: "刘",
+  //       department: "产品部",
+  //       taskDescription: "负责第1-4页：产品核心功能介绍",
+  //       pageRange: "1-4",
+  //       status: "approved",
+  //       submissions: [
+  //         {
+  //           id: "sub-5",
+  //           fileName: "核心功能_刘洋.pptx",
+  //           fileSize: 2.1,
+  //           fileUrl: DEMO_PPT_URL,
+  //           submittedAt: "2026-03-08 11:30",
+  //           status: "approved",
+  //           feedback: "演示清晰，通过",
+  //           feedbackAt: "2026-03-08 14:00"
+  //         }
+  //       ]
+  //     },
+  //     {
+  //       id: "b2",
+  //       memberId: "7",
+  //       name: "周婷",
+  //       avatar: "周",
+  //       department: "产品部",
+  //       taskDescription: "负责第5-8页：用户操作流程演示",
+  //       pageRange: "5-8",
+  //       status: "pending",
+  //       submissions: []
+  //     }
+  //   ]
+  // },
   {
-    id: "task-2",
-    title: "产品功能演示",
-    type: "月报",
-    department: "产品部",
-    createdAt: "2024-01-08",
-    deadline: "2024-01-18 12:00",
-    createdBy: "李经理",
-    createdByAvatar: "李",
-    templateFileName: "产品演示模板.pptx",
-    templateFileSize: 3.2,
-    templatePageCount: 12,
-    templateFileUrl: DEMO_PPT_URL,
-    totalAssignees: 3,
-    completedCount: 1,
+    id: "task-3",
+    title: "电网建设项目档案管理汇报",
+    type: "专项报告",
+    department: "技术部",
+    createdAt: "2026-03-05",
+    deadline: "2026-05-25 18:00",
+    createdBy: "张总",
+    createdByAvatar: "张",
+    templateFileName: "档案管理汇报.doc",
+    templateFileUrl: DEMO_WORD_URL,
+    totalAssignees: 2,
+    completedCount: 0,
     status: "in_progress",
     assignees: [
       {
-        id: "b1",
-        memberId: "6",
-        name: "刘洋",
-        avatar: "刘",
-        department: "产品部",
-        taskDescription: "负责第1-4页：产品核心功能介绍",
-        pageRange: "1-4",
-        status: "approved",
-        submissions: [
-          {
-            id: "sub-5",
-            fileName: "核心功能_刘洋.pptx",
-            fileSize: 2.1,
-            fileUrl: DEMO_PPT_URL,
-            submittedAt: "2024-01-12 11:30",
-            status: "approved",
-            feedback: "演示清晰，通过",
-            feedbackAt: "2024-01-12 14:00"
-          }
-        ]
-      },
-      {
-        id: "b2",
-        memberId: "7",
-        name: "周婷",
-        avatar: "周",
-        department: "产品部",
-        taskDescription: "负责第5-8页：用户操作流程演示",
-        pageRange: "5-8",
+        id: "c1",
+        memberId: "1",
+        name: "张明",
+        avatar: "张",
+        department: "技术部",
+        taskDescription: "负责完善文档内容",
         status: "pending",
         submissions: []
       },
       {
-        id: "b3",
-        memberId: "8",
-        name: "吴磊",
-        avatar: "吴",
-        department: "产品部",
-        taskDescription: "负责第9-12页：竞品对比分析",
-        pageRange: "9-12",
+        id: "c2",
+        memberId: "2",
+        name: "李华",
+        avatar: "李",
+        department: "技术部",
+        taskDescription: "负责校对文档格式",
+        status: "pending",
+        submissions: []
+      }
+    ]
+  },
+  {
+    id: "task-4",
+    title: "电力技术文档问答数据分析",
+    type: "月报",
+    department: "数据部",
+    createdAt: "2026-03-10",
+    deadline: "2026-05-30 10:00",
+    createdBy: "刘经理",
+    createdByAvatar: "刘",
+    templateFileName: "问答数据分析.xlsx",
+    templateFileUrl: DEMO_EXCEL_URL,
+    totalAssignees: 2,
+    completedCount: 0,
+    status: "in_progress",
+    assignees: [
+      {
+        id: "d1",
+        memberId: "1",
+        name: "张明",
+        avatar: "张",
+        department: "技术部",
+        taskDescription: "负责数据清洗与汇总",
+        status: "pending",
+        submissions: []
+      },
+      {
+        id: "d2",
+        memberId: "2",
+        name: "李华",
+        avatar: "李",
+        department: "技术部",
+        taskDescription: "负责数据图表分析",
         status: "pending",
         submissions: []
       }
@@ -274,12 +317,12 @@ export function TaskProvider({ children }: { children: ReactNode }) {
   const submitWork = (taskId: string, assigneeId: string, submission: Omit<Submission, "id" | "status">) => {
     setTasks(prev => prev.map(task => {
       if (task.id !== taskId) return task;
-      
+
       return {
         ...task,
         assignees: task.assignees.map(assignee => {
           if (assignee.id !== assigneeId) return assignee;
-          
+
           return {
             ...assignee,
             status: "submitted" as const,
@@ -298,20 +341,20 @@ export function TaskProvider({ children }: { children: ReactNode }) {
   };
 
   const reviewSubmission = (
-    taskId: string, 
-    assigneeId: string, 
-    submissionId: string, 
-    approved: boolean, 
+    taskId: string,
+    assigneeId: string,
+    submissionId: string,
+    approved: boolean,
     feedback?: string
   ) => {
     setTasks(prev => prev.map(task => {
       if (task.id !== taskId) return task;
-      
+
       let newCompletedCount = task.completedCount;
-      
+
       const updatedAssignees = task.assignees.map(assignee => {
         if (assignee.id !== assigneeId) return assignee;
-        
+
         const updatedSubmissions = assignee.submissions.map(sub => {
           if (sub.id !== submissionId) return sub;
           return {
@@ -321,21 +364,21 @@ export function TaskProvider({ children }: { children: ReactNode }) {
             feedbackAt: new Date().toISOString().replace('T', ' ').slice(0, 16),
           };
         });
-        
+
         const newStatus = approved ? "approved" as const : "rejected" as const;
-        
+
         // Update completed count
         if (approved && assignee.status !== "approved") {
           newCompletedCount++;
         }
-        
+
         return {
           ...assignee,
           status: newStatus,
           submissions: updatedSubmissions,
         };
       });
-      
+
       return {
         ...task,
         completedCount: newCompletedCount,
@@ -349,10 +392,10 @@ export function TaskProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <TaskContext.Provider value={{ 
-      tasks, 
-      addTask, 
-      getTaskById, 
+    <TaskContext.Provider value={{
+      tasks,
+      addTask,
+      getTaskById,
       getTasksForEmployee,
       submitWork,
       reviewSubmission,

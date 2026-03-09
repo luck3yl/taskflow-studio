@@ -1,0 +1,111 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL"
+             xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+             xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI"
+             xmlns:omgdc="http://www.omg.org/spec/DD/20100524/DC"
+             xmlns:omgdi="http://www.omg.org/spec/DD/20100524/DI"
+             xmlns:flowable="http://flowable.org/bpmn"
+             typeLanguage="http://www.w3.org/2001/XMLSchema"
+             expressionLanguage="http://www.w3.org/1999/XPath"
+             targetNamespace="http://www.flowable.org/processdef">
+
+    <process id="multiLevelAssignmentSimple" name="多级分配流程-多实例版" isExecutable="true">
+
+        <startEvent id="start" name="开始"/>
+
+        <!-- 第1级：经理发布任务（多实例并行） -->
+        <userTask id="publishTask" name="经理发布任务" flowable:assignee="${managerItem}">
+            <multiInstanceLoopCharacteristics isSequential="false" flowable:collection="${managerList}" flowable:elementVariable="managerItem">
+                <completionCondition>${nrOfCompletedInstances == nrOfInstances}</completionCondition>
+            </multiInstanceLoopCharacteristics>
+        </userTask>
+
+        <!-- 第2级：经理分配给主管（多实例并行） -->
+        <userTask id="assignToSupervisor" name="经理分配给主管" flowable:assignee="${managerItem}">
+            <multiInstanceLoopCharacteristics isSequential="false" flowable:collection="${managerList}" flowable:elementVariable="managerItem">
+                <completionCondition>${nrOfCompletedInstances == nrOfInstances}</completionCondition>
+            </multiInstanceLoopCharacteristics>
+        </userTask>
+
+        <!-- 第3级：主管分配给员工（多实例并行） -->
+        <userTask id="assignToEmployee" name="主管分配给员工" flowable:assignee="${supervisorItem}">
+            <multiInstanceLoopCharacteristics isSequential="false" flowable:collection="${supervisorList}" flowable:elementVariable="supervisorItem">
+                <completionCondition>${nrOfCompletedInstances == nrOfInstances}</completionCondition>
+            </multiInstanceLoopCharacteristics>
+        </userTask>
+
+        <!-- 员工执行任务（多实例并行） -->
+        <userTask id="executeTask" name="员工执行任务" flowable:assignee="${employeeItem}">
+            <multiInstanceLoopCharacteristics isSequential="false" flowable:collection="${employeeList}" flowable:elementVariable="employeeItem">
+                <completionCondition>${nrOfCompletedInstances == nrOfInstances}</completionCondition>
+            </multiInstanceLoopCharacteristics>
+        </userTask>
+
+        <endEvent id="end" name="结束"/>
+
+        <!-- 连线 -->
+        <sequenceFlow id="flow1" sourceRef="start" targetRef="publishTask"/>
+        <sequenceFlow id="flow2" sourceRef="publishTask" targetRef="assignToSupervisor"/>
+        <sequenceFlow id="flow3" sourceRef="assignToSupervisor" targetRef="assignToEmployee"/>
+        <sequenceFlow id="flow4" sourceRef="assignToEmployee" targetRef="executeTask"/>
+        <sequenceFlow id="flow5" sourceRef="executeTask" targetRef="end"/>
+
+    </process>
+
+    <!-- 图形信息 -->
+    <bpmndi:BPMNDiagram id="diagram">
+        <bpmndi:BPMNPlane id="plane" bpmnElement="multiLevelAssignmentSimple">
+            <bpmndi:BPMNShape id="shape_start" bpmnElement="start">
+                <omgdc:Bounds x="100" y="100" width="36" height="36"/>
+            </bpmndi:BPMNShape>
+            <bpmndi:BPMNShape id="shape_publishTask" bpmnElement="publishTask">
+                <omgdc:Bounds x="200" y="78" width="100" height="80"/>
+            </bpmndi:BPMNShape>
+            <bpmndi:BPMNShape id="shape_assignToSupervisor" bpmnElement="assignToSupervisor">
+                <omgdc:Bounds x="360" y="78" width="100" height="80"/>
+            </bpmndi:BPMNShape>
+            <bpmndi:BPMNShape id="shape_assignToEmployee" bpmnElement="assignToEmployee">
+                <omgdc:Bounds x="520" y="78" width="100" height="80"/>
+            </bpmndi:BPMNShape>
+            <bpmndi:BPMNShape id="shape_executeTask" bpmnElement="executeTask">
+                <omgdc:Bounds x="680" y="78" width="100" height="80"/>
+            </bpmndi:BPMNShape>
+            <bpmndi:BPMNShape id="shape_end" bpmnElement="end">
+                <omgdc:Bounds x="840" y="100" width="36" height="36"/>
+            </bpmndi:BPMNShape>
+            
+            <!-- 多实例标记：在executeTask下方添加三条平行线 -->
+            <bpmndi:BPMNShape id="shape_multiInstance_marker1" bpmnElement="executeTask">
+                <omgdc:Bounds x="690" y="148" width="80" height="2"/>
+            </bpmndi:BPMNShape>
+            <bpmndi:BPMNShape id="shape_multiInstance_marker2" bpmnElement="executeTask">
+                <omgdc:Bounds x="690" y="152" width="80" height="2"/>
+            </bpmndi:BPMNShape>
+            <bpmndi:BPMNShape id="shape_multiInstance_marker3" bpmnElement="executeTask">
+                <omgdc:Bounds x="690" y="156" width="80" height="2"/>
+            </bpmndi:BPMNShape>
+            
+            <bpmndi:BPMNEdge id="edge_flow1" bpmnElement="flow1">
+                <omgdi:waypoint x="136" y="118"/>
+                <omgdi:waypoint x="200" y="118"/>
+            </bpmndi:BPMNEdge>
+            <bpmndi:BPMNEdge id="edge_flow2" bpmnElement="flow2">
+                <omgdi:waypoint x="300" y="118"/>
+                <omgdi:waypoint x="360" y="118"/>
+            </bpmndi:BPMNEdge>
+            <bpmndi:BPMNEdge id="edge_flow3" bpmnElement="flow3">
+                <omgdi:waypoint x="460" y="118"/>
+                <omgdi:waypoint x="520" y="118"/>
+            </bpmndi:BPMNEdge>
+            <bpmndi:BPMNEdge id="edge_flow4" bpmnElement="flow4">
+                <omgdi:waypoint x="620" y="118"/>
+                <omgdi:waypoint x="680" y="118"/>
+            </bpmndi:BPMNEdge>
+            <bpmndi:BPMNEdge id="edge_flow5" bpmnElement="flow5">
+                <omgdi:waypoint x="780" y="118"/>
+                <omgdi:waypoint x="840" y="118"/>
+            </bpmndi:BPMNEdge>
+        </bpmndi:BPMNPlane>
+    </bpmndi:BPMNDiagram>
+
+</definitions>

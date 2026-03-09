@@ -1,0 +1,153 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL"
+             xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+             xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI"
+             xmlns:omgdc="http://www.omg.org/spec/DD/20100524/DC"
+             xmlns:omgdi="http://www.omg.org/spec/DD/20100524/DI"
+             xmlns:flowable="http://flowable.org/bpmn"
+             typeLanguage="http://www.w3.org/2001/XMLSchema"
+             expressionLanguage="http://www.w3.org/1999/XPath"
+             targetNamespace="http://www.flowable.org/processdef">
+
+    <process id="managerTaskFlow" name="经理任务流程" isExecutable="true">
+
+        <startEvent id="start" name="开始"/>
+
+        <!-- 1. 经理发布任务 -->
+        <userTask id="publishTask" name="经理发布任务" flowable:assignee="${manager}"/>
+
+        <!-- 2. 经理分配员工 -->
+        <userTask id="assignTask" name="经理分配员工" flowable:assignee="${manager}"/>
+
+        <!-- 3. 子流程：员工执行+经理审核（多实例，每个员工独立循环） -->
+        <subProcess id="employeeSubProcess" name="员工执行审核子流程">
+            <multiInstanceLoopCharacteristics isSequential="false" 
+                flowable:collection="${employeeList}" 
+                flowable:elementVariable="currentEmployee">
+                <completionCondition>${nrOfCompletedInstances == nrOfInstances}</completionCondition>
+            </multiInstanceLoopCharacteristics>
+
+            <startEvent id="subStart"/>
+
+            <!-- 3.1 员工执行任务 -->
+            <userTask id="executeTask" name="员工执行任务" flowable:assignee="${currentEmployee}"/>
+
+            <!-- 3.2 经理审核该员工的任务 -->
+            <userTask id="approveTask" name="经理审核" flowable:assignee="${manager}"/>
+
+            <!-- 3.3 审核网关 -->
+            <exclusiveGateway id="approveGateway" name="审核结果判断"/>
+
+            <endEvent id="subEnd" name="该员工任务结束"/>
+
+            <!-- 子流程内连线 -->
+            <sequenceFlow id="subFlow1" sourceRef="subStart" targetRef="executeTask"/>
+            <sequenceFlow id="subFlow2" sourceRef="executeTask" targetRef="approveTask"/>
+            <sequenceFlow id="subFlow3" sourceRef="approveTask" targetRef="approveGateway"/>
+            
+            <!-- 审核通过，该员工任务结束 -->
+            <sequenceFlow id="approveYes" sourceRef="approveGateway" targetRef="subEnd" name="通过">
+                <conditionExpression xsi:type="tFormalExpression">
+                    <![CDATA[${approved == true}]]>
+                </conditionExpression>
+            </sequenceFlow>
+            
+            <!-- 审核拒绝，回到员工重新执行 -->
+            <sequenceFlow id="approveNo" sourceRef="approveGateway" targetRef="executeTask" name="拒绝">
+                <conditionExpression xsi:type="tFormalExpression">
+                    <![CDATA[${approved == false}]]>
+                </conditionExpression>
+            </sequenceFlow>
+        </subProcess>
+
+        <endEvent id="end" name="结束"/>
+
+        <!-- 主流程连线 -->
+        <sequenceFlow id="flow1" sourceRef="start" targetRef="publishTask"/>
+        <sequenceFlow id="flow2" sourceRef="publishTask" targetRef="assignTask"/>
+        <sequenceFlow id="flow3" sourceRef="assignTask" targetRef="employeeSubProcess"/>
+        <sequenceFlow id="flow4" sourceRef="employeeSubProcess" targetRef="end"/>
+
+    </process>
+
+    <!-- 图形信息 -->
+    <bpmndi:BPMNDiagram id="diagram">
+        <bpmndi:BPMNPlane id="plane" bpmnElement="managerTaskFlow">
+            <bpmndi:BPMNShape id="shape_start" bpmnElement="start">
+                <omgdc:Bounds x="100" y="200" width="36" height="36"/>
+            </bpmndi:BPMNShape>
+            <bpmndi:BPMNShape id="shape_publishTask" bpmnElement="publishTask">
+                <omgdc:Bounds x="200" y="178" width="100" height="80"/>
+            </bpmndi:BPMNShape>
+            <bpmndi:BPMNShape id="shape_assignTask" bpmnElement="assignTask">
+                <omgdc:Bounds x="360" y="178" width="100" height="80"/>
+            </bpmndi:BPMNShape>
+            <bpmndi:BPMNShape id="shape_subprocess" bpmnElement="employeeSubProcess" isExpanded="true">
+                <omgdc:Bounds x="520" y="100" width="440" height="236"/>
+            </bpmndi:BPMNShape>
+            <bpmndi:BPMNShape id="shape_end" bpmnElement="end">
+                <omgdc:Bounds x="1020" y="200" width="36" height="36"/>
+            </bpmndi:BPMNShape>
+            
+            <!-- 子流程内部图形 -->
+            <bpmndi:BPMNShape id="shape_subStart" bpmnElement="subStart">
+                <omgdc:Bounds x="550" y="200" width="36" height="36"/>
+            </bpmndi:BPMNShape>
+            <bpmndi:BPMNShape id="shape_executeTask" bpmnElement="executeTask">
+                <omgdc:Bounds x="630" y="178" width="100" height="80"/>
+            </bpmndi:BPMNShape>
+            <bpmndi:BPMNShape id="shape_approveTask" bpmnElement="approveTask">
+                <omgdc:Bounds x="770" y="178" width="100" height="80"/>
+            </bpmndi:BPMNShape>
+            <bpmndi:BPMNShape id="shape_gateway" bpmnElement="approveGateway" isMarkerVisible="true">
+                <omgdc:Bounds x="800" y="130" width="40" height="40"/>
+            </bpmndi:BPMNShape>
+            <bpmndi:BPMNShape id="shape_subEnd" bpmnElement="subEnd">
+                <omgdc:Bounds x="900" y="200" width="36" height="36"/>
+            </bpmndi:BPMNShape>
+            
+            <!-- 主流程连线 -->
+            <bpmndi:BPMNEdge id="edge_flow1" bpmnElement="flow1">
+                <omgdi:waypoint x="136" y="218"/>
+                <omgdi:waypoint x="200" y="218"/>
+            </bpmndi:BPMNEdge>
+            <bpmndi:BPMNEdge id="edge_flow2" bpmnElement="flow2">
+                <omgdi:waypoint x="300" y="218"/>
+                <omgdi:waypoint x="360" y="218"/>
+            </bpmndi:BPMNEdge>
+            <bpmndi:BPMNEdge id="edge_flow3" bpmnElement="flow3">
+                <omgdi:waypoint x="460" y="218"/>
+                <omgdi:waypoint x="520" y="218"/>
+            </bpmndi:BPMNEdge>
+            <bpmndi:BPMNEdge id="edge_flow4" bpmnElement="flow4">
+                <omgdi:waypoint x="960" y="218"/>
+                <omgdi:waypoint x="1020" y="218"/>
+            </bpmndi:BPMNEdge>
+            
+            <!-- 子流程内部连线 -->
+            <bpmndi:BPMNEdge id="edge_subFlow1" bpmnElement="subFlow1">
+                <omgdi:waypoint x="586" y="218"/>
+                <omgdi:waypoint x="630" y="218"/>
+            </bpmndi:BPMNEdge>
+            <bpmndi:BPMNEdge id="edge_subFlow2" bpmnElement="subFlow2">
+                <omgdi:waypoint x="730" y="218"/>
+                <omgdi:waypoint x="770" y="218"/>
+            </bpmndi:BPMNEdge>
+            <bpmndi:BPMNEdge id="edge_subFlow3" bpmnElement="subFlow3">
+                <omgdi:waypoint x="820" y="178"/>
+                <omgdi:waypoint x="820" y="170"/>
+            </bpmndi:BPMNEdge>
+            <bpmndi:BPMNEdge id="edge_approveYes" bpmnElement="approveYes">
+                <omgdi:waypoint x="840" y="150"/>
+                <omgdi:waypoint x="918" y="150"/>
+                <omgdi:waypoint x="918" y="200"/>
+            </bpmndi:BPMNEdge>
+            <bpmndi:BPMNEdge id="edge_approveNo" bpmnElement="approveNo">
+                <omgdi:waypoint x="800" y="150"/>
+                <omgdi:waypoint x="680" y="150"/>
+                <omgdi:waypoint x="680" y="178"/>
+            </bpmndi:BPMNEdge>
+        </bpmndi:BPMNPlane>
+    </bpmndi:BPMNDiagram>
+
+</definitions>

@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, ReactNode } from 'react';
+import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import { ProcessDefinition, ProcessStatus } from '../types/process';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -12,23 +12,50 @@ interface ProcessContextType {
 
 const ProcessContext = createContext<ProcessContextType | undefined>(undefined);
 
-// Mock initial data
-const initialProcesses: ProcessDefinition[] = [
-    {
-        id: uuidv4(),
-        key: 'LeaveApproval',
-        name: '请假审批流程',
-        version: 1,
-        status: 'deployed',
-        xmlContent: '<?xml version="1.0" encoding="UTF-8"?><bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="Definitions_1"><bpmn:process id="LeaveApproval" name="请假审批流程" isExecutable="true"><bpmn:startEvent id="StartEvent_1"/></bpmn:process></bpmn:definitions>',
-        deployTime: new Date(Date.now() - 86400000).toISOString(),
-        creator: 'Admin',
-        createTime: new Date(Date.now() - 86400000).toISOString(),
-    }
+const bpmnFiles = [
+    { key: 'BudgetReport', name: '全预算报告审批流程', file: 'budget-report-demo.bpmn20.xml' },
+    { key: 'LeaveApproval', name: '员工请假审批流程', file: 'leave-approval.bpmn20.xml' },
+    { key: 'ManagerTask', name: '主管任务下发流程', file: 'manager-task-flow.bpmn20.xml' },
+    { key: 'MultiLevelAssignment', name: '多级任务自动分配流程', file: 'multi-level-assignment-simple.bpmn20.xml' },
+    { key: 'TaskAssignment', name: '任务分派示例', file: 'task-assignment-demo.bpmn20.xml' },
+    { key: 'TaskClaim', name: '任务认领与抢单流程', file: 'task-claim-demo.bpmn20.xml' }
 ];
+
+// Mock initial data based on real files
+const initialProcesses: ProcessDefinition[] = bpmnFiles.map((file, index) => ({
+    id: uuidv4(),
+    key: file.key,
+    name: file.name,
+    version: 1,
+    status: 'deployed',
+    xmlContent: '', // Will be loaded via fetch
+    fileName: file.file,
+    deployTime: new Date(Date.now() - (86400000 * (index + 1))).toISOString(),
+    creator: 'Admin',
+    createTime: new Date(Date.now() - (86400000 * (index + 2))).toISOString(),
+}));
 
 export const ProcessProvider = ({ children }: { children: ReactNode }) => {
     const [processes, setProcesses] = useState<ProcessDefinition[]>(initialProcesses);
+
+    useEffect(() => {
+        const loadInitialXml = async () => {
+            const updatedProcesses = await Promise.all(processes.map(async (p) => {
+                if (!p.xmlContent && p.fileName) {
+                    try {
+                        const response = await fetch(`/data/bpmn/${p.fileName}`);
+                        const xml = await response.text();
+                        return { ...p, xmlContent: xml };
+                    } catch (e) {
+                        console.error(`Failed to load XML for ${p.fileName}`, e);
+                    }
+                }
+                return p;
+            }));
+            setProcesses(updatedProcesses);
+        };
+        loadInitialXml();
+    }, []);
 
     const uploadProcess = (xmlContent: string, key: string, name: string) => {
         // Find the latest version for this key

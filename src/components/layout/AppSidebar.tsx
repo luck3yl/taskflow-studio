@@ -6,9 +6,10 @@ import {
   ChevronRight,
   LogOut,
   Settings,
-  User,
+  User as UserIcon,
   Sparkles,
-  Workflow
+  Workflow,
+  Users
 } from "lucide-react";
 import { NavLink, useLocation } from "react-router-dom";
 import {
@@ -32,7 +33,9 @@ import {
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
+  DropdownMenuLabel,
 } from "@/components/ui/dropdown-menu";
+import { useUserContext } from "@/contexts/UserContext";
 
 const mainNavItems = [
   { title: "工作台", url: "/", icon: LayoutDashboard },
@@ -46,6 +49,7 @@ export function AppSidebar() {
   const { state } = useSidebar();
   const collapsed = state === "collapsed";
   const location = useLocation();
+  const { currentUser, users, switchUser } = useUserContext();
 
   return (
     <Sidebar
@@ -131,22 +135,51 @@ export function AppSidebar() {
                 <Avatar className="h-9 w-9 ring-2 ring-blue-600/20 ring-offset-2 ring-offset-sidebar-background transition-all group-hover:ring-blue-600/40">
                   <AvatarImage src="" />
                   <AvatarFallback className="bg-gradient-to-br from-blue-600 to-indigo-700 text-white text-sm font-semibold">
-                    张
+                    {currentUser.avatar}
                   </AvatarFallback>
                 </Avatar>
                 <div className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full bg-green-500 ring-2 ring-sidebar-background" />
               </div>
               {!collapsed && (
-                <div className="flex flex-col items-start animate-fade-in">
-                  <span className="text-sm font-medium text-sidebar-foreground">张明</span>
-                  <span className="text-xs text-sidebar-muted">产品经理</span>
+                <div className="flex flex-col items-start animate-fade-in truncate">
+                  <span className="text-sm font-medium text-sidebar-foreground truncate w-full text-left">{currentUser.name}</span>
+                  <span className="text-xs text-sidebar-muted truncate w-full text-left">{currentUser.department}</span>
                 </div>
               )}
             </button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-56">
+          <DropdownMenuContent align="end" className="w-64">
+            <DropdownMenuLabel className="flex items-center gap-2 px-2 py-1.5 text-xs font-normal text-muted-foreground">
+              <Users className="h-3.5 w-3.5" />
+              <span>切换身份 (仅测试用)</span>
+            </DropdownMenuLabel>
+            <div className="max-h-48 overflow-y-auto">
+              {users.map((user) => (
+                <DropdownMenuItem
+                  key={user.id}
+                  className={cn(
+                    "cursor-pointer flex items-center justify-between",
+                    user.id === currentUser.id && "bg-accent/50 font-medium"
+                  )}
+                  onClick={() => switchUser(user.id)}
+                >
+                  <div className="flex items-center gap-2">
+                    <Avatar className="h-6 w-6">
+                      <AvatarFallback className="text-[10px] bg-primary/10 text-primary">
+                        {user.avatar}
+                      </AvatarFallback>
+                    </Avatar>
+                    <span>{user.name}</span>
+                  </div>
+                  {user.id === currentUser.id && <div className="h-1.5 w-1.5 rounded-full bg-primary" />}
+                </DropdownMenuItem>
+              ))}
+            </div>
+
+            <DropdownMenuSeparator />
+
             <DropdownMenuItem className="cursor-pointer">
-              <User className="mr-2 h-4 w-4" />
+              <UserIcon className="mr-2 h-4 w-4" />
               <span>个人信息</span>
             </DropdownMenuItem>
             <DropdownMenuItem className="cursor-pointer">
