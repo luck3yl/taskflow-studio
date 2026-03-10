@@ -3,14 +3,15 @@ import {
   SheetContent,
   SheetHeader,
   SheetTitle,
+  SheetDescription,
 } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
-import { 
-  Download, 
-  FileText, 
+import {
+  Download,
+  FileText,
   CheckCircle2,
   Clock,
   Layers,
@@ -28,10 +29,10 @@ interface MergedPPTDrawerProps {
   task?: Task;
 }
 
-export function MergedPPTDrawer({ 
-  open, 
-  onOpenChange, 
-  task 
+export function MergedPPTDrawer({
+  open,
+  onOpenChange,
+  task
 }: MergedPPTDrawerProps) {
   const [selectedFilePreview, setSelectedFilePreview] = useState<{
     fileName: string;
@@ -72,10 +73,13 @@ export function MergedPPTDrawer({
             <Layers className="h-5 w-5 text-primary" />
             合并PPT预览
           </SheetTitle>
+          <SheetDescription className="sr-only">
+            实时预览各成员提交内容的合并进度及最终效果。
+          </SheetDescription>
           <div className="flex items-center gap-3 mt-2">
-            <Badge 
-              className={allApproved 
-                ? "bg-success/10 text-success border-success/20" 
+            <Badge
+              className={allApproved
+                ? "bg-success/10 text-success border-success/20"
                 : "bg-warning/10 text-warning border-warning/20"
               }
             >
@@ -97,7 +101,7 @@ export function MergedPPTDrawer({
               </span>
             </div>
             <div className="h-2 bg-muted rounded-full overflow-hidden">
-              <div 
+              <div
                 className="h-full bg-gradient-to-r from-primary to-success transition-all"
                 style={{ width: `${progress.percentage}%` }}
               />
@@ -111,7 +115,7 @@ export function MergedPPTDrawer({
               {task.assignees.map((assignee) => {
                 const latestSubmission = assignee.submissions[assignee.submissions.length - 1];
                 return (
-                  <div 
+                  <div
                     key={assignee.id}
                     className="flex items-center gap-3 p-3 rounded-lg border border-border bg-card"
                   >
@@ -156,13 +160,12 @@ export function MergedPPTDrawer({
                       ) : (
                         <Clock className="h-4 w-4 text-muted-foreground" />
                       )}
-                      <span className={`text-xs ${
-                        assignee.status === "approved" 
-                          ? "text-success" 
+                      <span className={`text-xs ${assignee.status === "approved"
+                          ? "text-success"
                           : assignee.status === "submitted"
                             ? "text-warning"
                             : "text-muted-foreground"
-                      }`}>
+                        }`}>
                         {assignee.status === "approved" && "已合并"}
                         {assignee.status === "submitted" && "待审核"}
                         {assignee.status === "pending" && "未提交"}

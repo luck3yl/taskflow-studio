@@ -26,6 +26,7 @@ import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import { Task, Assignee } from "@/contexts/TaskContext";
 import { FilePreviewDialog } from "@/components/ppt/FilePreviewDialog";
+import { cn } from "@/lib/utils";
 
 interface TaskProcessDrawerProps {
   open: boolean;
@@ -85,6 +86,20 @@ export function TaskProcessDrawer({
   const deadline = new Date(task.deadline);
   const now = new Date();
   const diff = deadline.getTime() - now.getTime();
+
+  const formatRemainingTime = (diffMs: number) => {
+    if (diffMs <= 0) return "已超时";
+
+    const totalHours = Math.floor(diffMs / (1000 * 60 * 60));
+    const days = Math.floor(totalHours / 24);
+    const remainingHours = totalHours % 24;
+
+    if (days > 0) {
+      return `剩余 ${days} 天 ${remainingHours} 小时`;
+    }
+    return `剩余 ${totalHours} 小时`;
+  };
+
   const hours = Math.floor(diff / (1000 * 60 * 60));
   const isUrgent = hours > 0 && hours < 24;
   const isOverdue = hours <= 0;
@@ -98,21 +113,25 @@ export function TaskProcessDrawer({
           <div className="flex items-start justify-between">
             <div>
               <SheetTitle className="text-xl">{task.title}</SheetTitle>
+              <SheetDescription className="sr-only">
+                查看任务详情、模板文件并提交您的工作成果。
+              </SheetDescription>
               <div className="flex items-center gap-2 mt-2">
                 <Badge variant="outline" className="text-xs">
                   {task.createdBy}
                 </Badge>
                 <Badge
-                  className={
+                  className={cn(
                     isOverdue
                       ? "bg-destructive/10 text-destructive border-destructive/20"
                       : isUrgent
                         ? "bg-warning/10 text-warning border-warning/20"
-                        : "bg-muted text-muted-foreground"
-                  }
+                        : "bg-muted text-muted-foreground",
+                    "hover:bg-transparent cursor-default"
+                  )}
                 >
                   <Clock className="h-3 w-3 mr-1" />
-                  {isOverdue ? "已超时" : hours > 0 ? `剩余 ${hours} 小时` : "已超时"}
+                  {formatRemainingTime(diff)}
                 </Badge>
               </div>
             </div>
@@ -157,22 +176,24 @@ export function TaskProcessDrawer({
                   className="flex-1 justify-start"
                   onClick={() => setTemplatePreviewOpen(true)}
                 >
-                  <FileText className="h-4 w-4 mr-2" />
-                  <div className="flex-1 text-left">
-                    <span>{task.templateFileName}</span>
+                  <FileText className="h-4 w-4 shrink-0" />
+                  <div className="flex-1 text-left min-w-0 flex items-center gap-2">
+                    <span className="truncate font-medium flex-1">
+                      {task.templateFileName}
+                    </span>
                     {task.templatePageCount && (
-                      <span className="ml-2 text-xs text-muted-foreground">
+                      <span className="text-[10px] text-muted-foreground shrink-0">
                         ({task.templatePageCount}页)
                       </span>
                     )}
                   </div>
-                  <Eye className="h-4 w-4" />
+                  <Eye className="h-4 w-4 shrink-0 opacity-50" />
                 </Button>
 
                 {task.templateFileUrl && (
                   <Button
                     variant="outline"
-                    className="gap-1.5 text-primary border-primary/30 hover:bg-primary/10 shrink-0"
+                    className="gap-1.5 text-primary border-primary/30 hover:bg-primary hover:text-white transition-colors shrink-0"
                     onClick={() => {
                       onOpenChange(false);
                       navigate(`/editor/${task.id}/${assignee.id}`);

@@ -57,230 +57,177 @@ const TaskContext = createContext<TaskContextType | undefined>(undefined);
 
 // Initial demo data
 // 模板文件URL（本地服务可访问）
-const DEMO_PPT_URL = "http://host.docker.internal:8080/data/工作报告ppt模板.pptx";
-const DEMO_WORD_URL = "http://host.docker.internal:8080/data/国家电网公司关于电网建设项目档案管理情况的汇报.doc";
-const DEMO_EXCEL_URL = "http://host.docker.internal:8080/data/电力技术文档问答对及其上下文.xlsx";
+const DEMO_PPT_URL = "http://host.docker.internal:8080/data/集团战略发展规划演示文稿模板.pptx";
+const DEMO_WORD_URL = "http://host.docker.internal:8080/data/业务流程数字化转型实施指南模板.docx";
+const DEMO_EXCEL_URL = "http://host.docker.internal:8080/data/预算汇总模板.xlsx";
 
 const initialTasks: Task[] = [
   {
     id: "task-1",
-    title: "Q1季度汇报PPT",
+    title: "2026年度集团战略发展规划演示文稿",
     type: "专项报告",
-    department: "技术部",
+    department: "全公司",
     createdAt: "2026-03-01",
     deadline: "2026-03-30 18:00",
     createdBy: "王总",
     createdByAvatar: "王",
-    templateFileName: "Q1季度模板.pptx",
-    templateFileSize: 2.5,
-    templatePageCount: 15,
+    templateFileName: "集团战略发展规划演示文稿模板.pptx",
+    templateFileSize: 5.8,
+    templatePageCount: 30,
     templateFileUrl: DEMO_PPT_URL,
-    totalAssignees: 5,
+    totalAssignees: 6,
     completedCount: 2,
     status: "in_progress",
     assignees: [
       {
         id: "a1",
-        memberId: "1",
+        memberId: "user-1",
         name: "张明",
         avatar: "张",
         department: "技术部",
-        taskDescription: "负责第1-3页：公司简介与业务概述",
-        pageRange: "1-3",
+        taskDescription: "负责第1-5页：数字化转型核心技术架构方案",
+        pageRange: "1-5",
         status: "submitted",
-        submissions: [
-          {
-            id: "sub-1",
-            fileName: "公司简介_张明.pptx",
-            fileSize: 1.2,
-            fileUrl: DEMO_PPT_URL,
-            submittedAt: "2026-03-10 14:30",
-            note: "已完成公司简介部分",
-            status: "pending",
-          }
-        ]
+        submissions: [{
+          id: "sub-1",
+          fileName: "技术架构_张明.pptx",
+          fileSize: 1.2,
+          fileUrl: DEMO_PPT_URL,
+          submittedAt: "2026-03-08 14:30",
+          note: "已完成初步架构设计",
+          status: "pending"
+        }]
       },
       {
         id: "a2",
-        memberId: "2",
+        memberId: "user-2",
         name: "李华",
         avatar: "李",
         department: "技术部",
-        taskDescription: "负责第4-6页：财务数据与分析",
-        pageRange: "4-6",
+        taskDescription: "负责第6-10页：AI实验室建设及研发资源投入规划",
+        pageRange: "6-10",
         status: "pending",
         submissions: []
       },
       {
         id: "a3",
-        memberId: "3",
+        memberId: "user-3",
         name: "王芳",
         avatar: "王",
         department: "产品部",
-        taskDescription: "负责第7-9页：市场趋势分析",
-        pageRange: "7-9",
+        taskDescription: "负责第11-15页：核心产品演进路线与市场竞争分析",
+        pageRange: "11-15",
         status: "approved",
-        submissions: [
-          {
-            id: "sub-2",
-            fileName: "市场分析_王芳.pptx",
-            fileSize: 1.5,
-            fileUrl: DEMO_PPT_URL,
-            submittedAt: "2026-03-05 10:00",
-            status: "approved",
-            feedback: "内容完整，准予通过",
-            feedbackAt: "2026-03-05 15:00"
-          }
-        ]
+        submissions: [{
+          id: "sub-2",
+          fileName: "产品路线_王芳.pptx",
+          fileSize: 1.5,
+          fileUrl: DEMO_PPT_URL,
+          submittedAt: "2026-03-05 10:00",
+          status: "approved",
+          feedback: "规划清晰，准予通过",
+          feedbackAt: "2026-03-05 15:00"
+        }]
+      },
+      {
+        id: "a4",
+        memberId: "user-4",
+        name: "赵强",
+        avatar: "赵",
+        department: "市场部",
+        taskDescription: "负责第16-20页：全球全渠道营销策略及品牌建设",
+        pageRange: "16-20",
+        status: "pending",
+        submissions: []
       },
       {
         id: "a5",
-        memberId: "5",
+        memberId: "user-5",
         name: "陈静",
         avatar: "陈",
         department: "运营部",
-        taskDescription: "负责第13-15页：总结与致谢",
-        pageRange: "13-15",
-        status: "rejected",
-        submissions: [
-          {
-            id: "sub-4",
-            fileName: "总结_陈静.pptx",
-            fileSize: 0.8,
-            fileUrl: DEMO_PPT_URL,
-            submittedAt: "2026-03-07 09:00",
-            status: "rejected",
-            feedback: "数据有误，请核实后重新提交",
-            feedbackAt: "2026-03-07 11:00"
-          }
-        ]
+        taskDescription: "负责第21-25页：精细化运营体系与用户留存方案",
+        pageRange: "21-25",
+        status: "pending",
+        submissions: []
+      },
+      {
+        id: "a6",
+        memberId: "user-6",
+        name: "刘洋",
+        avatar: "刘",
+        department: "产品部",
+        taskDescription: "负责第26-30页：年度经营目标拆解与各中心里程碑",
+        pageRange: "26-30",
+        status: "pending",
+        submissions: []
       }
     ]
   },
-  // {
-  //   id: "task-2",
-  //   title: "产品功能演示",
-  //   type: "月报",
-  //   department: "产品部",
-  //   createdAt: "2026-03-02",
-  //   deadline: "2026-05-20 12:00",
-  //   createdBy: "李经理",
-  //   createdByAvatar: "李",
-  //   templateFileName: "产品演示模板.pptx",
-  //   templateFileSize: 3.2,
-  //   templatePageCount: 12,
-  //   templateFileUrl: DEMO_PPT_URL,
-  //   totalAssignees: 3,
-  //   completedCount: 1,
-  //   status: "in_progress",
-  //   assignees: [
-  //     {
-  //       id: "b1",
-  //       memberId: "6",
-  //       name: "刘洋",
-  //       avatar: "刘",
-  //       department: "产品部",
-  //       taskDescription: "负责第1-4页：产品核心功能介绍",
-  //       pageRange: "1-4",
-  //       status: "approved",
-  //       submissions: [
-  //         {
-  //           id: "sub-5",
-  //           fileName: "核心功能_刘洋.pptx",
-  //           fileSize: 2.1,
-  //           fileUrl: DEMO_PPT_URL,
-  //           submittedAt: "2026-03-08 11:30",
-  //           status: "approved",
-  //           feedback: "演示清晰，通过",
-  //           feedbackAt: "2026-03-08 14:00"
-  //         }
-  //       ]
-  //     },
-  //     {
-  //       id: "b2",
-  //       memberId: "7",
-  //       name: "周婷",
-  //       avatar: "周",
-  //       department: "产品部",
-  //       taskDescription: "负责第5-8页：用户操作流程演示",
-  //       pageRange: "5-8",
-  //       status: "pending",
-  //       submissions: []
-  //     }
-  //   ]
-  // },
+  {
+    id: "task-2",
+    title: "2026年度业务流程数字化转型实施指南",
+    type: "月报",
+    department: "全公司",
+    createdAt: "2026-03-02",
+    deadline: "2026-04-10 12:00",
+    createdBy: "李经理",
+    createdByAvatar: "李",
+    templateFileName: "业务流程数字化转型实施指南模板.docx",
+    templateFileSize: 2.1,
+    templatePageCount: 12,
+    templateFileUrl: DEMO_WORD_URL,
+    totalAssignees: 6,
+    completedCount: 1,
+    status: "in_progress",
+    assignees: [
+      {
+        id: "b1",
+        memberId: "user-1",
+        name: "张明",
+        avatar: "张",
+        department: "技术部",
+        taskDescription: "负责自动化办公系统集成标准说明",
+        status: "approved",
+        submissions: [{
+          id: "sub-3",
+          fileName: "集成标准_张明.docx",
+          fileSize: 0.8,
+          fileUrl: DEMO_WORD_URL,
+          submittedAt: "2026-03-06 11:30",
+          status: "approved",
+          feedback: "方案详尽，通过",
+          feedbackAt: "2026-03-06 14:00"
+        }]
+      },
+      { id: "b2", memberId: "user-2", name: "李华", avatar: "李", department: "技术部", taskDescription: "负责数据隐私保护与合规性审查指引", status: "pending", submissions: [] },
+      { id: "b3", memberId: "user-3", name: "王芳", avatar: "王", department: "产品部", taskDescription: "负责产品开发闭环管理流程优化说明", status: "pending", submissions: [] },
+      { id: "b4", memberId: "user-4", name: "赵强", avatar: "赵", department: "市场部", taskDescription: "负责市场营销活动数字化监测标准", status: "pending", submissions: [] },
+      { id: "b5", memberId: "user-5", name: "陈静", avatar: "陈", department: "运营部", taskDescription: "负责跨部门协同效率提升考核指标", status: "pending", submissions: [] },
+      { id: "b6", memberId: "user-6", name: "刘洋", avatar: "刘", department: "产品部", taskDescription: "负责用户反馈快速响应机制说明", status: "pending", submissions: [] }
+    ]
+  },
   {
     id: "task-3",
-    title: "电网建设项目档案管理汇报",
+    title: "2026年度集团全业务线研发与运营预算汇总表",
     type: "专项报告",
-    department: "技术部",
+    department: "财务部",
     createdAt: "2026-03-05",
-    deadline: "2026-05-25 18:00",
-    createdBy: "张总",
-    createdByAvatar: "张",
-    templateFileName: "档案管理汇报.doc",
-    templateFileUrl: DEMO_WORD_URL,
-    totalAssignees: 2,
-    completedCount: 0,
-    status: "in_progress",
-    assignees: [
-      {
-        id: "c1",
-        memberId: "1",
-        name: "张明",
-        avatar: "张",
-        department: "技术部",
-        taskDescription: "负责完善文档内容",
-        status: "pending",
-        submissions: []
-      },
-      {
-        id: "c2",
-        memberId: "2",
-        name: "李华",
-        avatar: "李",
-        department: "技术部",
-        taskDescription: "负责校对文档格式",
-        status: "pending",
-        submissions: []
-      }
-    ]
-  },
-  {
-    id: "task-4",
-    title: "电力技术文档问答数据分析",
-    type: "月报",
-    department: "数据部",
-    createdAt: "2026-03-10",
-    deadline: "2026-05-30 10:00",
-    createdBy: "刘经理",
-    createdByAvatar: "刘",
-    templateFileName: "问答数据分析.xlsx",
+    deadline: "2026-03-25 10:00",
+    createdBy: "陈总",
+    createdByAvatar: "陈",
+    templateFileName: "预算汇总模板.xlsx",
     templateFileUrl: DEMO_EXCEL_URL,
-    totalAssignees: 2,
+    totalAssignees: 6,
     completedCount: 0,
     status: "in_progress",
     assignees: [
-      {
-        id: "d1",
-        memberId: "1",
-        name: "张明",
-        avatar: "张",
-        department: "技术部",
-        taskDescription: "负责数据清洗与汇总",
-        status: "pending",
-        submissions: []
-      },
-      {
-        id: "d2",
-        memberId: "2",
-        name: "李华",
-        avatar: "李",
-        department: "技术部",
-        taskDescription: "负责数据图表分析",
-        status: "pending",
-        submissions: []
-      }
+      { id: "c1", memberId: "user-1", name: "张明", avatar: "张", department: "技术部", taskDescription: "汇报：运维部年度服务器及算力开支明细", status: "pending", submissions: [] },
+      { id: "c2", memberId: "user-2", name: "李华", avatar: "李", department: "技术部", taskDescription: "汇报：智能实验室设备采购及硬件耗材清单", status: "pending", submissions: [] },
+      { id: "c3", memberId: "user-3", name: "王芳", avatar: "王", department: "产品部", taskDescription: "汇报：产品线第三方专业咨询与技术服务费", status: "pending", submissions: [] },
+      { id: "c4", memberId: "user-4", name: "赵强", avatar: "赵", department: "市场部", taskDescription: "汇报：年度全球巡展与广告渠道投放预算", status: "pending", submissions: [] },
+      { id: "c5", memberId: "user-5", name: "陈静", avatar: "陈", department: "运营部", taskDescription: "汇报：运营系统支撑及外包服务人力成本", status: "pending", submissions: [] },
+      { id: "c6", memberId: "user-6", name: "刘洋", avatar: "刘", department: "产品部", taskDescription: "汇报：差旅与业务公关预算汇总说明", status: "pending", submissions: [] }
     ]
   }
 ];

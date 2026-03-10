@@ -19,11 +19,11 @@ export function getFileType(filename: string): string {
     return filename.split(".").pop()?.toLowerCase() || "docx";
 }
 
-// 生成文档 key（同一文档使用固定 key，OnlyOffice 用来标识协作会话）
-// 同一 key 的多个用户会进入同一个协作编辑会话
 export function generateDocKey(taskId: string, filename: string): string {
-    // 使用固定的 key，不加时间戳，这样同一文档的多个用户可以协作
-    return `${taskId}-${filename.replace(/[^a-zA-Z0-9]/g, "_")}`;
+    // 使用 taskId 配合文件名的简单清理版本作为 key
+    // OnlyOffice key 只要保证同一文档一致且唯一即可
+    const cleanName = filename.split('.')[0].replace(/[^a-zA-Z0-9]/g, "");
+    return `task_${taskId}_${cleanName || "doc"}`;
 }
 
 // 生成 OnlyOffice 编辑器配置
@@ -70,6 +70,10 @@ export function createEditorConfig(options: {
             ...(callbackUrl ? { callbackUrl } : {}),
             lang,
             mode,
+            coEditing: {
+                mode: "fast",
+                change: true
+            },
             user: {
                 id: userId,
                 name: userName,

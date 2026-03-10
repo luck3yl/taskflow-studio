@@ -102,7 +102,8 @@ export default function OnlineEditor() {
                 const callbackUrl = `http://host.docker.internal:${currentPort}/api/onlyoffice/callback?filename=${encodeURIComponent(filename)}`;
 
                 // 同样动态调整 fileUrl 中的端口，确保容器能正确抓取文件
-                const adjustedFileUrl = fileUrl.replace("host.docker.internal:8080", `host.docker.internal:${currentPort}`);
+                // 使用 encodeURI 处理带有中文的文件路径
+                const adjustedFileUrl = encodeURI(fileUrl.replace("host.docker.internal:8080", `host.docker.internal:${currentPort}`));
 
                 const config = createEditorConfig({
                     fileUrl: adjustedFileUrl,
@@ -112,6 +113,14 @@ export default function OnlineEditor() {
                     userName: currentUser.name,
                     callbackUrl,
                     mode: "edit",
+                });
+
+                console.log("[OnlyOffice] Initializing with config:", {
+                    filename,
+                    docKey,
+                    fileUrl: adjustedFileUrl,
+                    userId: currentUser.id,
+                    mode: "edit"
                 });
 
                 // 销毁已有的编辑器实例

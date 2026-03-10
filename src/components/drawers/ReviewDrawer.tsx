@@ -3,15 +3,16 @@ import {
   SheetContent,
   SheetHeader,
   SheetTitle,
+  SheetDescription,
 } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
-import { 
-  Download, 
-  FileText, 
+import {
+  Download,
+  FileText,
   CheckCircle2,
   XCircle,
   Clock,
@@ -39,10 +40,10 @@ const quickFeedbacks = [
   "请补充更多细节",
 ];
 
-export function ReviewDrawer({ 
-  open, 
-  onOpenChange, 
-  task, 
+export function ReviewDrawer({
+  open,
+  onOpenChange,
+  task,
   assignee,
   onApprove,
   onReject
@@ -93,6 +94,9 @@ export function ReviewDrawer({
       <SheetContent className="w-full sm:max-w-2xl overflow-y-auto">
         <SheetHeader className="pb-4">
           <SheetTitle className="text-xl">{task.title}</SheetTitle>
+          <SheetDescription className="sr-only">
+            审批成员提交的任务成果及反馈。
+          </SheetDescription>
           <div className="flex items-center gap-3 mt-2">
             <Avatar className="h-8 w-8">
               <AvatarFallback className="bg-primary/10 text-primary">
@@ -106,9 +110,9 @@ export function ReviewDrawer({
                 提交于 {latestSubmission?.submittedAt || "-"}
               </div>
             </div>
-            <Badge 
+            <Badge
               className={
-                assignee.status === "approved" 
+                assignee.status === "approved"
                   ? "bg-success/10 text-success border-success/20 ml-auto"
                   : assignee.status === "rejected"
                     ? "bg-destructive/10 text-destructive border-destructive/20 ml-auto"
@@ -148,8 +152,8 @@ export function ReviewDrawer({
                     {latestSubmission.fileSize?.toFixed(2)} MB
                   </p>
                 </div>
-                <Button 
-                  variant="outline" 
+                <Button
+                  variant="outline"
                   size="sm"
                   onClick={() => setFilePreviewOpen(true)}
                 >
@@ -167,7 +171,7 @@ export function ReviewDrawer({
                   <p className="text-sm mt-1">{latestSubmission.note}</p>
                 </div>
               )}
-              
+
               <FilePreviewDialog
                 open={filePreviewOpen}
                 onOpenChange={setFilePreviewOpen}
@@ -185,14 +189,12 @@ export function ReviewDrawer({
               <h4 className="font-semibold text-foreground text-sm">
                 {assignee.status === "rejected" ? "驳回记录" : "审批记录"}
               </h4>
-              <div className={`rounded-lg p-3 ${
-                assignee.status === "rejected" 
-                  ? "bg-destructive/5 border border-destructive/20" 
+              <div className={`rounded-lg p-3 ${assignee.status === "rejected"
+                  ? "bg-destructive/5 border border-destructive/20"
                   : "bg-success/5 border border-success/20"
-              }`}>
-                <p className={`text-sm ${
-                  assignee.status === "rejected" ? "text-destructive" : "text-success"
                 }`}>
+                <p className={`text-sm ${assignee.status === "rejected" ? "text-destructive" : "text-success"
+                  }`}>
                   {latestSubmission.feedback}
                 </p>
                 {latestSubmission.feedbackAt && (
@@ -208,7 +210,7 @@ export function ReviewDrawer({
           {canReview && (
             <div className="space-y-3">
               <h4 className="font-semibold text-foreground">审核意见</h4>
-              
+
               {/* Quick Feedback */}
               <div className="flex flex-wrap gap-2">
                 {quickFeedbacks.map((text) => (
@@ -223,7 +225,7 @@ export function ReviewDrawer({
                   </Button>
                 ))}
               </div>
-              
+
               <Textarea
                 placeholder="输入审核意见（驳回时必填）..."
                 value={feedback}
@@ -236,7 +238,7 @@ export function ReviewDrawer({
           {/* Action Buttons */}
           {canReview && (
             <div className="flex gap-3 pt-4">
-              <Button 
+              <Button
                 variant="outline"
                 className="flex-1 border-destructive text-destructive hover:bg-destructive/10"
                 onClick={handleReject}
@@ -244,7 +246,7 @@ export function ReviewDrawer({
                 <XCircle className="h-4 w-4 mr-2" />
                 驳回
               </Button>
-              <Button 
+              <Button
                 className="flex-1 gradient-success"
                 onClick={handleApprove}
               >
@@ -262,7 +264,7 @@ export function ReviewDrawer({
                 <h4 className="font-semibold text-foreground text-sm">历史提交记录</h4>
                 <div className="space-y-2">
                   {assignee.submissions.slice(0, -1).map((submission) => (
-                    <div 
+                    <div
                       key={submission.id}
                       className="flex items-center justify-between p-2 rounded border border-border text-sm"
                     >
