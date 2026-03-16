@@ -13,6 +13,7 @@ import TaskCreate from "./pages/TaskCreate";
 import DocumentCenter from "./pages/DocumentCenter";
 import ProcessCenter from "./pages/ProcessCenter";
 import OnlineEditor from "./pages/OnlineEditor";
+import UserManagement from "./pages/UserManagement";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -38,6 +39,7 @@ const App = () => (
                 <Route path="/tasks/create" element={<TaskCreate />} />
                 <Route path="/documents" element={<DocumentCenter />} />
                 <Route path="/processes" element={<ProcessCenter />} />
+                <Route path="/settings/users" element={<UserManagement />} />
                 <Route path="/editor/:taskId/:assigneeId" element={<OnlineEditor />} />
                 <Route path="*" element={<NotFound />} />
               </Routes>

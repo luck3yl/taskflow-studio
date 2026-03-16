@@ -43,6 +43,7 @@ const mainNavItems = [
   { title: "任务中心", url: "/tasks", icon: FolderKanban },
   { title: "流程中心", url: "/processes", icon: Workflow },
   { title: "文档中心", url: "/documents", icon: FileText },
+  { title: "用户管理", url: "/settings/users", icon: Users },
 ];
 
 export function AppSidebar() {

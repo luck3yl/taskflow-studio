@@ -20,7 +20,8 @@ import {
   CheckCircle2,
   Rocket,
   FileSpreadsheet,
-  AlertCircle
+  AlertCircle,
+  Search
 } from "lucide-react";
 import { format } from "date-fns";
 import { zhCN } from "date-fns/locale";
@@ -41,6 +42,7 @@ import {
 import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import { useTaskContext, Assignee } from "@/contexts/TaskContext";
+import { useUserContext } from "@/contexts/UserContext";
 
 const steps = [
   { id: 1, title: "基础定义", icon: FileText },
@@ -49,29 +51,7 @@ const steps = [
   { id: 4, title: "预览发布", icon: Rocket },
 ];
 
-const teamMembers = [
-  { id: "1", name: "张明", department: "技术部", avatar: "张" },
-  { id: "2", name: "李华", department: "技术部", avatar: "李" },
-  { id: "3", name: "王芳", department: "产品部", avatar: "王" },
-  { id: "4", name: "赵强", department: "市场部", avatar: "赵" },
-  { id: "5", name: "陈静", department: "运营部", avatar: "陈" },
-  { id: "6", name: "刘洋", department: "产品部", avatar: "刘" },
-];
-
-const reviewerOptions = [
-  { id: "wang", name: "王总", title: "总经理" },
-  { id: "li", name: "李经理", title: "部门经理" },
-  { id: "zhang", name: "张主管", title: "项目主管" },
-  { id: "chen", name: "陈总监", title: "技术总监" },
-];
-
-const departmentOptions = [
-  { value: "技术部", label: "技术部" },
-  { value: "产品部", label: "产品部" },
-  { value: "市场部", label: "市场部" },
-  { value: "运营部", label: "运营部" },
-  { value: "全公司", label: "全公司" },
-];
+// Data is now fetched from UserContext
 
 interface Assignment {
   memberId: string;
@@ -81,6 +61,7 @@ interface Assignment {
 }
 
 export default function TaskCreate() {
+  const { users, departments } = useUserContext();
   const [currentStep, setCurrentStep] = useState(1);
   const [taskType, setTaskType] = useState("");
   const [taskTitle, setTaskTitle] = useState("");
@@ -91,9 +72,23 @@ export default function TaskCreate() {
   const [deadlineDate, setDeadlineDate] = useState<Date>();
   const [deadlineTime, setDeadlineTime] = useState("18:00");
   const [reviewer, setReviewer] = useState("wang");
+  const [memberSearch, setMemberSearch] = useState("");
   const navigate = useNavigate();
   const { toast } = useToast();
   const { addTask } = useTaskContext();
+
+  const reviewerOptions = [
+    { id: "wang", name: "王总", title: "总经理" },
+    { id: "li", name: "李经理", title: "部门经理" },
+    { id: "zhang", name: "张主管", title: "项目主管" },
+    { id: "chen", name: "陈总监", title: "技术总监" },
+  ];
+
+  const filteredMembers = users.filter(m => 
+    m.name.includes(memberSearch) || 
+    m.department.includes(memberSearch) ||
+    m.staffId.includes(memberSearch)
+  );
 
   // Calculate assigned and remaining pages
   const getAssignedPages = () => {
@@ -221,7 +216,7 @@ export default function TaskCreate() {
     navigate("/tasks");
   };
 
-  const getMemberById = (id: string) => teamMembers.find(m => m.id === id);
+  const getMemberById = (id: string) => users.find(m => m.id === id);
 
   const remainingPages = getRemainingPages();
 
@@ -295,11 +290,12 @@ export default function TaskCreate() {
                         <SelectValue placeholder="选择部门" />
                       </SelectTrigger>
                       <SelectContent>
-                        {departmentOptions.map(opt => (
-                          <SelectItem key={opt.value} value={opt.value}>
-                            {opt.label}
+                        {departments.map(dept => (
+                          <SelectItem key={dept.id} value={dept.name}>
+                            {dept.name}
                           </SelectItem>
                         ))}
+                        <SelectItem value="全公司">全公司</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -410,10 +406,21 @@ export default function TaskCreate() {
                 )}
 
                 {/* Team Member Selection */}
-                <div className="space-y-2">
-                  <Label>添加执行人</Label>
-                  <div className="flex flex-wrap gap-2">
-                    {teamMembers.map((member) => {
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <Label>添加执行人</Label>
+                    <div className="relative w-64 group">
+                      <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground group-focus-within:text-primary" />
+                      <Input 
+                        placeholder="搜索姓名、工号或部门" 
+                        className="h-8 pl-8 text-xs rounded-lg"
+                        value={memberSearch}
+                        onChange={(e) => setMemberSearch(e.target.value)}
+                      />
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap gap-2 max-h-40 overflow-y-auto p-1 border border-border/30 rounded-lg bg-muted/20">
+                    {filteredMembers.map((member) => {
                       const isSelected = assignments.some(a => a.memberId === member.id);
                       return (
                         <Button
@@ -424,18 +431,23 @@ export default function TaskCreate() {
                             ? handleRemoveAssignment(member.id)
                             : handleAddAssignment(member.id)
                           }
-                          className={isSelected ? "gradient-primary" : ""}
+                          className={cn("h-8 px-3 text-xs", isSelected ? "gradient-primary" : "")}
                         >
                           {isSelected ? (
-                            <X className="h-4 w-4 mr-1" />
+                            <X className="h-3 w-3 mr-1" />
                           ) : (
-                            <Plus className="h-4 w-4 mr-1" />
+                            <Plus className="h-3 w-3 mr-1" />
                           )}
                           {member.name}
                           <span className="ml-1 text-xs opacity-70">({member.department})</span>
                         </Button>
                       );
                     })}
+                    {filteredMembers.length === 0 && (
+                      <div className="w-full text-center py-4 text-xs text-muted-foreground">
+                        未找到匹配的成员
+                      </div>
+                    )}
                   </div>
                 </div>
 
