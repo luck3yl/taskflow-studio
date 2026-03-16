@@ -156,7 +156,7 @@ export default function TaskCreate() {
   };
 
   const handleUpdateAssignment = (memberId: string, updates: Partial<Assignment>) => {
-    setAssignments(assignments.map(a => 
+    setAssignments(assignments.map(a =>
       a.memberId === memberId ? { ...a, ...updates } : a
     ));
   };
@@ -164,21 +164,13 @@ export default function TaskCreate() {
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    
+
     setTemplateFile(file);
     
-    // Simulate PPT page count detection
-    // In real scenario, this would use a library like pdf-lib or a backend service
-    const simulatePageCount = () => {
-      // Simulate based on file size (mock logic)
-      const sizeInMB = file.size / (1024 * 1024);
-      const estimatedPages = Math.max(5, Math.min(30, Math.floor(sizeInMB * 10)));
-      return estimatedPages;
-    };
-    
-    const pageCount = simulatePageCount();
+    // Hardcode PPT page count to 10 as per requirements
+    const pageCount = 10;
     setTemplatePageCount(pageCount);
-    
+
     toast({
       title: "模板上传成功",
       description: `已识别到 PPT 共 ${pageCount} 页`,
@@ -191,7 +183,7 @@ export default function TaskCreate() {
       const member = getMemberById(a.memberId);
       const pageRangeStr = a.startPage && a.endPage ? `${a.startPage}-${a.endPage}` : undefined;
       const pageDesc = pageRangeStr ? `负责第${pageRangeStr}页：` : "";
-      
+
       return {
         memberId: a.memberId,
         name: member?.name || "",
@@ -204,7 +196,7 @@ export default function TaskCreate() {
       };
     });
 
-    const formattedDeadline = deadlineDate 
+    const formattedDeadline = deadlineDate
       ? `${format(deadlineDate, "yyyy-MM-dd")} ${deadlineTime}`
       : new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 16).replace('T', ' ');
 
@@ -398,11 +390,10 @@ export default function TaskCreate() {
                         return (
                           <div
                             key={pageNum}
-                            className={`w-8 h-8 rounded flex items-center justify-center text-xs font-medium transition-colors ${
-                              isAssigned 
-                                ? "bg-primary text-primary-foreground" 
-                                : "bg-muted text-muted-foreground border border-border"
-                            }`}
+                            className={`w-8 h-8 rounded flex items-center justify-center text-xs font-medium transition-colors ${isAssigned
+                              ? "bg-primary text-primary-foreground"
+                              : "bg-muted text-muted-foreground border border-border"
+                              }`}
                           >
                             {pageNum}
                           </div>
@@ -429,8 +420,8 @@ export default function TaskCreate() {
                           key={member.id}
                           variant={isSelected ? "default" : "outline"}
                           size="sm"
-                          onClick={() => isSelected 
-                            ? handleRemoveAssignment(member.id) 
+                          onClick={() => isSelected
+                            ? handleRemoveAssignment(member.id)
                             : handleAddAssignment(member.id)
                           }
                           className={isSelected ? "gradient-primary" : ""}
@@ -463,7 +454,7 @@ export default function TaskCreate() {
                       const member = getMemberById(assignment.memberId);
                       if (!member) return null;
                       return (
-                        <div 
+                        <div
                           key={assignment.memberId}
                           className="flex items-start gap-4 p-4 rounded-lg border border-border bg-secondary/30"
                         >
@@ -487,7 +478,7 @@ export default function TaskCreate() {
                                 <X className="h-4 w-4" />
                               </Button>
                             </div>
-                            
+
                             {/* Page Range Selection */}
                             {templatePageCount > 0 && (
                               <div className="flex items-center gap-2">
@@ -499,8 +490,8 @@ export default function TaskCreate() {
                                   placeholder="起始页"
                                   className="w-20 h-8 text-sm"
                                   value={assignment.startPage || ""}
-                                  onChange={(e) => handleUpdateAssignment(member.id, { 
-                                    startPage: parseInt(e.target.value) || undefined 
+                                  onChange={(e) => handleUpdateAssignment(member.id, {
+                                    startPage: parseInt(e.target.value) || undefined
                                   })}
                                 />
                                 <span className="text-muted-foreground">-</span>
@@ -511,8 +502,8 @@ export default function TaskCreate() {
                                   placeholder="结束页"
                                   className="w-20 h-8 text-sm"
                                   value={assignment.endPage || ""}
-                                  onChange={(e) => handleUpdateAssignment(member.id, { 
-                                    endPage: parseInt(e.target.value) || undefined 
+                                  onChange={(e) => handleUpdateAssignment(member.id, {
+                                    endPage: parseInt(e.target.value) || undefined
                                   })}
                                 />
                                 {assignment.startPage && assignment.endPage && (
@@ -522,12 +513,12 @@ export default function TaskCreate() {
                                 )}
                               </div>
                             )}
-                            
+
                             <Textarea
                               placeholder="描述该成员需要完成的具体工作内容"
                               value={assignment.requirement}
-                              onChange={(e) => handleUpdateAssignment(member.id, { 
-                                requirement: e.target.value 
+                              onChange={(e) => handleUpdateAssignment(member.id, {
+                                requirement: e.target.value
                               })}
                               rows={2}
                             />
@@ -638,7 +629,7 @@ export default function TaskCreate() {
                   <div className="flex items-center justify-between py-2 border-b border-border">
                     <span className="text-muted-foreground">截止时间</span>
                     <span>
-                      {deadlineDate 
+                      {deadlineDate
                         ? `${format(deadlineDate, "yyyy年MM月dd日", { locale: zhCN })} ${deadlineTime}`
                         : "未设置"}
                     </span>
@@ -646,7 +637,7 @@ export default function TaskCreate() {
                   <div className="flex items-center justify-between py-2 border-b border-border">
                     <span className="text-muted-foreground">审核人</span>
                     <span>
-                      {reviewerOptions.find(r => r.id === reviewer)?.name || ""} 
+                      {reviewerOptions.find(r => r.id === reviewer)?.name || ""}
                       <span className="text-muted-foreground ml-1">
                         ({reviewerOptions.find(r => r.id === reviewer)?.title || ""})
                       </span>

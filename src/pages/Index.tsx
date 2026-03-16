@@ -4,7 +4,7 @@ import { AppLayout } from "@/components/layout/AppLayout";
 import { StatCard } from "@/components/dashboard/StatCard";
 import { TaskProgressChart } from "@/components/dashboard/TaskProgressChart";
 import { RecentTasks } from "@/components/dashboard/RecentTasks";
-import { QuickActions } from "@/components/dashboard/QuickActions";
+import { ActivityCenter } from "@/components/dashboard/ActivityCenter";
 import { ClipboardList, Clock, CheckCircle2, AlertCircle } from "lucide-react";
 
 const Index = () => {
@@ -86,9 +86,9 @@ const Index = () => {
             <TaskProgressChart />
           </div>
 
-          {/* Right Column - Quick Actions */}
+          {/* Right Column - Activity Center */}
           <div>
-            <QuickActions />
+            <ActivityCenter />
           </div>
         </div>
 

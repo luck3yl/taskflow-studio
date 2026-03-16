@@ -58,6 +58,7 @@ const TaskContext = createContext<TaskContextType | undefined>(undefined);
 // Initial demo data
 // 模板文件URL（本地服务可访问）
 const DEMO_PPT_URL = "http://host.docker.internal:8080/data/集团战略发展规划演示文稿模板.pptx";
+const DEMO_Q1_PPT_URL = "http://host.docker.internal:8080/data/集团Q1季度总结演示文稿模板.pptx";
 const DEMO_WORD_URL = "http://host.docker.internal:8080/data/业务流程数字化转型实施指南模板.docx";
 const DEMO_EXCEL_URL = "http://host.docker.internal:8080/data/预算汇总模板.xlsx";
 
