@@ -67,43 +67,45 @@ export function RecentTasks({ tasks = [] }: { tasks?: Task[] }) {
               return (
                 <div
                   key={task.id}
-                  className="group flex items-center gap-4 rounded-xl border border-border/50 bg-white dark:bg-card/50 p-4 transition-all duration-300 hover:shadow-md hover:border-primary/30 hover:bg-primary/[0.02] cursor-pointer animate-slide-up"
+                  className="group flex flex-col gap-2 rounded-xl border border-border/50 bg-white dark:bg-card/50 p-3 transition-all duration-300 hover:shadow-md hover:border-primary/30 hover:bg-primary/[0.02] cursor-pointer animate-slide-up"
                   style={{ animationDelay: `${index * 60}ms` }}
                   onClick={() => navigate("/todos")}
                 >
-                  <Avatar className={cn(
-                    "h-11 w-11 ring-2 ring-offset-2 ring-offset-white dark:ring-offset-card transition-transform group-hover:scale-105",
-                    isUrgent ? "ring-destructive/50" : "ring-primary/20"
-                  )}>
-                    <AvatarFallback className={`bg-gradient-to-br ${avatarColors[index % avatarColors.length]} text-white font-semibold`}>
-                      {task.createdBy[0]}
-                    </AvatarFallback>
-                  </Avatar>
-
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <p className="font-medium text-foreground truncate group-hover:text-primary transition-colors">{task.title}</p>
-                      {isUrgent && (
-                        <Badge variant="destructive" className="text-[10px] px-1.5 py-0 gap-0.5 animate-pulse-soft">
-                          <AlertCircle className="h-2.5 w-2.5" />
-                          紧急
-                        </Badge>
-                      )}
+                  <div className="flex items-center gap-3">
+                    <Avatar className={cn(
+                      "h-8 w-8 ring-1 ring-offset-1 ring-offset-white dark:ring-offset-card transition-transform group-hover:scale-105",
+                      isUrgent ? "ring-destructive/50" : "ring-primary/20"
+                    )}>
+                      <AvatarFallback className={`bg-gradient-to-br ${avatarColors[index % avatarColors.length]} text-[10px] text-white font-bold`}>
+                        {task.createdBy[0]}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <p className="text-sm font-bold text-foreground truncate group-hover:text-primary transition-colors">{task.title}</p>
+                        {isUrgent && (
+                          <Badge variant="destructive" className="text-[9px] px-1 py-0 gap-0.5 shrink-0">
+                            紧急
+                          </Badge>
+                        )}
+                      </div>
                     </div>
-                    <div className="flex items-center gap-2 mt-1.5">
-                      <Clock className="h-3.5 w-3.5 text-muted-foreground" />
-                      <span className="text-sm text-muted-foreground">{task.deadline}</span>
-                      <span className="text-muted-foreground/40">•</span>
-                      <span className="text-sm text-muted-foreground">负责人：{task.createdBy}</span>
-                    </div>
+                    <Badge className={cn(
+                      "rounded-lg font-bold text-[10px] px-2 py-0.5 shrink-0",
+                      statusStyles[status as keyof typeof statusStyles]
+                    )}>
+                      {statusTextMap[status as keyof typeof statusTextMap]}
+                    </Badge>
                   </div>
-
-                  <Badge className={cn(
-                    "rounded-lg font-medium",
-                    statusStyles[status as keyof typeof statusStyles]
-                  )}>
-                    {statusTextMap[status as keyof typeof statusTextMap]}
-                  </Badge>
+                  
+                  <div className="flex items-center gap-3 pl-11 text-[11px] text-muted-foreground font-medium">
+                    <div className="flex items-center gap-1 text-red-500">
+                      <Clock className="h-3 w-3" />
+                      <span>{task.deadline}</span>
+                    </div>
+                    <span className="text-muted-foreground/30">•</span>
+                    <span className="truncate">负责人：{task.createdBy}</span>
+                  </div>
                 </div>
               );
             })

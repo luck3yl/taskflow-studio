@@ -3,8 +3,8 @@ import { useTaskContext } from "@/contexts/TaskContext";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { StatCard } from "@/components/dashboard/StatCard";
 import { TaskProgressChart } from "@/components/dashboard/TaskProgressChart";
-import { RecentTasks } from "@/components/dashboard/RecentTasks";
-import { ActivityCenter } from "@/components/dashboard/ActivityCenter";
+import { UrgentTaskReminder } from "@/components/dashboard/UrgentTaskReminder";
+import { MessageCenter } from "@/components/dashboard/MessageCenter";
 import { ClipboardList, Clock, CheckCircle2, AlertCircle } from "lucide-react";
 
 const Index = () => {
@@ -19,11 +19,6 @@ const Index = () => {
   const completedTasks = allTasks.filter(t => t.assignees.every(a => a.status === "approved")).length;
   const rejectedTasks = allTasks.filter(t => t.assignees.some(a => a.memberId === currentUser.id && a.status === "rejected")).length;
 
-  // Get recent tasks for this user
-  const recentUserTasks = allTasks
-    .filter(t => t.assignees.some(a => a.memberId === currentUser.id))
-    .sort((a, b) => new Date(b.deadline).getTime() - new Date(a.deadline).getTime())
-    .slice(0, 4);
 
   return (
     <AppLayout title="工作台">
@@ -88,12 +83,12 @@ const Index = () => {
 
           {/* Right Column - Activity Center */}
           <div>
-            <ActivityCenter />
+            <UrgentTaskReminder />
           </div>
         </div>
 
         {/* Recent Tasks */}
-        <RecentTasks tasks={recentUserTasks} />
+        <MessageCenter />
       </div>
     </AppLayout>
   );
