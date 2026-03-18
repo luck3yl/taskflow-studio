@@ -15,10 +15,13 @@ import {
   Eye,
   FileText,
   Users,
-  Calendar,
-  MoreHorizontal,
+  Layers,
+  LayoutGrid,
+  Trello,
+  Calendar as CalendarIcon,
+  Clock,
   Trash2,
-  Layers
+  MoreHorizontal
 } from "lucide-react";
 import {
   Select,
@@ -38,10 +41,16 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
+import { Separator } from "@/components/ui/separator";
 import { useNavigate } from "react-router-dom";
 import { ReviewDrawer } from "@/components/drawers/ReviewDrawer";
 import { MergedPPTDrawer } from "@/components/drawers/MergedPPTDrawer";
 import { useTaskContext, Task, Assignee } from "@/contexts/TaskContext";
+import { TaskKanbanView } from "@/components/task/TaskKanbanView";
+import { TaskCalendarView } from "@/components/task/TaskCalendarView";
+import { TaskProgressList } from "@/components/task/TaskProgressList";
+import { TaskTimelineView } from "@/components/task/TaskTimelineView";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 
 const statusStyles = {
   pending: { bg: "bg-muted", dot: "bg-muted-foreground" },
@@ -69,6 +78,8 @@ const departmentFilters = [
 ];
 
 export default function TaskCenter() {
+  const [viewMode, setViewMode] = useState<"list" | "kanban" | "calendar">("list");
+  const [progressListOpen, setProgressListOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [typeFilter, setTypeFilter] = useState("all");
   const [departmentFilter, setDepartmentFilter] = useState("all");
@@ -80,6 +91,7 @@ export default function TaskCenter() {
     task: Task;
     assignee: Assignee;
   } | null>(null);
+
   const navigate = useNavigate();
   const { tasks, reviewSubmission, deleteTask } = useTaskContext();
 
@@ -159,7 +171,24 @@ export default function TaskCenter() {
             </Button>
           </div>
           
-          <div className="flex flex-wrap gap-3 w-full sm:w-auto">
+          <div className="flex flex-wrap gap-3 w-full sm:w-auto items-center">
+            <Tabs value={viewMode} onValueChange={(v) => setViewMode(v as any)} className="mr-2">
+              <TabsList className="bg-secondary/50 border border-border/50">
+                <TabsTrigger value="list" className="data-[state=active]:bg-background">
+                  <LayoutGrid className="h-3.5 w-3.5 mr-1" />
+                  列表
+                </TabsTrigger>
+                <TabsTrigger value="kanban" className="data-[state=active]:bg-background">
+                  <Trello className="h-3.5 w-3.5 mr-1" />
+                  看板
+                </TabsTrigger>
+                <TabsTrigger value="calendar" className="data-[state=active]:bg-background">
+                  <CalendarIcon className="h-3.5 w-3.5 mr-1" />
+                  日历
+                </TabsTrigger>
+              </TabsList>
+            </Tabs>
+
             <div className="relative flex-1 sm:flex-initial">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
@@ -225,7 +254,7 @@ export default function TaskCenter() {
           <Card className="shadow-card">
             <CardContent className="p-4 flex items-center gap-4">
               <div className="h-12 w-12 rounded-xl gradient-accent flex items-center justify-center">
-                <Calendar className="h-6 w-6 text-primary-foreground" />
+                <CalendarIcon className="h-6 w-6 text-primary-foreground" />
               </div>
               <div>
                 <p className="text-2xl font-bold">{overallProgress}%</p>
@@ -235,204 +264,230 @@ export default function TaskCenter() {
           </Card>
         </div>
 
-        {/* Task List */}
-        <div className="space-y-4">
-          {filteredTasks.map((task, index) => {
-            const isExpanded = expandedTasks.includes(task.id);
-            const progress = task.totalAssignees > 0 
-              ? (task.completedCount / task.totalAssignees) * 100 
-              : 0;
+        {/* Dynamic Views */}
+        {viewMode === "list" && (
+          <div className="space-y-4">
+            {filteredTasks.map((task, index) => {
+              const isExpanded = expandedTasks.includes(task.id);
+              const progress = task.totalAssignees > 0 
+                ? (task.completedCount / task.totalAssignees) * 100 
+                : 0;
 
-            return (
-              <Collapsible 
-                key={task.id} 
-                open={isExpanded}
-                onOpenChange={() => toggleExpand(task.id)}
-              >
-                <Card 
-                  className="shadow-card animate-slide-up overflow-hidden"
-                  style={{ animationDelay: `${index * 50}ms` }}
+              return (
+                <Collapsible 
+                  key={task.id} 
+                  open={isExpanded}
+                  onOpenChange={() => toggleExpand(task.id)}
                 >
-                  <CollapsibleTrigger asChild>
-                    <CardHeader className="cursor-pointer hover:bg-secondary/30 transition-colors py-4">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-4">
-                          {isExpanded ? (
-                            <ChevronDown className="h-5 w-5 text-muted-foreground" />
-                          ) : (
-                            <ChevronRight className="h-5 w-5 text-muted-foreground" />
-                          )}
-                          <div>
-                            <CardTitle className="text-base">{task.title}</CardTitle>
-                            <div className="flex items-center gap-2 mt-1">
-                              <Badge variant="outline" className="text-xs">
-                                {task.type}
-                              </Badge>
-                              <Badge variant="secondary" className="text-xs">
-                                {task.department}
-                              </Badge>
-                              {task.templatePageCount && (
-                                <Badge variant="outline" className="text-xs text-primary border-primary/30">
-                                  {task.templatePageCount}页
+                  <Card 
+                    className="shadow-card animate-slide-up overflow-hidden"
+                    style={{ animationDelay: `${index * 50}ms` }}
+                  >
+                    <CollapsibleTrigger asChild>
+                      <CardHeader className="cursor-pointer hover:bg-secondary/30 transition-colors py-4">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-4">
+                            {isExpanded ? (
+                              <ChevronDown className="h-5 w-5 text-muted-foreground" />
+                            ) : (
+                              <ChevronRight className="h-5 w-5 text-muted-foreground" />
+                            )}
+                            <div>
+                              <CardTitle className="text-base">{task.title}</CardTitle>
+                              <div className="flex items-center gap-2 mt-1">
+                                <Badge variant="outline" className="text-xs">
+                                  {task.type}
                                 </Badge>
-                              )}
-                              <span className="text-xs text-muted-foreground">
-                                截止：{task.deadline}
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-
-                        <div className="flex items-center gap-6">
-                          {/* Assignee Avatars */}
-                          <div className="hidden md:flex -space-x-2">
-                            {task.assignees.slice(0, 4).map((assignee) => (
-                              <Avatar 
-                                key={assignee.id} 
-                                className="h-8 w-8 border-2 border-card"
-                              >
-                                <AvatarFallback className={`text-xs ${statusStyles[assignee.status].bg}`}>
-                                  {assignee.avatar}
-                                </AvatarFallback>
-                              </Avatar>
-                            ))}
-                            {task.assignees.length > 4 && (
-                              <div className="h-8 w-8 rounded-full bg-muted border-2 border-card flex items-center justify-center">
+                                <Badge variant="secondary" className="text-xs">
+                                  {task.department}
+                                </Badge>
+                                {task.templatePageCount && (
+                                  <Badge variant="outline" className="text-xs text-primary border-primary/30">
+                                    {task.templatePageCount}页
+                                  </Badge>
+                                )}
                                 <span className="text-xs text-muted-foreground">
-                                  +{task.assignees.length - 4}
+                                  截止：{task.deadline}
                                 </span>
                               </div>
-                            )}
+                            </div>
                           </div>
 
-                          {/* Progress */}
-                          <div className="hidden sm:flex items-center gap-3 min-w-[140px]">
-                            <Progress value={progress} className="h-2" />
-                            <span className="text-sm text-muted-foreground whitespace-nowrap">
-                              {task.completedCount}/{task.totalAssignees}
-                            </span>
-                          </div>
-
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-                              <Button variant="ghost" size="icon" className="h-8 w-8">
-                                <MoreHorizontal className="h-4 w-4" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuItem>编辑任务</DropdownMenuItem>
-                              <DropdownMenuItem>催办提醒</DropdownMenuItem>
-                              <DropdownMenuItem 
-                                className="text-destructive focus:text-destructive"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  deleteTask(task.id);
-                                }}
-                              >
-                                <Trash2 className="h-4 w-4 mr-2" />
-                                删除任务
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        </div>
-                      </div>
-                    </CardHeader>
-                  </CollapsibleTrigger>
-
-                  <CollapsibleContent>
-                    <CardContent className="pt-0 pb-4">
-                      <div className="border-t border-border pt-4">
-                        <div className="flex items-center justify-between mb-3">
-                          <h4 className="text-sm font-medium text-muted-foreground">
-                            子任务列表
-                          </h4>
-                          {/* View Merged PPT Button */}
-                          {task.assignees.some(a => a.status === "approved" || a.status === "submitted") && (
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleViewMerged(task);
-                              }}
-                              className="h-7"
-                            >
-                              <Layers className="h-3.5 w-3.5 mr-1.5" />
-                              查看合并PPT
-                              <Badge variant="secondary" className="ml-2 text-xs px-1.5 py-0">
-                                {task.completedCount}/{task.totalAssignees}
-                              </Badge>
-                            </Button>
-                          )}
-                        </div>
-                        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                          {task.assignees.map((assignee) => (
-                            <div 
-                              key={assignee.id}
-                              className="flex flex-col p-3 rounded-lg border border-border bg-card hover:border-primary/30 transition-colors"
-                            >
-                              <div className="flex items-center justify-between mb-2">
-                                <div className="flex items-center gap-2">
-                                  <div className="relative">
-                                    <Avatar className="h-8 w-8">
-                                      <AvatarFallback className="bg-primary/10 text-primary text-xs">
-                                        {assignee.avatar}
-                                      </AvatarFallback>
-                                    </Avatar>
-                                    <div className={`absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-card ${statusStyles[assignee.status].dot}`} />
-                                  </div>
-                                  <div>
-                                    <p className="text-sm font-medium">{assignee.name}</p>
-                                    <p className="text-xs text-muted-foreground">
-                                      {assignee.status === "pending" && "待提交"}
-                                      {assignee.status === "submitted" && "待审核"}
-                                      {assignee.status === "approved" && "已通过"}
-                                      {assignee.status === "rejected" && "已驳回"}
-                                    </p>
-                                  </div>
+                          <div className="flex items-center gap-6">
+                            {/* Assignee Avatars */}
+                            <div className="hidden md:flex -space-x-2">
+                              {task.assignees.slice(0, 4).map((assignee) => (
+                                <Avatar 
+                                  key={assignee.id} 
+                                  className="h-8 w-8 border-2 border-card"
+                                >
+                                  <AvatarFallback className={`text-xs ${statusStyles[assignee.status].bg}`}>
+                                    {assignee.avatar}
+                                  </AvatarFallback>
+                                </Avatar>
+                              ))}
+                              {task.assignees.length > 4 && (
+                                <div className="h-8 w-8 rounded-full bg-muted border-2 border-card flex items-center justify-center">
+                                  <span className="text-xs text-muted-foreground">
+                                    +{task.assignees.length - 4}
+                                  </span>
                                 </div>
-                                {(assignee.status === "submitted" || assignee.status === "approved" || assignee.status === "rejected") && (
-                                  <Button 
-                                    variant="ghost" 
-                                    size="sm"
-                                    className="h-7 px-2"
-                                    onClick={() => handleReview(task, assignee)}
-                                  >
-                                    <Eye className="h-3.5 w-3.5 mr-1" />
-                                    查看
-                                  </Button>
-                                )}
-                              </div>
-                              <div className="text-xs text-muted-foreground bg-secondary/50 rounded px-2 py-1.5 mt-auto">
-                                <FileText className="inline h-3 w-3 mr-1" />
-                                {assignee.taskDescription}
-                              </div>
-                              {assignee.pageRange && (
-                                <Badge variant="outline" className="text-xs mt-2 w-fit">
-                                  第 {assignee.pageRange} 页
-                                </Badge>
                               )}
                             </div>
-                          ))}
-                        </div>
-                      </div>
-                    </CardContent>
-                  </CollapsibleContent>
-                </Card>
-              </Collapsible>
-            );
-          })}
 
-          {filteredTasks.length === 0 && (
-            <div className="flex flex-col items-center justify-center py-16 text-center">
-              <div className="h-16 w-16 rounded-full bg-muted flex items-center justify-center mb-4">
-                <FileText className="h-8 w-8 text-muted-foreground" />
+                            {/* Progress */}
+                            <div className="hidden sm:flex items-center gap-3 min-w-[140px]">
+                              <Progress value={progress} className="h-2" />
+                              <span className="text-sm text-muted-foreground whitespace-nowrap">
+                                {task.completedCount}/{task.totalAssignees}
+                              </span>
+                            </div>
+
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                                <Button variant="ghost" size="icon" className="h-8 w-8">
+                                  <MoreHorizontal className="h-4 w-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuItem>编辑任务</DropdownMenuItem>
+                                <DropdownMenuItem>催办提醒</DropdownMenuItem>
+                                <DropdownMenuItem 
+                                  className="text-destructive focus:text-destructive"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    deleteTask(task.id);
+                                  }}
+                                >
+                                  <Trash2 className="h-4 w-4 mr-2" />
+                                  删除任务
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </div>
+                        </div>
+                      </CardHeader>
+                    </CollapsibleTrigger>
+
+                    <CollapsibleContent>
+                      <CardContent className="pt-0 pb-4">
+                        <div className="border-t border-border pt-4 space-y-6">
+                          {/* Sub-task List Section */}
+                          <div className="space-y-3">
+                            <div className="flex items-center justify-between">
+                              <h4 className="text-sm font-semibold flex items-center gap-2">
+                                <Users className="h-4 w-4 text-primary" />
+                                子任务列表
+                              </h4>
+                              {task.assignees.some(a => a.status === "approved" || a.status === "submitted") && (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleViewMerged(task);
+                                  }}
+                                  className="h-7"
+                                >
+                                  <Layers className="h-3.5 w-3.5 mr-1.5" />
+                                  查看合并PPT
+                                  <Badge variant="secondary" className="ml-2 text-xs px-1.5 py-0">
+                                    {task.completedCount}/{task.totalAssignees}
+                                  </Badge>
+                                </Button>
+                              )}
+                            </div>
+                            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                              {task.assignees.map((assignee) => (
+                                <div 
+                                  key={assignee.id}
+                                  className="flex flex-col p-3 rounded-lg border border-border bg-card hover:border-primary/30 transition-colors"
+                                >
+                                  <div className="flex items-center justify-between mb-2">
+                                    <div className="flex items-center gap-2">
+                                      <div className="relative">
+                                        <Avatar className="h-8 w-8">
+                                          <AvatarFallback className="bg-primary/10 text-primary text-xs">
+                                            {assignee.avatar}
+                                          </AvatarFallback>
+                                        </Avatar>
+                                        <div className={`absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-card ${statusStyles[assignee.status].dot}`} />
+                                      </div>
+                                      <div>
+                                        <p className="text-sm font-medium">{assignee.name}</p>
+                                        <p className="text-xs text-muted-foreground">
+                                          {assignee.status === "pending" && "待提交"}
+                                          {assignee.status === "submitted" && "待审核"}
+                                          {assignee.status === "approved" && "已通过"}
+                                          {assignee.status === "rejected" && "已驳回"}
+                                        </p>
+                                      </div>
+                                    </div>
+                                    {(assignee.status === "submitted" || assignee.status === "approved" || assignee.status === "rejected") && (
+                                      <Button 
+                                        variant="ghost" 
+                                        size="sm"
+                                        className="h-7 px-2"
+                                        onClick={() => handleReview(task, assignee)}
+                                      >
+                                        <Eye className="h-3.5 w-3.5 mr-1" />
+                                        查看
+                                      </Button>
+                                    )}
+                                  </div>
+                                  <div className="text-xs text-muted-foreground bg-secondary/50 rounded px-2 py-1.5 mt-auto">
+                                    <FileText className="inline h-3 w-3 mr-1" />
+                                    {assignee.taskDescription}
+                                  </div>
+                                  {assignee.pageRange && (
+                                    <Badge variant="outline" className="text-xs mt-2 w-fit">
+                                      第 {assignee.pageRange} 页
+                                    </Badge>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+
+                          <Separator />
+
+                          {/* Progress Timeline Section */}
+                          <div className="space-y-3">
+                            <h4 className="text-sm font-semibold flex items-center gap-2">
+                              <Clock className="h-4 w-4 text-primary" />
+                              进度时间线
+                            </h4>
+                            <div className="bg-secondary/20 rounded-lg p-6 border border-border/50">
+                              <TaskTimelineView task={task} />
+                            </div>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </CollapsibleContent>
+                  </Card>
+                </Collapsible>
+              );
+            })}
+
+            {filteredTasks.length === 0 && (
+              <div className="flex flex-col items-center justify-center py-16 text-center">
+                <div className="h-16 w-16 rounded-full bg-muted flex items-center justify-center mb-4">
+                  <FileText className="h-8 w-8 text-muted-foreground" />
+                </div>
+                <h3 className="font-medium text-foreground">暂无任务</h3>
+                <p className="text-sm text-muted-foreground mt-1">点击"创建任务"开始分派工作</p>
               </div>
-              <h3 className="font-medium text-foreground">暂无任务</h3>
-              <p className="text-sm text-muted-foreground mt-1">点击"创建任务"开始分派工作</p>
-            </div>
-          )}
-        </div>
+            )}
+          </div>
+        )}
+
+        {viewMode === "kanban" && (
+          <TaskKanbanView tasks={filteredTasks} />
+        )}
+
+        {viewMode === "calendar" && (
+          <TaskCalendarView tasks={filteredTasks} />
+        )}
       </div>
 
       {/* Review Drawer */}
@@ -450,6 +505,13 @@ export default function TaskCenter() {
         open={mergedDrawerOpen}
         onOpenChange={setMergedDrawerOpen}
         task={selectedTask || undefined}
+      />
+
+      {/* Progress List Drawer/Dialog */}
+      <TaskProgressList 
+        open={progressListOpen} 
+        onOpenChange={setProgressListOpen} 
+        tasks={tasks}
       />
     </AppLayout>
   );

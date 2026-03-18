@@ -22,6 +22,8 @@ import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { Task, Assignee } from "@/contexts/TaskContext";
 import { FilePreviewDialog } from "@/components/ppt/FilePreviewDialog";
+import { TaskTimelineView } from "@/components/task/TaskTimelineView";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 
 interface ReviewDrawerProps {
   open: boolean;
@@ -183,109 +185,93 @@ export function ReviewDrawer({
 
           <Separator />
 
-          {/* Previous Review (if rejected/approved) */}
-          {latestSubmission?.feedback && (
-            <div className="space-y-2">
-              <h4 className="font-semibold text-foreground text-sm">
-                {assignee.status === "rejected" ? "驳回记录" : "审批记录"}
-              </h4>
-              <div className={`rounded-lg p-3 ${assignee.status === "rejected"
-                  ? "bg-destructive/5 border border-destructive/20"
-                  : "bg-success/5 border border-success/20"
-                }`}>
-                <p className={`text-sm ${assignee.status === "rejected" ? "text-destructive" : "text-success"
+          <Separator />
+
+          {/* Detailed History & Timeline */}
+          <div className="space-y-3">
+            <Tabs defaultValue="feedback" className="w-full">
+              <TabsList className="h-8 bg-secondary/50">
+                <TabsTrigger value="feedback" className="text-xs py-1 px-3">审核控制台</TabsTrigger>
+                <TabsTrigger value="timeline" className="text-xs py-1 px-3">进度时间线</TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="feedback" className="mt-4 space-y-4">
+                {/* Previous Review Record - RESTORED STYLE */}
+                {assignee.submissions.length > 0 && assignee.submissions[assignee.submissions.length - 1].feedback && (
+                  <div className={`rounded-lg p-3 border ${
+                    assignee.status === "rejected"
+                      ? "bg-destructive/5 border-destructive/20"
+                      : "bg-success/5 border-success/20"
                   }`}>
-                  {latestSubmission.feedback}
-                </p>
-                {latestSubmission.feedbackAt && (
-                  <p className="text-xs text-muted-foreground mt-1">
-                    {latestSubmission.feedbackAt}
-                  </p>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* Feedback Section - Only show if can review */}
-          {canReview && (
-            <div className="space-y-3">
-              <h4 className="font-semibold text-foreground">审核意见</h4>
-
-              {/* Quick Feedback */}
-              <div className="flex flex-wrap gap-2">
-                {quickFeedbacks.map((text) => (
-                  <Button
-                    key={text}
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setFeedback(text)}
-                    className="text-xs"
-                  >
-                    {text}
-                  </Button>
-                ))}
-              </div>
-
-              <Textarea
-                placeholder="输入审核意见（驳回时必填）..."
-                value={feedback}
-                onChange={(e) => setFeedback(e.target.value)}
-                rows={3}
-              />
-            </div>
-          )}
-
-          {/* Action Buttons */}
-          {canReview && (
-            <div className="flex gap-3 pt-4">
-              <Button
-                variant="outline"
-                className="flex-1 border-destructive text-destructive hover:bg-destructive/10"
-                onClick={handleReject}
-              >
-                <XCircle className="h-4 w-4 mr-2" />
-                驳回
-              </Button>
-              <Button
-                className="flex-1 gradient-success"
-                onClick={handleApprove}
-              >
-                <CheckCircle2 className="h-4 w-4 mr-2" />
-                通过
-              </Button>
-            </div>
-          )}
-
-          {/* Submission History */}
-          {assignee.submissions.length > 1 && (
-            <>
-              <Separator />
-              <div className="space-y-3">
-                <h4 className="font-semibold text-foreground text-sm">历史提交记录</h4>
-                <div className="space-y-2">
-                  {assignee.submissions.slice(0, -1).map((submission) => (
-                    <div
-                      key={submission.id}
-                      className="flex items-center justify-between p-2 rounded border border-border text-sm"
-                    >
-                      <div className="flex items-center gap-2">
-                        <FileText className="h-4 w-4 text-muted-foreground" />
-                        <span>{submission.fileName}</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs text-muted-foreground">
-                          {submission.submittedAt}
-                        </span>
-                        <Badge variant="outline" className="text-xs">
-                          {submission.status === "rejected" ? "已驳回" : "已通过"}
-                        </Badge>
-                      </div>
+                    <div className="flex items-center justify-between mb-1">
+                      <span className={`text-xs font-semibold ${
+                        assignee.status === "rejected" ? "text-destructive" : "text-success"
+                      }`}>
+                        {assignee.status === "rejected" ? "驳回记录" : "审批通过记录"}
+                      </span>
+                      <span className="text-[10px] text-muted-foreground">
+                        {assignee.submissions[assignee.submissions.length - 1].feedbackAt}
+                      </span>
                     </div>
-                  ))}
+                    <p className={`text-sm leading-relaxed ${
+                      assignee.status === "rejected" ? "text-destructive/90" : "text-success/90"
+                    }`}>
+                      {assignee.submissions[assignee.submissions.length - 1].feedback}
+                    </p>
+                  </div>
+                )}
+
+                {/* Feedback Section - Only show if can review */}
+                {canReview ? (
+                  <div className="space-y-3">
+                    <h4 className="font-semibold text-foreground text-sm">审核反馈</h4>
+                    <div className="flex flex-wrap gap-2">
+                      {quickFeedbacks.map((text) => (
+                        <Button
+                          key={text}
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setFeedback(text)}
+                          className="text-xs"
+                        >
+                          {text}
+                        </Button>
+                      ))}
+                    </div>
+                    <Textarea
+                      placeholder="输入审核意见（驳回时必填）..."
+                      value={feedback}
+                      onChange={(e) => setFeedback(e.target.value)}
+                      rows={3}
+                    />
+                    <div className="flex gap-3 pt-2">
+                      <Button
+                        variant="outline"
+                        className="flex-1 border-destructive text-destructive hover:bg-destructive/10"
+                        onClick={handleReject}
+                      >
+                        <XCircle className="h-4 w-4 mr-2" />
+                        驳回
+                      </Button>
+                      <Button
+                        className="flex-1 gradient-success"
+                        onClick={handleApprove}
+                      >
+                        <CheckCircle2 className="h-4 w-4 mr-2" />
+                        通过
+                      </Button>
+                    </div>
+                  </div>
+                ) : null}
+              </TabsContent>
+
+              <TabsContent value="timeline" className="mt-4">
+                <div className="bg-secondary/10 rounded-lg p-5 border border-border/50">
+                  <TaskTimelineView task={task} assignee={assignee} />
                 </div>
-              </div>
-            </>
-          )}
+              </TabsContent>
+            </Tabs>
+          </div>
         </div>
       </SheetContent>
     </Sheet>
