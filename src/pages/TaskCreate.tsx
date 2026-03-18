@@ -21,7 +21,8 @@ import {
   Rocket,
   FileSpreadsheet,
   AlertCircle,
-  Search
+  Search,
+  Building2
 } from "lucide-react";
 import { format } from "date-fns";
 import { zhCN } from "date-fns/locale";
@@ -39,6 +40,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogTrigger,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import { useTaskContext, Assignee } from "@/contexts/TaskContext";
@@ -61,7 +72,7 @@ interface Assignment {
 }
 
 export default function TaskCreate() {
-  const { users, departments } = useUserContext();
+  const { users, departments, currentUser } = useUserContext();
   const [currentStep, setCurrentStep] = useState(1);
   const [taskType, setTaskType] = useState("");
   const [taskTitle, setTaskTitle] = useState("");
@@ -73,6 +84,8 @@ export default function TaskCreate() {
   const [deadlineTime, setDeadlineTime] = useState("18:00");
   const [reviewer, setReviewer] = useState("wang");
   const [memberSearch, setMemberSearch] = useState("");
+  const [isAdvancedSelectOpen, setIsAdvancedSelectOpen] = useState(false);
+  const [expandedDepts, setExpandedDepts] = useState<string[]>([]);
   const navigate = useNavigate();
   const { toast } = useToast();
   const { addTask } = useTaskContext();
@@ -150,6 +163,14 @@ export default function TaskCreate() {
     setAssignments(assignments.filter(a => a.memberId !== memberId));
   };
 
+  const toggleMemberSelection = (memberId: string) => {
+    if (assignments.some(a => a.memberId === memberId)) {
+      handleRemoveAssignment(memberId);
+    } else {
+      handleAddAssignment(memberId);
+    }
+  };
+
   const handleUpdateAssignment = (memberId: string, updates: Partial<Assignment>) => {
     setAssignments(assignments.map(a =>
       a.memberId === memberId ? { ...a, ...updates } : a
@@ -191,6 +212,10 @@ export default function TaskCreate() {
       };
     });
 
+    const selectedReviewerData = reviewerOptions.find(r => r.id === reviewer);
+    const publisherName = selectedReviewerData?.name || "未知发布人";
+    const publisherAvatar = publisherName.charAt(0);
+
     const formattedDeadline = deadlineDate
       ? `${format(deadlineDate, "yyyy-MM-dd")} ${deadlineTime}`
       : new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 16).replace('T', ' ');
@@ -200,8 +225,8 @@ export default function TaskCreate() {
       type: taskType as "周报" | "月报" | "年报" | "专项报告",
       department: taskDepartment,
       deadline: formattedDeadline,
-      createdBy: "当前用户",
-      createdByAvatar: "我",
+      createdBy: publisherName,
+      createdByAvatar: publisherAvatar,
       templateFileName: templateFile?.name,
       templateFileSize: templateFile ? templateFile.size / (1024 * 1024) : undefined,
       templatePageCount: templatePageCount || undefined,
@@ -419,19 +444,16 @@ export default function TaskCreate() {
                       />
                     </div>
                   </div>
-                  <div className="flex flex-wrap gap-2 max-h-40 overflow-y-auto p-1 border border-border/30 rounded-lg bg-muted/20">
-                    {filteredMembers.map((member) => {
+                  <div className="flex flex-wrap gap-2 p-1 border border-border/30 rounded-lg bg-muted/20">
+                    {filteredMembers.slice(0, 12).map((member) => {
                       const isSelected = assignments.some(a => a.memberId === member.id);
                       return (
                         <Button
                           key={member.id}
                           variant={isSelected ? "default" : "outline"}
                           size="sm"
-                          onClick={() => isSelected
-                            ? handleRemoveAssignment(member.id)
-                            : handleAddAssignment(member.id)
-                          }
-                          className={cn("h-8 px-3 text-xs", isSelected ? "gradient-primary" : "")}
+                          onClick={() => toggleMemberSelection(member.id)}
+                          className={cn("h-8 px-3 text-xs", isSelected ? "gradient-primary border-primary/20" : "border-border/50 hover:bg-primary/5 hover:text-primary")}
                         >
                           {isSelected ? (
                             <X className="h-3 w-3 mr-1" />
@@ -443,6 +465,98 @@ export default function TaskCreate() {
                         </Button>
                       );
                     })}
+                    
+                    <Dialog open={isAdvancedSelectOpen} onOpenChange={setIsAdvancedSelectOpen}>
+                      <DialogTrigger asChild>
+                        <Button variant="outline" size="sm" className="h-8 px-3 text-xs border-dashed border-primary/30 text-primary hover:bg-primary/5 hover:text-primary">
+                          <Plus className="h-3 w-3 mr-1" />
+                          更多人员...
+                        </Button>
+                      </DialogTrigger>
+                      <DialogContent className="sm:max-w-[700px] h-[600px] flex flex-col p-6 rounded-2xl">
+                        <DialogHeader>
+                          <DialogTitle className="flex items-center gap-2">
+                            <Users className="h-5 w-5 text-primary" />
+                            全量人员选择器
+                          </DialogTitle>
+                          <DialogDescription>
+                            支持跨部门搜索与选择，已选中 {assignments.length} 位执行人。
+                          </DialogDescription>
+                        </DialogHeader>
+                        
+                        <div className="relative mt-4 mb-4">
+                           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                           <Input 
+                             placeholder="搜索姓名、工号、部门或职位..." 
+                             className="pl-10 h-10 rounded-xl"
+                             value={memberSearch}
+                             onChange={(e) => setMemberSearch(e.target.value)}
+                           />
+                        </div>
+
+                        <ScrollArea className="flex-1 -mx-2 px-2">
+                           <div className="space-y-6 pb-4">
+                             {departments.map(dept => {
+                               const deptMembers = users.filter(u => u.department === dept.name && (
+                                 u.name.includes(memberSearch) || 
+                                 u.department.includes(memberSearch) ||
+                                 u.staffId.includes(memberSearch) ||
+                                 u.role.includes(memberSearch)
+                               ));
+
+                               if (deptMembers.length === 0) return null;
+
+                               return (
+                                 <div key={dept.id} className="space-y-3">
+                                   <div className="flex items-center justify-between sticky top-0 bg-background/95 backdrop-blur-sm py-1 z-10 border-b border-border/30">
+                                      <h4 className="text-sm font-bold flex items-center gap-2">
+                                        <Building2 className="h-4 w-4 text-muted-foreground" />
+                                        {dept.name} 
+                                        <span className="text-xs font-normal text-muted-foreground">({deptMembers.length}人)</span>
+                                      </h4>
+                                   </div>
+                                   <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                                     {deptMembers.map(member => {
+                                       const isSelected = assignments.some(a => a.memberId === member.id);
+                                       return (
+                                         <div 
+                                           key={member.id}
+                                           onClick={() => toggleMemberSelection(member.id)}
+                                           className={cn(
+                                             "flex items-center gap-3 p-2 rounded-xl border cursor-pointer transition-all hover:shadow-md",
+                                             isSelected 
+                                               ? "bg-primary/5 border-primary/30 shadow-sm ring-1 ring-primary/20" 
+                                               : "bg-muted/10 border-border/40 hover:bg-muted/30"
+                                           )}
+                                         >
+                                            <Avatar className="h-8 w-8 shrink-0">
+                                               <AvatarFallback className={cn("text-xs font-bold", isSelected ? "bg-primary text-white" : "bg-primary/10 text-primary")}>
+                                                 {member.avatar}
+                                               </AvatarFallback>
+                                            </Avatar>
+                                            <div className="min-w-0 flex-1">
+                                               <p className="text-sm font-bold truncate">{member.name}</p>
+                                               <p className="text-[11px] text-muted-foreground truncate">{member.role}</p>
+                                            </div>
+                                            {isSelected && <CheckCircle2 className="h-4 w-4 text-primary shrink-0" />}
+                                         </div>
+                                       );
+                                     })}
+                                   </div>
+                                 </div>
+                               );
+                             })}
+                           </div>
+                        </ScrollArea>
+
+                        <DialogFooter className="mt-4 pt-4 border-t border-border/30">
+                           <Button onClick={() => setIsAdvancedSelectOpen(false)} className="gradient-primary px-8 rounded-xl shadow-lg shadow-primary/20">
+                             确定选择
+                           </Button>
+                        </DialogFooter>
+                      </DialogContent>
+                    </Dialog>
+
                     {filteredMembers.length === 0 && (
                       <div className="w-full text-center py-4 text-xs text-muted-foreground">
                         未找到匹配的成员

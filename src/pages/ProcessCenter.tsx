@@ -147,7 +147,7 @@ export default function ProcessCenter() {
                             <TableHeader>
                                 <TableRow>
                                     <TableHead>流程名称</TableHead>
-                                    <TableHead>唯一标识 (Key)</TableHead>
+                                    <TableHead>流程标识 (Key)</TableHead>
                                     <TableHead>版本</TableHead>
                                     <TableHead>状态</TableHead>
                                     <TableHead>上传时间</TableHead>
