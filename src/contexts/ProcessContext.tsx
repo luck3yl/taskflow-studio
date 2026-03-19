@@ -17,7 +17,8 @@ const bpmnFiles = [
     { key: 'LeaveApproval', name: '员工请假审批流程', file: 'leave-approval.bpmn20.xml' },
     { key: 'ManagerTask', name: '主管任务下发流程', file: 'manager-task-flow.bpmn20.xml' },
     { key: 'MultiLevelAssignment', name: '多级任务自动分配流程', file: 'multi-level-assignment-simple.bpmn20.xml' },
-    { key: 'TaskClaim', name: '任务认领与抢单流程', file: 'task-claim-demo.bpmn20.xml' }
+    { key: 'DynamicAssignment', name: '动态分配演示流程', file: 'task-assignment-demo.bpmn20.xml' }
+
 ];
 
 // Mock initial data based on real files

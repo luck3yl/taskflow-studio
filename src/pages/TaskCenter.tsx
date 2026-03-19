@@ -46,6 +46,7 @@ import { useNavigate } from "react-router-dom";
 import { ReviewDrawer } from "@/components/drawers/ReviewDrawer";
 import { MergedPPTDrawer } from "@/components/drawers/MergedPPTDrawer";
 import { useTaskContext, Task, Assignee } from "@/contexts/TaskContext";
+import { cn } from "@/lib/utils";
 import { TaskKanbanView } from "@/components/task/TaskKanbanView";
 import { TaskCalendarView } from "@/components/task/TaskCalendarView";
 import { TaskProgressList } from "@/components/task/TaskProgressList";
@@ -228,7 +229,7 @@ export default function TaskCenter() {
         </div>
 
         {/* Stats Overview */}
-        <div className="grid gap-4 md:grid-cols-3">
+        <div className="grid gap-4 md:grid-cols-2">
           <Card className="shadow-card">
             <CardContent className="p-4 flex items-center gap-4">
               <div className="h-12 w-12 rounded-xl gradient-primary flex items-center justify-center">
@@ -248,17 +249,6 @@ export default function TaskCenter() {
               <div>
                 <p className="text-2xl font-bold">{totalParticipants}</p>
                 <p className="text-sm text-muted-foreground">参与人员</p>
-              </div>
-            </CardContent>
-          </Card>
-          <Card className="shadow-card">
-            <CardContent className="p-4 flex items-center gap-4">
-              <div className="h-12 w-12 rounded-xl gradient-accent flex items-center justify-center">
-                <CalendarIcon className="h-6 w-6 text-primary-foreground" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold">{overallProgress}%</p>
-                <p className="text-sm text-muted-foreground">整体完成率</p>
               </div>
             </CardContent>
           </Card>
@@ -335,13 +325,6 @@ export default function TaskCenter() {
                               )}
                             </div>
 
-                            {/* Progress */}
-                            <div className="hidden sm:flex items-center gap-3 min-w-[140px]">
-                              <Progress value={progress} className="h-2" />
-                              <span className="text-sm text-muted-foreground whitespace-nowrap">
-                                {task.completedCount}/{task.totalAssignees}
-                              </span>
-                            </div>
 
                             <DropdownMenu>
                               <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
@@ -415,12 +398,21 @@ export default function TaskCenter() {
                                       </div>
                                       <div>
                                         <p className="text-sm font-medium">{assignee.name}</p>
-                                        <p className="text-xs text-muted-foreground">
+                                        <Badge 
+                                          variant="outline"
+                                          className={cn(
+                                            "text-[10px] px-2 py-0 h-5 mt-1 border shadow-none font-bold rounded",
+                                            assignee.status === "pending" && "bg-muted/50 text-muted-foreground border-muted-foreground/10",
+                                            assignee.status === "submitted" && "bg-amber-100/90 text-amber-700 border-amber-300 shadow-sm",
+                                            assignee.status === "approved" && "bg-success/10 text-success border-success/20",
+                                            assignee.status === "rejected" && "bg-destructive/10 text-destructive border-destructive/20"
+                                          )}
+                                        >
                                           {assignee.status === "pending" && "待提交"}
                                           {assignee.status === "submitted" && "待审核"}
                                           {assignee.status === "approved" && "已通过"}
                                           {assignee.status === "rejected" && "已驳回"}
-                                        </p>
+                                        </Badge>
                                       </div>
                                     </div>
                                     {(assignee.status === "submitted" || assignee.status === "approved" || assignee.status === "rejected") && (
@@ -449,18 +441,6 @@ export default function TaskCenter() {
                             </div>
                           </div>
 
-                          <Separator />
-
-                          {/* Progress Timeline Section */}
-                          <div className="space-y-3">
-                            <h4 className="text-sm font-semibold flex items-center gap-2">
-                              <Clock className="h-4 w-4 text-primary" />
-                              进度时间线
-                            </h4>
-                            <div className="bg-secondary/20 rounded-lg p-6 border border-border/50">
-                              <TaskTimelineView task={task} />
-                            </div>
-                          </div>
                         </div>
                       </CardContent>
                     </CollapsibleContent>
