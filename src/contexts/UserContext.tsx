@@ -1,5 +1,12 @@
 import React, { createContext, useContext, useState, ReactNode } from "react";
 
+// 部门层级职级
+export type DeptLevel = "普通职员" | "室主任" | "分管副部长" | "设备部长";
+// 厂级层级职级
+export type FactoryLevel = "普通职员" | "设备组长" | "设备厂长";
+// 所属体系
+export type OrgSystem = "department" | "factory";
+
 export interface Department {
     id: string;
     name: string;
@@ -13,6 +20,10 @@ export interface User {
     avatar: string;
     department: string;
     role: string;
+    // 所属体系：department = 部门层级，factory = 厂级层级
+    orgSystem: OrgSystem;
+    // 支持多角色兼任（如室主任兼部长）
+    roles: string[];
     staffId: string;
     email: string;
     phone: string;
@@ -21,20 +32,21 @@ export interface User {
 }
 
 const DEPARTMENTS: Department[] = [
-    { id: "dept-1", name: "技术部", description: "负责产品研发与运维" },
-    { id: "dept-2", name: "产品部", description: "负责产品设计与规划" },
-    { id: "dept-3", name: "市场部", description: "负责市场推广与销售" },
-    { id: "dept-4", name: "运营部", description: "负责平台日常运营" },
-    { id: "dept-5", name: "财务部", description: "负责财务预算与核算" },
+    { id: "dept-1", name: "设备部", description: "负责设备管理与维护" },
+    { id: "dept-2", name: "设备室", description: "设备部下属科室" },
+    { id: "dept-3", name: "生产厂", description: "厂级生产管理单位" },
+    { id: "dept-4", name: "技术部", description: "负责技术研发" },
+    { id: "dept-5", name: "运营部", description: "负责平台日常运营" },
 ];
 
 const USERS: User[] = [
-    { id: "user-1", name: "张明", avatar: "张", department: "技术部", role: "后端开发", staffId: "TX001", email: "zhangming@taskflow.cn", phone: "13800000001", lastLogin: "2026-03-16 10:00", online: true },
-    { id: "user-2", name: "李华", avatar: "李", department: "技术部", role: "前端开发", staffId: "TX002", email: "lihua@taskflow.cn", phone: "13800000002", lastLogin: "2026-03-16 11:30", online: false },
-    { id: "user-3", name: "王芳", avatar: "王", department: "产品部", role: "产品经理", staffId: "PD001", email: "wangfang@taskflow.cn", phone: "13800000003", lastLogin: "2026-03-15 14:00", online: true },
-    { id: "user-4", name: "赵强", avatar: "赵", department: "市场部", role: "市场主管", staffId: "MK001", email: "zhaoqiang@taskflow.cn", phone: "13800000004", lastLogin: "2026-03-16 09:00", online: true },
-    { id: "user-5", name: "陈静", avatar: "陈", department: "运营部", role: "运营专家", staffId: "OP001", email: "chenjing@taskflow.cn", phone: "13800000005", lastLogin: "2026-03-14 16:30", online: false },
-    { id: "user-6", name: "刘洋", avatar: "刘", department: "产品部", role: "交互设计", staffId: "PD002", email: "liuyang@taskflow.cn", phone: "13800000006", lastLogin: "2026-03-16 13:00", online: true },
+    { id: "user-1", name: "张明", avatar: "张", department: "设备部", role: "普通职员", orgSystem: "department", roles: ["普通职员"], staffId: "SB001", email: "zhangming@corp.cn", phone: "13800000001", lastLogin: "2026-04-20 10:00", online: true },
+    { id: "user-2", name: "李华", avatar: "李", department: "设备部", role: "室主任", orgSystem: "department", roles: ["室主任"], staffId: "SB002", email: "lihua@corp.cn", phone: "13800000002", lastLogin: "2026-04-20 11:30", online: false },
+    { id: "user-3", name: "王芳", avatar: "王", department: "设备部", role: "室主任", orgSystem: "department", roles: ["室主任", "设备部长"], staffId: "SB003", email: "wangfang@corp.cn", phone: "13800000003", lastLogin: "2026-04-19 14:00", online: true },
+    { id: "user-4", name: "赵强", avatar: "赵", department: "设备部", role: "分管副部长", orgSystem: "department", roles: ["分管副部长"], staffId: "SB004", email: "zhaoqiang@corp.cn", phone: "13800000004", lastLogin: "2026-04-20 09:00", online: true },
+    { id: "user-5", name: "陈静", avatar: "陈", department: "生产厂", role: "普通职员", orgSystem: "factory", roles: ["普通职员"], staffId: "SC001", email: "chenjing@corp.cn", phone: "13800000005", lastLogin: "2026-04-18 16:30", online: false },
+    { id: "user-6", name: "刘洋", avatar: "刘", department: "生产厂", role: "设备组长", orgSystem: "factory", roles: ["设备组长"], staffId: "SC002", email: "liuyang@corp.cn", phone: "13800000006", lastLogin: "2026-04-20 13:00", online: true },
+    { id: "user-7", name: "孙磊", avatar: "孙", department: "生产厂", role: "设备厂长", orgSystem: "factory", roles: ["设备厂长"], staffId: "SC003", email: "sunlei@corp.cn", phone: "13800000007", lastLogin: "2026-04-20 08:30", online: true },
 ];
 
 interface UserContextType {

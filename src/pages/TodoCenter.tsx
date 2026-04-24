@@ -26,6 +26,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { TaskProcessDrawer } from "@/components/drawers/TaskProcessDrawer";
+import { PptTaskDrawer } from "@/components/drawers/PptTaskDrawer";
 import { useTaskContext, Task, Assignee } from "@/contexts/TaskContext";
 import { useUserContext } from "@/contexts/UserContext";
 
@@ -58,6 +59,8 @@ export default function TodoCenter() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [selectedItem, setSelectedItem] = useState<{ task: Task; assignee: Assignee } | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [pptDrawerOpen, setPptDrawerOpen] = useState(false);
+  const [pptTaskId, setPptTaskId] = useState<string>("");
 
   const { tasks, submitWork } = useTaskContext();
   const { currentUser } = useUserContext();
@@ -65,10 +68,62 @@ export default function TodoCenter() {
 
   // Get tasks assigned to current user
   const myTasks = tasks.flatMap(task => {
-    const assignee = task.assignees.find(a => a.name === currentUser.name);
+    // 处理普通任务的分配（在 task.assignees 中）
+    const assignee = task.assignees?.find(a => a.memberId === currentUser.id || a.name === currentUser.name);
     if (assignee) {
       return [{ task, assignee }];
     }
+    
+    // 处理 PPT拆分合并任务 的分配（在 task.pptWorkflow 中）
+    if (task.type === "PPT拆分合并" && task.pptWorkflow) {
+      let myPptAssignments: { task: Task, assignee: Assignee }[] = [];
+
+      // 1. 如果当前登录人是该部门的负责人，并且状态还是 pending 或分配进行中，作为一个专门的“需要分配任务”待办出来
+      task.pptWorkflow.deptAssignments.forEach(deptAssignment => {
+        if (deptAssignment.headUserId === currentUser.id && deptAssignment.status === "pending") {
+          myPptAssignments.push({
+            task,
+            assignee: {
+              id: deptAssignment.id,
+              memberId: currentUser.id,
+              name: currentUser.name,
+              avatar: currentUser.avatar,
+              department: currentUser.department,
+              taskDescription: `分配给本部门的任务：第 ${deptAssignment.pages.join(',')} 页。请尽快下发给具体员工：${deptAssignment.requirement || ''}`,
+              pageRange: deptAssignment.pages.join(','),
+              status: "pending" as Assignee["status"],
+              submissions: []
+            } as Assignee
+          });
+        }
+        
+        // 2. 抓取该员工自己被分配到的具体PPT编辑任务
+        deptAssignment.userAssignments.forEach(ua => {
+          if (ua.userId === currentUser.id) {
+            myPptAssignments.push({
+              task,
+              assignee: {
+                ...ua,
+                id: ua.userId, // Map to assignee interface closely
+                memberId: ua.userId,
+                name: currentUser.name,
+                avatar: currentUser.avatar,
+                department: currentUser.department,
+                taskDescription: `负责第 ${ua.pages.join(',')} 页：${deptAssignment.requirement || ''}`,
+                pageRange: ua.pages.join(','),
+                status: ua.status as Assignee["status"],
+                submissions: ua.submissions
+              } as Assignee
+            });
+          }
+        });
+      });
+
+      if (myPptAssignments.length > 0) {
+        return myPptAssignments;
+      }
+    }
+    
     return [];
   });
 
@@ -80,6 +135,11 @@ export default function TodoCenter() {
   });
 
   const handleProcessTask = (task: Task, assignee: Assignee) => {
+    if (task.type === "PPT拆分合并") {
+      setPptTaskId(task.id);
+      setPptDrawerOpen(true);
+      return;
+    }
     setSelectedItem({ task, assignee });
     setDrawerOpen(true);
   };
@@ -167,7 +227,7 @@ export default function TodoCenter() {
                     </Badge>
                     <div className="flex items-center gap-1.5 text-xs text-muted-foreground font-medium">
                       <Clock className="h-3.5 w-3.5" />
-                      <span>{deadlineInfo.isOverdue ? '已逾期' : '进行中'}</span>
+                      <span>{deadlineInfo.isOverdue ? '已逾期' : '按时处理中'}</span>
                     </div>
                   </div>
 
@@ -176,8 +236,8 @@ export default function TodoCenter() {
                     <h3 className="font-bold text-lg leading-snug line-clamp-2">
                       {task.title}
                     </h3>
-                    <p className="text-sm text-muted-foreground/90 leading-relaxed line-clamp-2">
-                      {assignee.taskDescription}
+                    <p className="text-sm text-muted-foreground/90 leading-relaxed line-clamp-2" title={assignee.taskDescription}>
+                      要求: {assignee.taskDescription || task.description || "无具体要求"}
                     </p>
                   </div>
 
@@ -192,7 +252,7 @@ export default function TodoCenter() {
 
                     {assignee.pageRange && (
                       <div className="flex items-center gap-1.5 text-xs font-bold text-primary px-2 py-0.5 bg-primary/5 rounded border border-primary/10">
-                        第{assignee.pageRange}页
+                        负责第 {assignee.pageRange} 页
                       </div>
                     )}
                   </div>
@@ -214,15 +274,16 @@ export default function TodoCenter() {
                   <div className="mt-auto pt-4 border-t border-border/40 flex items-center justify-between">
                     <div className="text-sm">
                       <span className="opacity-60">截止时间: </span>
-                      <span className="font-medium text-foreground/70">{task.deadline}</span>
+                      <span className="font-medium text-foreground/70">{task.deadline.split(' ')[0]}</span>
                     </div>
 
                     <Button
                       size="sm"
-                      className="h-8 px-4 text-xs font-bold gradient-primary rounded shadow-sm hover:translate-x-0.5 transition-transform"
+                      variant={assignee.status === "pending" || assignee.status === "rejected" ? "default" : "outline"}
+                      className="h-8 px-4 text-xs font-bold rounded shadow-sm hover:-translate-y-0.5 transition-transform"
                       onClick={() => handleProcessTask(task, assignee)}
                     >
-                      {assignee.status === "pending" || assignee.status === "rejected" ? "立即处理" : "详情"}
+                      {assignee.status === "pending" || assignee.status === "rejected" ? "立即处理" : "进度详情"}
                     </Button>
                   </div>
                 </CardContent>
@@ -249,6 +310,13 @@ export default function TodoCenter() {
         task={selectedItem?.task}
         assignee={selectedItem?.assignee}
         onSubmit={handleSubmit}
+      />
+
+      {/* PPT Task Drawer */}
+      <PptTaskDrawer
+        open={pptDrawerOpen}
+        onOpenChange={setPptDrawerOpen}
+        taskId={pptTaskId}
       />
     </AppLayout>
   );

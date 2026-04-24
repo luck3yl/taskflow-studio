@@ -5,11 +5,9 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Progress } from "@/components/ui/progress";
 import { 
   Search, 
   Plus,
-  Filter,
   ChevronDown,
   ChevronRight,
   Eye,
@@ -19,9 +17,8 @@ import {
   LayoutGrid,
   Trello,
   Calendar as CalendarIcon,
-  Clock,
   Trash2,
-  MoreHorizontal
+  MoreHorizontal,
 } from "lucide-react";
 import {
   Select,
@@ -41,17 +38,17 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
-import { Separator } from "@/components/ui/separator";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { ReviewDrawer } from "@/components/drawers/ReviewDrawer";
 import { MergedPPTDrawer } from "@/components/drawers/MergedPPTDrawer";
-import { useTaskContext, Task, Assignee } from "@/contexts/TaskContext";
+import { PptTaskDrawer } from "@/components/drawers/PptTaskDrawer";
+import { useTaskContext, Task, Assignee, TaskType } from "@/contexts/TaskContext";
+import { useUserContext } from "@/contexts/UserContext";
 import { cn } from "@/lib/utils";
 import { TaskKanbanView } from "@/components/task/TaskKanbanView";
 import { TaskCalendarView } from "@/components/task/TaskCalendarView";
 import { TaskProgressList } from "@/components/task/TaskProgressList";
-import { TaskTimelineView } from "@/components/task/TaskTimelineView";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 const statusStyles = {
   pending: { bg: "bg-muted", dot: "bg-muted-foreground" },
@@ -60,34 +57,53 @@ const statusStyles = {
   rejected: { bg: "bg-destructive/20", dot: "bg-destructive" },
 };
 
-const typeFilters = [
-  { value: "all", label: "全部类型" },
-  { value: "周报", label: "周报" },
-  { value: "月报", label: "月报" },
-  { value: "年报", label: "年报" },
-  { value: "专项报告", label: "专项报告" },
-];
+// 按职级返回权限过滤后的任务（任务中心是给领导看的，或者说只展示与自己相关的，或者创建的）
+function applyPermissionFilter(
+  tasks: Task[],
+  currentUser: ReturnType<typeof useUserContext>["currentUser"]
+): Task[] {
+  const roles = (currentUser as any).roles ?? [currentUser.role];
+  const isAdmin = roles.includes("设备部长") || roles.includes("设备厂长");
+  const isVice = !isAdmin && roles.includes("分管副部长");
+  const isRoom = !isAdmin && !isVice && (roles.includes("室主任") || roles.includes("设备组长"));
+  
+  // 领导看全部/部分，员工只看自己创建的或参与的
+  if (isAdmin) return tasks;
+  if (isVice) return tasks.filter(t => t.department === currentUser.department || t.department === "全公司" || t.createdBy === currentUser.name);
+  if (isRoom) return tasks.filter(t =>
+    t.department === currentUser.department ||
+    t.department === "全公司" ||
+    t.assignees.some(a => a.name === currentUser.name) ||
+    t.createdBy === currentUser.name
+  );
+  
+  // 普通员工：在“任务中心”只看到“我作为发起人/创建人”的任务，如果仅仅是参与者，应该去待办中心看
+  return tasks.filter(t => t.createdBy === currentUser.name);
+}
 
 const departmentFilters = [
   { value: "all", label: "全部部门" },
+  { value: "设备部", label: "设备部" },
   { value: "技术部", label: "技术部" },
   { value: "产品部", label: "产品部" },
-  { value: "销售部", label: "销售部" },
-  { value: "市场部", label: "市场部" },
   { value: "运营部", label: "运营部" },
   { value: "全公司", label: "全公司" },
 ];
 
 export default function TaskCenter() {
+  const { taskType: taskTypeParam } = useParams<{ taskType?: string }>();
+  const activeTaskType: TaskType | "all" = taskTypeParam ? decodeURIComponent(taskTypeParam) as TaskType : "all";
+
   const [viewMode, setViewMode] = useState<"list" | "kanban" | "calendar">("list");
   const [progressListOpen, setProgressListOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  const [typeFilter, setTypeFilter] = useState("all");
   const [departmentFilter, setDepartmentFilter] = useState("all");
   const [expandedTasks, setExpandedTasks] = useState<string[]>([]);
   const [reviewDrawerOpen, setReviewDrawerOpen] = useState(false);
   const [mergedDrawerOpen, setMergedDrawerOpen] = useState(false);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
+  const [pptTaskDrawerOpen, setPptTaskDrawerOpen] = useState(false);
+  const [pptTaskId, setPptTaskId] = useState<string>("");
   const [selectedReview, setSelectedReview] = useState<{
     task: Task;
     assignee: Assignee;
@@ -95,6 +111,7 @@ export default function TaskCenter() {
 
   const navigate = useNavigate();
   const { tasks, reviewSubmission, deleteTask } = useTaskContext();
+  const { currentUser } = useUserContext();
 
   const handleViewMerged = (task: Task) => {
     setSelectedTask(task);
@@ -144,32 +161,36 @@ export default function TaskCenter() {
     setReviewDrawerOpen(false);
   };
 
-  const filteredTasks = tasks.filter((task) => {
+  // 权限过滤后的可见任务
+  const permissionFilteredTasks = applyPermissionFilter(tasks, currentUser);
+
+  const filteredTasks = permissionFilteredTasks.filter((task) => {
     const matchesSearch = task.title.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesType = typeFilter === "all" || task.type === typeFilter;
+    const matchesType = activeTaskType === "all" || task.type === activeTaskType;
     const matchesDepartment = departmentFilter === "all" || task.department === departmentFilter;
     return matchesSearch && matchesType && matchesDepartment;
   });
 
-  // Calculate stats
-  const totalParticipants = tasks.reduce((sum, t) => sum + t.totalAssignees, 0);
-  const totalCompleted = tasks.reduce((sum, t) => sum + t.completedCount, 0);
-  const totalTotal = tasks.reduce((sum, t) => sum + t.totalAssignees, 0);
-  const overallProgress = totalTotal > 0 ? Math.round((totalCompleted / totalTotal) * 100) : 0;
+  const totalParticipants = permissionFilteredTasks.reduce((sum, t) => sum + t.totalAssignees, 0);
+
+  const createUrl = activeTaskType === "all"
+    ? "/tasks/create"
+    : `/tasks/create/${encodeURIComponent(activeTaskType)}`;
 
   return (
-    <AppLayout title="任务中心">
+    <AppLayout title={activeTaskType === "all" ? "任务中心" : `任务中心 · ${activeTaskType}`}>
       <div className="space-y-6">
         {/* Header */}
         <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
-          <div className="flex gap-3">
+          <div className="flex items-center gap-3">
             <Button 
               className="gradient-primary"
-              onClick={() => navigate("/tasks/create")}
+              onClick={() => navigate(createUrl)}
             >
               <Plus className="h-4 w-4 mr-2" />
-              创建任务
+              {activeTaskType === "all" ? "创建任务" : `新建${activeTaskType}`}
             </Button>
+
           </div>
           
           <div className="flex flex-wrap gap-3 w-full sm:w-auto items-center">
@@ -212,19 +233,6 @@ export default function TaskCenter() {
                 ))}
               </SelectContent>
             </Select>
-            <Select value={typeFilter} onValueChange={setTypeFilter}>
-              <SelectTrigger className="w-32">
-                <Filter className="h-4 w-4 mr-2" />
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {typeFilters.map((filter) => (
-                  <SelectItem key={filter.value} value={filter.value}>
-                    {filter.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
           </div>
         </div>
 
@@ -236,8 +244,8 @@ export default function TaskCenter() {
                 <FileText className="h-6 w-6 text-primary-foreground" />
               </div>
               <div>
-                <p className="text-2xl font-bold">{tasks.length}</p>
-                <p className="text-sm text-muted-foreground">进行中任务</p>
+                <p className="text-2xl font-bold">{filteredTasks.length}</p>
+                <p className="text-sm text-muted-foreground">{activeTaskType === "all" ? "进行中任务" : `${activeTaskType}任务`}</p>
               </div>
             </CardContent>
           </Card>
@@ -333,6 +341,15 @@ export default function TaskCenter() {
                                 </Button>
                               </DropdownMenuTrigger>
                               <DropdownMenuContent align="end">
+                                {task.type === "PPT拆分合并" && (
+                                  <DropdownMenuItem onClick={(e) => { 
+                                    e.stopPropagation(); 
+                                    setPptTaskId(task.id);
+                                    setPptTaskDrawerOpen(true);
+                                  }}>
+                                    进入PPT工作台
+                                  </DropdownMenuItem>
+                                )}
                                 <DropdownMenuItem>编辑任务</DropdownMenuItem>
                                 <DropdownMenuItem>催办提醒</DropdownMenuItem>
                                 <DropdownMenuItem 
@@ -355,6 +372,20 @@ export default function TaskCenter() {
                     <CollapsibleContent>
                       <CardContent className="pt-0 pb-4">
                         <div className="border-t border-border pt-4 space-y-6">
+                          {/* PPT 工作台快捷入口 */}
+                          {task.type === "PPT拆分合并" && (
+                            <Button
+                              className="w-full gradient-primary"
+                              onClick={(e) => { 
+                                e.stopPropagation(); 
+                                setPptTaskId(task.id);
+                                setPptTaskDrawerOpen(true);
+                              }}
+                            >
+                              <Layers className="h-4 w-4 mr-2" />
+                              进入PPT拆分合并工作台
+                            </Button>
+                          )}
                           {/* Sub-task List Section */}
                           <div className="space-y-3">
                             <div className="flex items-center justify-between">
@@ -455,7 +486,13 @@ export default function TaskCenter() {
                   <FileText className="h-8 w-8 text-muted-foreground" />
                 </div>
                 <h3 className="font-medium text-foreground">暂无任务</h3>
-                <p className="text-sm text-muted-foreground mt-1">点击"创建任务"开始分派工作</p>
+                <p className="text-sm text-muted-foreground mt-1">
+                    {activeTaskType === "all" ? "点击\"创建任务\"开始分派工作" : `点击\"新建${activeTaskType}\"创建此类任务`}
+                  </p>
+                  <Button className="mt-4 gradient-primary" onClick={() => navigate(createUrl)}>
+                    <Plus className="h-4 w-4 mr-2" />
+                    {activeTaskType === "all" ? "创建任务" : `新建${activeTaskType}`}
+                  </Button>
               </div>
             )}
           </div>
@@ -492,6 +529,12 @@ export default function TaskCenter() {
         open={progressListOpen} 
         onOpenChange={setProgressListOpen} 
         tasks={tasks}
+      />
+
+      <PptTaskDrawer
+        open={pptTaskDrawerOpen}
+        onOpenChange={setPptTaskDrawerOpen}
+        taskId={pptTaskId}
       />
     </AppLayout>
   );

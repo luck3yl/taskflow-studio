@@ -50,7 +50,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import { useTaskContext, Assignee } from "@/contexts/TaskContext";
 import { useUserContext } from "@/contexts/UserContext";
@@ -71,15 +71,56 @@ interface Assignment {
   endPage?: number;
 }
 
+interface PptDeptRow {
+  deptName: string;
+  pageSelection: string;
+  requirement: string;
+  headUserId: string;
+  headUserName: string;
+  headUserAvatar: string;
+}
+
+const parsePageInput = (input: string, maxPages: number): number[] => {
+  const pages = new Set<number>();
+  const parts = input.split(/[,，]/);
+  for (const part of parts) {
+    const p = part.trim();
+    if (!p) continue;
+    if (p.includes('-')) {
+      const [start, end] = p.split('-');
+      const s = parseInt(start);
+      const e = parseInt(end);
+      if (!isNaN(s) && !isNaN(e) && s <= e) {
+        for (let i = s; i <= e; i++) {
+          if (i >= 1 && (maxPages === 0 || i <= maxPages)) pages.add(i);
+        }
+      }
+    } else {
+      const n = parseInt(p);
+      if (!isNaN(n) && n >= 1 && (maxPages === 0 || n <= maxPages)) pages.add(n);
+    }
+  }
+  return Array.from(pages).sort((a, b) => a - b);
+};
+
 export default function TaskCreate() {
   const { users, departments, currentUser } = useUserContext();
   const [currentStep, setCurrentStep] = useState(1);
-  const [taskType, setTaskType] = useState("");
+  const { taskType: taskTypeParam } = useParams<{ taskType?: string }>();
+  const [taskType, setTaskType] = useState(() => taskTypeParam ? decodeURIComponent(taskTypeParam) : "PPT拆分合并");
   const [taskTitle, setTaskTitle] = useState("");
-  const [taskDepartment, setTaskDepartment] = useState("");
+  const [taskDescription, setTaskDescription] = useState("");
+  const [taskDepartment, setTaskDepartment] = useState("全公司");
   const [templateFile, setTemplateFile] = useState<File | null>(null);
   const [templatePageCount, setTemplatePageCount] = useState<number>(0);
   const [assignments, setAssignments] = useState<Assignment[]>([]);
+  const [pptDeptRows, setPptDeptRows] = useState<PptDeptRow[]>([{ deptName: "", pageSelection: "", requirement: "", headUserId: "", headUserName: "", headUserAvatar: "" }]);
+  const [pptReviewerId, setPptReviewerId] = useState("");
+  const [pptApproverId, setPptApproverId] = useState("");
+  const [deptHeadPickerIdx, setDeptHeadPickerIdx] = useState<number | null>(null);
+  const [deptHeadSearch, setDeptHeadSearch] = useState("");
+  const [reviewerPickerOpen, setReviewerPickerOpen] = useState<"reviewer" | "approver" | null>(null);
+  const [rolePickerSearch, setRolePickerSearch] = useState("");
   const [deadlineDate, setDeadlineDate] = useState<Date>();
   const [deadlineTime, setDeadlineTime] = useState("18:00");
   const [reviewer, setReviewer] = useState("wang");
@@ -127,15 +168,26 @@ export default function TaskCreate() {
   };
 
   const handleNext = () => {
-    if (currentStep === 1 && (!taskType || !taskTitle || !taskDepartment)) {
+    if (currentStep === 1 && (!taskTitle || !taskDescription)) {
       toast({
         title: "请填写完整信息",
-        description: "任务类型、名称和部门为必填项",
+        description: "任务名称和描述为必填项",
         variant: "destructive",
       });
       return;
     }
-    if (currentStep === 2 && assignments.length === 0) {
+    if (currentStep === 2 && taskType === "PPT拆分合并") {
+      const valid = pptDeptRows.some(r => r.deptName && r.headUserId && parsePageInput(r.pageSelection, templatePageCount).length > 0);
+      if (!valid) {
+        toast({
+          title: "请完善部门分配",
+          description: "至少需要完成一条：部门 + 负责人 + 页面范围",
+          variant: "destructive",
+        });
+        return;
+      }
+    }
+    if (currentStep === 2 && taskType !== "PPT拆分合并" && assignments.length === 0) {
       toast({
         title: "请添加执行人",
         description: "至少需要添加一名执行人",
@@ -194,6 +246,57 @@ export default function TaskCreate() {
   };
 
   const handlePublish = () => {
+    if (taskType === "PPT拆分合并") {
+      // Build pptWorkflow from dept rows
+      const deptAssignments = pptDeptRows
+        .filter(r => r.deptName && parsePageInput(r.pageSelection, templatePageCount).length > 0)
+        .map((r, i) => {
+          const pages = parsePageInput(r.pageSelection, templatePageCount);
+          return {
+            id: `dept-new-${i}`,
+            department: r.deptName,
+            requirement: r.requirement || undefined,
+            pages,
+            headUserId: r.headUserId || undefined,
+            headUserName: r.headUserName || undefined,
+            status: "pending" as const,
+            userAssignments: [],
+          };
+        });
+      const reviewerUser = users.find(u => u.id === pptReviewerId);
+      const approverUser = users.find(u => u.id === pptApproverId);
+      const formattedDeadline = deadlineDate
+        ? `${format(deadlineDate, "yyyy-MM-dd")} ${deadlineTime}`
+        : new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 16).replace('T', ' ');
+      const newId = addTask({
+        title: taskTitle,
+        description: taskDescription,
+        type: "PPT拆分合并",
+        department: taskDepartment,
+        deadline: formattedDeadline,
+        createdBy: currentUser.name,
+        createdByAvatar: currentUser.avatar,
+        templateFileName: templateFile?.name,
+        templateFileSize: templateFile ? templateFile.size / (1024 * 1024) : undefined,
+        templatePageCount: templatePageCount || 10,
+        totalAssignees: deptAssignments.length,
+        assignees: [],
+        pptWorkflow: {
+          stage: "dept_assignment",
+          totalPages: templatePageCount || 10,
+          deptAssignments,
+          pageVersions: {},
+          reviewerId: reviewerUser?.id,
+          reviewerName: reviewerUser?.name,
+          approverId: approverUser?.id,
+          approverName: approverUser?.name,
+        },
+      });
+      toast({ title: "PPT任务已创建", description: `已分配 ${deptAssignments.length} 个部门。` });
+      navigate('/tasks');
+      return;
+    }
+
     // Create assignees from assignments
     const assignees: Omit<Assignee, "id">[] = assignments.map((a, index) => {
       const member = getMemberById(a.memberId);
@@ -220,9 +323,10 @@ export default function TaskCreate() {
       ? `${format(deadlineDate, "yyyy-MM-dd")} ${deadlineTime}`
       : new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 16).replace('T', ' ');
 
-    addTask({
+    const newId = addTask({
       title: taskTitle,
-      type: taskType as "周报" | "月报" | "年报" | "专项报告",
+      description: taskDescription,
+      type: taskType as import("@/contexts/TaskContext").TaskType,
       department: taskDepartment,
       deadline: formattedDeadline,
       createdBy: publisherName,
@@ -233,6 +337,7 @@ export default function TaskCreate() {
       totalAssignees: assignments.length,
       assignees: assignees.map((a, i) => ({ ...a, id: `new-${Date.now()}-${i}` })),
     });
+    console.log("created task", newId);
 
     toast({
       title: "任务已下发",
@@ -289,49 +394,25 @@ export default function TaskCreate() {
             <>
               <CardHeader>
                 <CardTitle>基础定义</CardTitle>
-                <CardDescription>选择任务类型、填写名称并上传模板</CardDescription>
+                <CardDescription>填写任务名称及描述并上传模板</CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>任务类型 *</Label>
-                    <Select value={taskType} onValueChange={setTaskType}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="选择任务类型" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="周报">周报</SelectItem>
-                        <SelectItem value="月报">月报</SelectItem>
-                        <SelectItem value="年报">年报</SelectItem>
-                        <SelectItem value="专项报告">专项报告</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label>所属部门 *</Label>
-                    <Select value={taskDepartment} onValueChange={setTaskDepartment}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="选择部门" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {departments.map(dept => (
-                          <SelectItem key={dept.id} value={dept.name}>
-                            {dept.name}
-                          </SelectItem>
-                        ))}
-                        <SelectItem value="全公司">全公司</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-
                 <div className="space-y-2">
                   <Label>任务名称 *</Label>
                   <Input
                     placeholder="输入任务名称"
                     value={taskTitle}
                     onChange={(e) => setTaskTitle(e.target.value)}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label>任务描述 *</Label>
+                  <Textarea
+                    placeholder="输入任务背景、目的及相关说明"
+                    value={taskDescription}
+                    onChange={(e) => setTaskDescription(e.target.value)}
+                    rows={4}
                   />
                 </div>
 
@@ -386,7 +467,9 @@ export default function TaskCreate() {
               <CardHeader>
                 <CardTitle>任务拆解</CardTitle>
                 <CardDescription>
-                  为每位执行人分配具体的工作包
+                  {taskType === "PPT拆分合并"
+                    ? "将PPT页面分配给各部门，部门负责人后续再分配给员工"
+                    : "为每位执行人分配具体的工作包"}
                   {templatePageCount > 0 && (
                     <span className="ml-2 text-primary">
                       （PPT共 {templatePageCount} 页）
@@ -395,7 +478,181 @@ export default function TaskCreate() {
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
-                {/* Page Status */}
+                {/* PPT 部门分配 UI */}
+                {taskType === "PPT拆分合并" ? (
+                  <div className="space-y-4">
+                    {/* Page coverage grid */}
+                    {templatePageCount > 0 && (() => {
+                      const covered = new Set<number>();
+                      pptDeptRows.forEach(r => {
+                        const pages = parsePageInput(r.pageSelection, templatePageCount);
+                        pages.forEach(p => covered.add(p));
+                      });
+                      return (
+                        <div className="rounded-lg border border-border p-4 bg-secondary/30">
+                          <div className="flex items-center justify-between mb-3">
+                            <span className="text-sm font-medium">页面分配状态</span>
+                            <span className="text-xs text-muted-foreground">已覆盖 {covered.size} / {templatePageCount} 页</span>
+                          </div>
+                          <div className="flex flex-wrap gap-1.5">
+                            {Array.from({ length: templatePageCount }).map((_, i) => {
+                              const p = i + 1;
+                              return (
+                                <div key={p} className={`w-8 h-8 rounded flex items-center justify-center text-xs font-medium transition-colors ${covered.has(p) ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground border border-border"}`}>{p}</div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      );
+                    })()}
+
+                    {/* Dept rows */}
+                    <div className="space-y-3">
+                      <Label>部门 & 负责人 & 页面分配</Label>
+                      {pptDeptRows.map((row, idx) => (
+                        <div key={idx} className="p-4 rounded-xl border border-border bg-card shadow-sm space-y-4 hover:border-primary/30 transition-all">
+                          <div className="flex items-start justify-between gap-4">
+                            <div className="grid grid-cols-[auto_1fr] gap-6 flex-1">
+                              {/* 部门 & 负责人 */}
+                              <div className="space-y-2 border-r border-border pr-6">
+                                <label className="text-xs font-semibold text-muted-foreground">部门及负责人</label>
+                                <div className="flex items-center gap-2">
+                                  <Select value={row.deptName} onValueChange={(v) => setPptDeptRows(prev => prev.map((r, i) => i === idx ? { ...r, deptName: v, headUserId: "", headUserName: "", headUserAvatar: "" } : r))}>
+                                    <SelectTrigger className="h-9 w-[130px] font-medium shrink-0">
+                                      <SelectValue placeholder="选择部门" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      {departments.map(d => (
+                                        <SelectItem key={d.id} value={d.name}>{d.name}</SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+
+                                  {row.headUserId ? (
+                                    <div className="flex items-center gap-2 px-2 py-1.5 rounded bg-primary/10 border border-primary/20 cursor-pointer hover:bg-primary/20 transition-colors" 
+                                      onClick={() => { setDeptHeadPickerIdx(idx); setDeptHeadSearch(""); }}>
+                                      <Avatar className="h-5 w-5">
+                                        <AvatarFallback className="text-[10px] bg-primary text-white">{row.headUserAvatar}</AvatarFallback>
+                                      </Avatar>
+                                      <span className="text-sm font-semibold text-primary">{row.headUserName}</span>
+                                    </div>
+                                  ) : (
+                                    <Button variant="outline" size="sm" className="h-9 text-xs border-dashed shrink-0"
+                                      onClick={() => { setDeptHeadPickerIdx(idx); setDeptHeadSearch(""); }}>
+                                      <Plus className="h-3 w-3 mr-1" />
+                                      委派负责人
+                                    </Button>
+                                  )}
+                                </div>
+                              </div>
+
+                              {/* 页面范围 */}
+                              <div className="space-y-2 pl-2">
+                                <div className="flex items-center justify-between">
+                                  <label className="text-xs font-semibold text-muted-foreground">分配页面</label>
+                                  {parsePageInput(row.pageSelection, templatePageCount).length > 0 && (
+                                    <span className="text-xs font-medium text-primary bg-primary/10 px-2 py-0.5 rounded">
+                                      已选 {parsePageInput(row.pageSelection, templatePageCount).length} 页
+                                    </span>
+                                  )}
+                                </div>
+                                <Input
+                                  type="text" placeholder="例如: 1-3, 5, 7"
+                                  className="h-9 text-sm font-mono"
+                                  value={row.pageSelection}
+                                  onChange={(e) => setPptDeptRows(prev => prev.map((r, i) => i === idx ? { ...r, pageSelection: e.target.value } : r))}
+                                />
+                              </div>
+                            </div>
+                            
+                            <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive shrink-0 mt-6"
+                              onClick={() => setPptDeptRows(prev => prev.filter((_, i) => i !== idx))}>
+                              <X className="h-4 w-4" />
+                            </Button>
+                          </div>
+
+                          {/* 任务要求 */}
+                          <div className="bg-secondary/50 p-3 rounded-lg border border-border space-y-2">
+                            <label className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5">
+                              <FileText className="h-3.5 w-3.5" /> 本次分配说明 / 页面要求
+                            </label>
+                            <Input 
+                              placeholder="详细描述该部门需要在这几页PPT上补充的数据或内容说明..." 
+                              className="h-9 text-sm bg-background border-muted-foreground/20"
+                              value={row.requirement}
+                              onChange={(e) => setPptDeptRows(prev => prev.map((r, i) => i === idx ? { ...r, requirement: e.target.value } : r))}
+                            />
+                          </div>
+                        </div>
+                      ))}
+                      <Button variant="outline" size="sm" className="w-full border-dashed border-primary/40 text-primary hover:bg-primary/5"
+                        onClick={() => setPptDeptRows(prev => [...prev, { deptName: "", pageSelection: "", requirement: "", headUserId: "", headUserName: "", headUserAvatar: "" }])}>
+                        <Plus className="h-4 w-4 mr-2" />
+                        添加部门
+                      </Button>
+                    </div>
+
+                    {/* 负责人选择弹窗 */}
+                    <Dialog open={deptHeadPickerIdx !== null} onOpenChange={(open) => !open && setDeptHeadPickerIdx(null)}>
+                      <DialogContent className="sm:max-w-[600px] h-[520px] flex flex-col p-6 rounded-2xl">
+                        <DialogHeader>
+                          <DialogTitle className="flex items-center gap-2">
+                            <Users className="h-5 w-5 text-primary" />
+                            选择部门负责人
+                            {deptHeadPickerIdx !== null && pptDeptRows[deptHeadPickerIdx]?.deptName && (
+                              <Badge variant="secondary" className="ml-2">{pptDeptRows[deptHeadPickerIdx].deptName}</Badge>
+                            )}
+                          </DialogTitle>
+                          <DialogDescription>搜索并选择该部门的负责人，负责后续向员工分配任务</DialogDescription>
+                        </DialogHeader>
+                        <div className="relative mt-3 mb-3">
+                          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                          <Input placeholder="搜索姓名、工号或职位..." className="pl-10 h-10 rounded-xl" value={deptHeadSearch} onChange={(e) => setDeptHeadSearch(e.target.value)} />
+                        </div>
+                        <ScrollArea className="flex-1 -mx-2 px-2">
+                          <div className="space-y-4 pb-4">
+                            {departments.map(dept => {
+                              const selectedDeptName = deptHeadPickerIdx !== null ? pptDeptRows[deptHeadPickerIdx]?.deptName : "";
+                              const deptMembers = users.filter(u =>
+                                (!selectedDeptName || u.department === selectedDeptName) &&
+                                (u.name.includes(deptHeadSearch) || u.staffId.includes(deptHeadSearch) || u.role.includes(deptHeadSearch))
+                              );
+                              if (!deptMembers.some(u => u.department === dept.name)) return null;
+                              const show = deptMembers.filter(u => u.department === dept.name);
+                              if (show.length === 0) return null;
+                              return (
+                                <div key={dept.id} className="space-y-2">
+                                  <h4 className="text-sm font-bold text-muted-foreground flex items-center gap-1 sticky top-0 bg-background/95 py-1">
+                                    <Building2 className="h-4 w-4" />{dept.name}
+                                  </h4>
+                                  <div className="grid grid-cols-2 gap-2">
+                                    {show.map(u => (
+                                      <div key={u.id} onClick={() => {
+                                        if (deptHeadPickerIdx !== null) {
+                                          setPptDeptRows(prev => prev.map((r, i) => i === deptHeadPickerIdx ? { ...r, headUserId: u.id, headUserName: u.name, headUserAvatar: u.avatar } : r));
+                                          setDeptHeadPickerIdx(null);
+                                        }
+                                      }} className="flex items-center gap-3 p-2.5 rounded-xl border border-border/40 bg-muted/10 hover:bg-primary/5 hover:border-primary/30 cursor-pointer transition-all">
+                                        <Avatar className="h-9 w-9 shrink-0">
+                                          <AvatarFallback className="text-sm font-bold bg-primary/10 text-primary">{u.avatar}</AvatarFallback>
+                                        </Avatar>
+                                        <div className="min-w-0">
+                                          <p className="text-sm font-semibold truncate">{u.name}</p>
+                                          <p className="text-[11px] text-muted-foreground truncate">{u.role} · {u.staffId}</p>
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </ScrollArea>
+                      </DialogContent>
+                    </Dialog>
+                  </div>
+                ) : (
+                  <>{/* Page Status */}
                 {templatePageCount > 0 && (
                   <div className="rounded-lg border border-border p-4 bg-secondary/30">
                     <div className="flex items-center justify-between mb-3">
@@ -654,6 +911,7 @@ export default function TaskCreate() {
                     })
                   )}
                 </div>
+                </>)}
               </CardContent>
             </>
           )}
@@ -663,7 +921,11 @@ export default function TaskCreate() {
             <>
               <CardHeader>
                 <CardTitle>时限与审核配置</CardTitle>
-                <CardDescription>设置截止时间和指定审核人</CardDescription>
+                <CardDescription>
+                  {taskType === "PPT拆分合并"
+                    ? "设置截止时间、审核人（汇总审核）和审批人（最终批准）"
+                    : "设置截止时间和指定审核人"}
+                </CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
                 <div className="space-y-2">
@@ -701,22 +963,146 @@ export default function TaskCreate() {
                   </div>
                 </div>
 
-                <div className="space-y-2">
-                  <Label>审核人</Label>
-                  <Select value={reviewer} onValueChange={setReviewer}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="选择审核人" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {reviewerOptions.map((r) => (
-                        <SelectItem key={r.id} value={r.id}>
-                          <span className="font-medium">{r.name}</span>
-                          <span className="text-muted-foreground ml-2">({r.title})</span>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+                {taskType === "PPT拆分合并" ? (
+                  <>
+                    {/* 审核人（从真实用户中选） */}
+                    <div className="space-y-2">
+                      <div>
+                        <Label>审核人 <span className="text-xs text-muted-foreground font-normal ml-1">— 各部门完成后进行阶段性汇总审核</span></Label>
+                      </div>
+                      {pptReviewerId ? (
+                        (() => {
+                          const u = users.find(x => x.id === pptReviewerId)!;
+                          return (
+                            <div className="flex items-center gap-3 px-4 py-3 rounded-xl border border-primary/20 bg-primary/5">
+                              <Avatar className="h-9 w-9 shrink-0">
+                                <AvatarFallback className="bg-primary text-white font-bold">{u.avatar}</AvatarFallback>
+                              </Avatar>
+                              <div className="flex-1">
+                                <p className="font-semibold">{u.name}</p>
+                                <p className="text-xs text-muted-foreground">{u.role} · {u.department}</p>
+                              </div>
+                              <Button variant="ghost" size="sm" className="text-xs" onClick={() => setPptReviewerId("")}>更换</Button>
+                            </div>
+                          );
+                        })()
+                      ) : (
+                        <Button variant="outline" className="w-full border-dashed justify-start text-muted-foreground hover:text-primary hover:border-primary/50"
+                          onClick={() => { setReviewerPickerOpen("reviewer"); setRolePickerSearch(""); }}>
+                          <Plus className="h-4 w-4 mr-2" />
+                          选择审核人
+                        </Button>
+                      )}
+                    </div>
+
+                    {/* 审批人 */}
+                    <div className="space-y-2">
+                      <div>
+                        <Label>审批人 <span className="text-xs text-muted-foreground font-normal ml-1">— 最终合并前的终审批准人</span></Label>
+                      </div>
+                      {pptApproverId ? (
+                        (() => {
+                          const u = users.find(x => x.id === pptApproverId)!;
+                          return (
+                            <div className="flex items-center gap-3 px-4 py-3 rounded-xl border border-primary/20 bg-primary/5">
+                              <Avatar className="h-9 w-9 shrink-0">
+                                <AvatarFallback className="bg-primary text-white font-bold">{u.avatar}</AvatarFallback>
+                              </Avatar>
+                              <div className="flex-1">
+                                <p className="font-semibold">{u.name}</p>
+                                <p className="text-xs text-muted-foreground">{u.role} · {u.department}</p>
+                              </div>
+                              <Button variant="ghost" size="sm" className="text-xs" onClick={() => setPptApproverId("")}>更换</Button>
+                            </div>
+                          );
+                        })()
+                      ) : (
+                        <Button variant="outline" className="w-full border-dashed justify-start text-muted-foreground hover:text-primary hover:border-primary/50"
+                          onClick={() => { setReviewerPickerOpen("approver"); setRolePickerSearch(""); }}>
+                          <Plus className="h-4 w-4 mr-2" />
+                          选择审批人
+                        </Button>
+                      )}
+                    </div>
+
+                    {/* 审核人/审批人 选择弹窗 */}
+                    <Dialog open={reviewerPickerOpen !== null} onOpenChange={(open) => !open && setReviewerPickerOpen(null)}>
+                      <DialogContent className="sm:max-w-[600px] h-[500px] flex flex-col p-6 rounded-2xl">
+                        <DialogHeader>
+                          <DialogTitle className="flex items-center gap-2">
+                            <Users className="h-5 w-5 text-primary" />
+                            {reviewerPickerOpen === "reviewer" ? "选择审核人" : "选择审批人"}
+                          </DialogTitle>
+                          <DialogDescription>
+                            {reviewerPickerOpen === "reviewer"
+                              ? "审核人负责各部门完成后的阶段性汇总审核"
+                              : "审批人负责最终合并前的终审批准"}
+                          </DialogDescription>
+                        </DialogHeader>
+                        <div className="relative mt-3 mb-3">
+                          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                          <Input placeholder="搜索姓名、工号或职位..." className="pl-10 h-10 rounded-xl" value={rolePickerSearch} onChange={(e) => setRolePickerSearch(e.target.value)} />
+                        </div>
+                        <ScrollArea className="flex-1 -mx-2 px-2">
+                          <div className="space-y-4 pb-4">
+                            {departments.map(dept => {
+                              const deptMembers = users.filter(u =>
+                                u.department === dept.name &&
+                                (u.name.includes(rolePickerSearch) || u.staffId.includes(rolePickerSearch) || u.role.includes(rolePickerSearch))
+                              );
+                              if (deptMembers.length === 0) return null;
+                              return (
+                                <div key={dept.id} className="space-y-2">
+                                  <h4 className="text-sm font-bold text-muted-foreground flex items-center gap-1 sticky top-0 bg-background/95 py-1">
+                                    <Building2 className="h-4 w-4" />{dept.name}
+                                  </h4>
+                                  <div className="grid grid-cols-2 gap-2">
+                                    {deptMembers.map(u => {
+                                      const isSelected = reviewerPickerOpen === "reviewer" ? pptReviewerId === u.id : pptApproverId === u.id;
+                                      return (
+                                        <div key={u.id} onClick={() => {
+                                          if (reviewerPickerOpen === "reviewer") setPptReviewerId(u.id);
+                                          else setPptApproverId(u.id);
+                                          setReviewerPickerOpen(null);
+                                        }} className={cn("flex items-center gap-3 p-2.5 rounded-xl border cursor-pointer transition-all", isSelected ? "bg-primary/5 border-primary/30 ring-1 ring-primary/20" : "border-border/40 bg-muted/10 hover:bg-primary/5 hover:border-primary/30")}>
+                                          <Avatar className="h-9 w-9 shrink-0">
+                                            <AvatarFallback className={cn("text-sm font-bold", isSelected ? "bg-primary text-white" : "bg-primary/10 text-primary")}>{u.avatar}</AvatarFallback>
+                                          </Avatar>
+                                          <div className="min-w-0">
+                                            <p className="text-sm font-semibold truncate">{u.name}</p>
+                                            <p className="text-[11px] text-muted-foreground truncate">{u.role} · {u.staffId}</p>
+                                          </div>
+                                          {isSelected && <CheckCircle2 className="h-4 w-4 text-primary shrink-0 ml-auto" />}
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </ScrollArea>
+                      </DialogContent>
+                    </Dialog>
+                  </>
+                ) : (
+                  <div className="space-y-2">
+                    <Label>审核人</Label>
+                    <Select value={reviewer} onValueChange={setReviewer}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="选择审核人" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {reviewerOptions.map((r) => (
+                          <SelectItem key={r.id} value={r.id}>
+                            <span className="font-medium">{r.name}</span>
+                            <span className="text-muted-foreground ml-2">({r.title})</span>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
               </CardContent>
             </>
           )}
@@ -732,16 +1118,14 @@ export default function TaskCreate() {
                 {/* Summary */}
                 <div className="space-y-4">
                   <div className="flex items-center justify-between py-2 border-b border-border">
-                    <span className="text-muted-foreground">任务类型</span>
-                    <Badge>{taskType}</Badge>
-                  </div>
-                  <div className="flex items-center justify-between py-2 border-b border-border">
-                    <span className="text-muted-foreground">所属部门</span>
-                    <Badge variant="secondary">{taskDepartment}</Badge>
-                  </div>
-                  <div className="flex items-center justify-between py-2 border-b border-border">
                     <span className="text-muted-foreground">任务名称</span>
-                    <span className="font-medium">{taskTitle}</span>
+                    <span className="font-medium">{taskTitle || "未设置"}</span>
+                  </div>
+                  <div className="flex flex-col gap-2 py-2 border-b border-border">
+                    <span className="text-muted-foreground transition-all">任务描述</span>
+                    <div className="text-sm bg-muted/30 p-2 rounded max-h-24 overflow-y-auto whitespace-pre-wrap leading-relaxed">
+                      {taskDescription || "无任务描述"}
+                    </div>
                   </div>
                   <div className="flex items-center justify-between py-2 border-b border-border">
                     <span className="text-muted-foreground">模板文件</span>
@@ -763,17 +1147,66 @@ export default function TaskCreate() {
                   <div className="flex items-center justify-between py-2 border-b border-border">
                     <span className="text-muted-foreground">审核人</span>
                     <span>
-                      {reviewerOptions.find(r => r.id === reviewer)?.name || ""}
-                      <span className="text-muted-foreground ml-1">
-                        ({reviewerOptions.find(r => r.id === reviewer)?.title || ""})
-                      </span>
+                      {taskType === "PPT拆分合并"
+                        ? (users.find(u => u.id === pptReviewerId)?.name || <span className="text-muted-foreground text-sm">未设置</span>)
+                        : (reviewerOptions.find(r => r.id === reviewer)?.name || "")}
+                      {taskType !== "PPT拆分合并" && (
+                        <span className="text-muted-foreground ml-1">
+                          ({reviewerOptions.find(r => r.id === reviewer)?.title || ""})
+                        </span>
+                      )}
                     </span>
                   </div>
+                  {taskType === "PPT拆分合并" && (
+                    <div className="flex items-center justify-between py-2 border-b border-border">
+                      <span className="text-muted-foreground">审批人</span>
+                      <span>{users.find(u => u.id === pptApproverId)?.name || <span className="text-muted-foreground text-sm">未设置</span>}</span>
+                    </div>
+                  )}
                 </div>
 
                 {/* Assignment List */}
                 <div className="space-y-3">
                   <Label>分配清单</Label>
+                  {taskType === "PPT拆分合并" ? (
+                    <div className="rounded-lg border border-border overflow-hidden">
+                      <table className="w-full">
+                        <thead className="bg-muted/50">
+                          <tr>
+                            <th className="text-left px-4 py-2 text-sm font-medium w-1/4">部门 & 负责人</th>
+                            <th className="text-left px-4 py-2 text-sm font-medium w-1/4">负责页面</th>
+                            <th className="text-left px-4 py-2 text-sm font-medium w-1/2">页面要求</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {pptDeptRows.filter(r => r.deptName && parsePageInput(r.pageSelection, templatePageCount).length > 0).map((row, i) => (
+                            <tr key={i} className="border-t border-border">
+                              <td className="px-4 py-3">
+                                <div className="font-medium mb-1">{row.deptName}</div>
+                                {row.headUserName ? (
+                                  <div className="flex items-center gap-1.5 text-muted-foreground">
+                                    <Avatar className="h-5 w-5"><AvatarFallback className="text-[10px] bg-primary/10 text-primary">{row.headUserAvatar}</AvatarFallback></Avatar>
+                                    <span className="text-xs">{row.headUserName}</span>
+                                  </div>
+                                ) : <span className="text-xs text-muted-foreground/70">未指派负责人</span>}
+                              </td>
+                              <td className="px-4 py-3 align-top">
+                                <div className="flex-col flex gap-1 items-start">
+                                  <Badge variant="outline">第 {row.pageSelection} 页</Badge>
+                                  <span className="text-xs text-muted-foreground ml-1">共 {parsePageInput(row.pageSelection, templatePageCount).length} 页</span>
+                                </div>
+                              </td>
+                              <td className="px-4 py-3 align-top text-sm">
+                                <div className="text-muted-foreground text-xs leading-relaxed max-w-sm">
+                                  {row.requirement || <span className="italic opacity-50">无具体要求</span>}
+                                </div>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : (
                   <div className="rounded-lg border border-border overflow-hidden">
                     <table className="w-full">
                       <thead className="bg-muted/50">
@@ -819,6 +1252,7 @@ export default function TaskCreate() {
                       </tbody>
                     </table>
                   </div>
+                  )}
                 </div>
               </CardContent>
             </>

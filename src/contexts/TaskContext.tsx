@@ -1,5 +1,78 @@
 import React, { createContext, useContext, useState, ReactNode } from "react";
 
+// ===================== PPT 拆分合并工作流类型 =====================
+
+export interface PptPageSubmission {
+  id: string;
+  submittedBy: string;
+  submittedById: string;
+  department: string;
+  submittedAt: string;
+  fileName: string;
+  fileSize: number;
+  fileUrl?: string;
+  note?: string;
+  /** 本次提交生成的版本号 */
+  version: number;
+  /** 提交时基于的版本（0=原始模板，用于冲突检测） */
+  baseVersion: number;
+  status: "pending" | "approved" | "rejected";
+  feedback?: string;
+  feedbackAt?: string;
+  hasConflict: boolean;
+  conflictDescription?: string;
+}
+
+export interface PptUserAssignment {
+  id: string;
+  userId: string;
+  userName: string;
+  userAvatar: string;
+  department: string;
+  /** 负责的页面（支持跳跃式，如 [1,3,5,7,9]） */
+  pages: number[];
+  status: "pending" | "in_progress" | "submitted" | "approved" | "rejected";
+  submissions: PptPageSubmission[];
+}
+
+export interface PptDeptAssignment {
+  id: string;
+  department: string;
+  /** 该部门负责的页面 */
+  pages: number[];
+  requirement?: string;
+  headUserId?: string;
+  headUserName?: string;
+  status: "pending" | "in_progress" | "submitted" | "approved";
+  userAssignments: PptUserAssignment[];
+}
+
+export type PptStage =
+  | "dept_assignment"   // 创建者分配页面给部门
+  | "user_assignment"   // 部门负责人分配给员工
+  | "in_progress"       // 员工编辑中
+  | "dept_reviewing"    // 部门负责人审核员工提交
+  | "final_reviewing"   // 主管最终审批
+  | "approved"          // 全部通过
+  | "merged";           // 已合并
+
+export interface PptWorkflow {
+  stage: PptStage;
+  totalPages: number;
+  deptAssignments: PptDeptAssignment[];
+  /** pageNumber -> 当前最新版本号（0=未提交过） */
+  pageVersions: Record<number, number>;
+  /** 审核人（各部门负责人审核完成后，由此人做阶段性汇总审核） */
+  reviewerId?: string;
+  reviewerName?: string;
+  /** 审批人（最终合并前的终审批准人） */
+  approverId?: string;
+  approverName?: string;
+  mergedFileUrl?: string;
+}
+
+// ===================== 原有类型 =====================
+
 export interface Submission {
   id: string;
   fileName: string;
@@ -24,10 +97,13 @@ export interface Assignee {
   submissions: Submission[];
 }
 
+export type TaskType = "调研反馈" | "例会反馈" | "标杆机组评价" | "体系能力评价" | "对标找差" | "培训交流" | "PPT拆分合并";
+
 export interface Task {
   id: string;
   title: string;
-  type: "周报" | "月报" | "年报" | "专项报告";
+  description?: string;
+  type: TaskType;
   department: string;
   createdAt: string;
   deadline: string;
@@ -41,16 +117,25 @@ export interface Task {
   completedCount: number;
   status: "in_progress" | "completed";
   assignees: Assignee[];
+  /** PPT拆分合并工作流（仅type="PPT拆分合并"时使用） */
+  pptWorkflow?: PptWorkflow;
 }
 
 interface TaskContextType {
   tasks: Task[];
-  addTask: (task: Omit<Task, "id" | "createdAt" | "completedCount" | "status">) => void;
+  addTask: (task: Omit<Task, "id" | "createdAt" | "completedCount" | "status">) => string;
   getTaskById: (taskId: string) => Task | undefined;
   getTasksForEmployee: (employeeName: string) => { task: Task; assignee: Assignee }[];
   submitWork: (taskId: string, assigneeId: string, submission: Omit<Submission, "id" | "status">) => void;
   reviewSubmission: (taskId: string, assigneeId: string, submissionId: string, approved: boolean, feedback?: string) => void;
   deleteTask: (taskId: string) => void;
+  // PPT 工作流操作
+  submitPptWork: (taskId: string, deptId: string, userAssignmentId: string, data: {
+    fileName: string; fileSize: number; fileUrl?: string; note?: string; baseVersion: number;
+  }) => { hasConflict: boolean; conflictDescription?: string };
+  reviewPptWork: (taskId: string, deptId: string, userAssignmentId: string, submissionId: string, approved: boolean, feedback?: string) => void;
+  assignPptPagesToUser: (taskId: string, deptId: string, assignment: Omit<PptUserAssignment, "id" | "status" | "submissions">) => void;
+  advancePptStage: (taskId: string, toStage: PptStage) => void;
 }
 
 const TaskContext = createContext<TaskContextType | undefined>(undefined);
@@ -66,7 +151,7 @@ const initialTasks: Task[] = [
   {
     id: "task-1",
     title: "2026年度集团战略发展规划演示文稿",
-    type: "专项报告",
+    type: "PPT拆分合并",
     department: "全公司",
     createdAt: "2026-03-01",
     deadline: "2026-03-30 18:00",
@@ -163,12 +248,191 @@ const initialTasks: Task[] = [
         status: "pending",
         submissions: []
       }
-    ]
+    ],
+    // PPT 拆分合并工作流数据
+    pptWorkflow: {
+      stage: "in_progress",
+      totalPages: 30,
+      // 当前各页最新版本（0=未提交）
+      pageVersions: {
+        1:1, 2:1, 3:1, 4:1, 5:1, 6:1, 7:1, 8:1, 9:1, 10:1,  // 张明+李华已提交
+        11:1, 12:1, 13:1, 14:1,                                 // 陈静已提交
+        15:1,                                                    // 李华提交了v1（冲突中心）
+        16:1, 17:1, 18:1, 19:1, 20:1,                          // 刘洋已提交
+      },
+      deptAssignments: [
+        {
+          id: "da-1",
+          department: "设备部",
+          // 注意：页面15在两个部门都有分配（冲突场景）
+          pages: [1,2,3,4,5,6,7,8,9,10,15],
+          headUserId: "user-2",
+          headUserName: "李华",
+          status: "in_progress",
+          userAssignments: [
+            {
+              id: "ua-1",
+              userId: "user-1",
+              userName: "张明",
+              userAvatar: "张",
+              department: "设备部",
+              pages: [1,3,5,7,9],  // 跳跃式分配：第1、3、5、7、9页
+              status: "submitted",
+              submissions: [{
+                id: "ps-1",
+                submittedBy: "张明",
+                submittedById: "user-1",
+                department: "设备部",
+                submittedAt: "2026-04-20 10:30",
+                fileName: "张明_第1357910页_初稿.pptx",
+                fileSize: 1.2,
+                version: 1,
+                baseVersion: 0,
+                status: "pending",
+                hasConflict: false,
+              }]
+            },
+            {
+              id: "ua-2",
+              userId: "user-2",
+              userName: "李华",
+              userAvatar: "李",
+              department: "设备部",
+              pages: [2,4,6,8,10,15],
+              status: "approved",
+              submissions: [
+                {
+                  id: "ps-2",
+                  submittedBy: "李华",
+                  submittedById: "user-2",
+                  department: "设备部",
+                  submittedAt: "2026-04-18 15:00",
+                  fileName: "李华_第2468010页.pptx",
+                  fileSize: 1.5,
+                  version: 1,
+                  baseVersion: 0,
+                  status: "approved",
+                  feedback: "内容完整，格式规范，通过",
+                  feedbackAt: "2026-04-19 09:00",
+                  hasConflict: false,
+                },
+                {
+                  id: "ps-3",
+                  submittedBy: "李华",
+                  submittedById: "user-2",
+                  department: "设备部",
+                  submittedAt: "2026-04-19 11:00",
+                  fileName: "李华_第15页_封面设计.pptx",
+                  fileSize: 0.8,
+                  version: 1,
+                  baseVersion: 0,
+                  status: "approved",
+                  feedback: "封面设计美观，通过",
+                  feedbackAt: "2026-04-19 14:00",
+                  hasConflict: false,
+                }
+              ]
+            }
+          ]
+        },
+        {
+          id: "da-2",
+          department: "生产厂",
+          // 页面15也在这里：制造冲突场景
+          pages: [11,12,13,14,15,16,17,18,19,20],
+          headUserId: "user-6",
+          headUserName: "刘洋",
+          status: "in_progress",
+          userAssignments: [
+            {
+              id: "ua-3",
+              userId: "user-5",
+              userName: "陈静",
+              userAvatar: "陈",
+              department: "生产厂",
+              pages: [11,12,13,14],
+              status: "submitted",
+              submissions: [{
+                id: "ps-4",
+                submittedBy: "陈静",
+                submittedById: "user-5",
+                department: "生产厂",
+                submittedAt: "2026-04-20 14:00",
+                fileName: "陈静_第11到14页.pptx",
+                fileSize: 1.1,
+                version: 1,
+                baseVersion: 0,
+                status: "pending",
+                hasConflict: false,
+              }]
+            },
+            {
+              id: "ua-4",
+              userId: "user-6",
+              userName: "刘洋",
+              userAvatar: "刘",
+              department: "生产厂",
+              pages: [15,16,17,18,19,20],
+              status: "submitted",
+              submissions: [
+                {
+                  id: "ps-5",
+                  submittedBy: "刘洋",
+                  submittedById: "user-6",
+                  department: "生产厂",
+                  submittedAt: "2026-04-20 16:00",
+                  fileName: "刘洋_第16到20页.pptx",
+                  fileSize: 1.3,
+                  version: 1,
+                  baseVersion: 0,
+                  status: "pending",
+                  hasConflict: false,
+                },
+                {
+                  id: "ps-6",
+                  submittedBy: "刘洋",
+                  submittedById: "user-6",
+                  department: "生产厂",
+                  submittedAt: "2026-04-20 16:35",
+                  fileName: "刘洋_第15页_生产厂版本.pptx",
+                  fileSize: 0.9,
+                  version: 2,  // 这将成为第15页的v2（若合并将覆盖李华的v1）
+                  baseVersion: 0,  // 基于原始模板v0，但李华已提交v1！
+                  status: "pending",
+                  hasConflict: true,
+                  conflictDescription: "⚠️ 第15页已由 李华（设备部）于 2026-04-19 11:00 提交 v1 版本。本次提交基于原始模板（v0），若合并将直接覆盖设备部已审批通过的内容，存在数据丢失风险。建议先下载最新版本后再编辑。",
+                }
+              ]
+            }
+          ]
+        },
+        {
+          id: "da-3",
+          department: "综合管理组",
+          pages: [21,22,23,24,25,26,27,28,29,30],
+          headUserId: "user-4",
+          headUserName: "赵强",
+          status: "pending",
+          userAssignments: [
+            {
+              id: "ua-5",
+              userId: "user-4",
+              userName: "赵强",
+              userAvatar: "赵",
+              department: "综合管理组",
+              pages: [21,22,23,24,25,26,27,28,29,30],
+              status: "pending",
+              submissions: []
+            }
+          ]
+        }
+      ]
+    }
   },
   {
     id: "task-2",
     title: "2026年度业务流程数字化转型实施指南",
-    type: "月报",
+    type: "对标找差",
     department: "全公司",
     createdAt: "2026-03-02",
     deadline: "2026-04-10 12:00",
@@ -211,7 +475,7 @@ const initialTasks: Task[] = [
   {
     id: "task-3",
     title: "2026年度集团全业务线研发与运营预算汇总表",
-    type: "专项报告",
+    type: "标杆机组评价",
     department: "财务部",
     createdAt: "2026-03-05",
     deadline: "2026-03-25 10:00",
@@ -236,15 +500,26 @@ const initialTasks: Task[] = [
 export function TaskProvider({ children }: { children: ReactNode }) {
   const [tasks, setTasks] = useState<Task[]>(initialTasks);
 
-  const addTask = (taskData: Omit<Task, "id" | "createdAt" | "completedCount" | "status">) => {
+  const addTask = (taskData: Omit<Task, "id" | "createdAt" | "completedCount" | "status">): string => {
+    const newId = `task-${Date.now()}`;
+    const autoWorkflow: PptWorkflow | undefined = taskData.type === "PPT拆分合并"
+      ? {
+          stage: "dept_assignment",
+          totalPages: taskData.templatePageCount ?? 10,
+          deptAssignments: (taskData.pptWorkflow?.deptAssignments ?? []),
+          pageVersions: {},
+        }
+      : undefined;
     const newTask: Task = {
       ...taskData,
-      id: `task-${Date.now()}`,
+      id: newId,
       createdAt: new Date().toISOString().split('T')[0],
       completedCount: 0,
       status: "in_progress",
+      pptWorkflow: autoWorkflow ?? taskData.pptWorkflow,
     };
     setTasks(prev => [newTask, ...prev]);
+    return newId;
   };
 
   const getTaskById = (taskId: string) => {
@@ -339,6 +614,187 @@ export function TaskProvider({ children }: { children: ReactNode }) {
     setTasks(prev => prev.filter(task => task.id !== taskId));
   };
 
+  // ===================== PPT 工作流操作 =====================
+
+  const submitPptWork = (
+    taskId: string,
+    deptId: string,
+    userAssignmentId: string,
+    data: { fileName: string; fileSize: number; fileUrl?: string; note?: string; baseVersion: number }
+  ): { hasConflict: boolean; conflictDescription?: string } => {
+    let hasConflict = false;
+    let conflictDescription: string | undefined;
+
+    setTasks(prev => prev.map(task => {
+      if (task.id !== taskId || !task.pptWorkflow) return task;
+      const ppt = task.pptWorkflow;
+
+      const updatedDepts = ppt.deptAssignments.map(dept => {
+        if (dept.id !== deptId) return dept;
+        const updatedUsers = dept.userAssignments.map(ua => {
+          if (ua.id !== userAssignmentId) return ua;
+
+          // 冲突检测：检查当前用户的任意页面是否已被他人提交更高版本
+          const conflictPages: number[] = [];
+          for (const page of ua.pages) {
+            const currentVer = ppt.pageVersions[page] || 0;
+            if (currentVer > data.baseVersion) {
+              // 找出谁提交了这一页的当前版本
+              const conflictUser = findPageSubmitter(ppt, page, ua.userId);
+              conflictPages.push(page);
+              if (!hasConflict) {
+                hasConflict = true;
+                conflictDescription = `⚠️ 第${conflictPages.join("、")}页已由 ${conflictUser} 提交了更新版本（v${currentVer}），您的提交基于 v${data.baseVersion}，可能覆盖已有内容。建议下载最新版本后重新编辑。`;
+              }
+            }
+          }
+
+          const newVersion = Math.max(...ua.pages.map(p => ppt.pageVersions[p] || 0)) + 1;
+          const newSubmission: PptPageSubmission = {
+            id: `ps-${Date.now()}`,
+            submittedBy: ua.userName,
+            submittedById: ua.userId,
+            department: dept.department,
+            submittedAt: new Date().toLocaleString("zh-CN"),
+            fileName: data.fileName,
+            fileSize: data.fileSize,
+            fileUrl: data.fileUrl,
+            note: data.note,
+            version: newVersion,
+            baseVersion: data.baseVersion,
+            status: "pending",
+            hasConflict,
+            conflictDescription: hasConflict ? conflictDescription : undefined,
+          };
+
+          return {
+            ...ua,
+            status: "submitted" as const,
+            submissions: [...ua.submissions, newSubmission],
+          };
+        });
+
+        return { ...dept, status: "in_progress" as const, userAssignments: updatedUsers };
+      });
+
+      // 更新 pageVersions（提交的用户的页面版本+1）
+      const submitter = ppt.deptAssignments
+        .find(d => d.id === deptId)?.userAssignments
+        .find(ua => ua.id === userAssignmentId);
+      const newVersions = { ...ppt.pageVersions };
+      if (submitter) {
+        for (const page of submitter.pages) {
+          newVersions[page] = (newVersions[page] || 0) + 1;
+        }
+      }
+
+      return {
+        ...task,
+        pptWorkflow: { ...ppt, deptAssignments: updatedDepts, pageVersions: newVersions },
+      };
+    }));
+
+    return { hasConflict, conflictDescription };
+  };
+
+  function findPageSubmitter(ppt: PptWorkflow, page: number, excludeUserId: string): string {
+    for (const dept of ppt.deptAssignments) {
+      for (const ua of dept.userAssignments) {
+        if (ua.userId === excludeUserId) continue;
+        for (const sub of ua.submissions) {
+          if (ua.pages.includes(page) && sub.status !== "rejected") {
+            return `${ua.userName}（${dept.department}）`;
+          }
+        }
+      }
+    }
+    return "其他人员";
+  }
+
+  const reviewPptWork = (
+    taskId: string,
+    deptId: string,
+    userAssignmentId: string,
+    submissionId: string,
+    approved: boolean,
+    feedback?: string
+  ) => {
+    setTasks(prev => prev.map(task => {
+      if (task.id !== taskId || !task.pptWorkflow) return task;
+      const ppt = task.pptWorkflow;
+      const updatedDepts = ppt.deptAssignments.map(dept => {
+        if (dept.id !== deptId) return dept;
+        const updatedUsers = dept.userAssignments.map(ua => {
+          if (ua.id !== userAssignmentId) return ua;
+          const updatedSubs = ua.submissions.map(sub => {
+            if (sub.id !== submissionId) return sub;
+            return {
+              ...sub,
+              status: approved ? "approved" as const : "rejected" as const,
+              feedback: feedback || (approved ? "审核通过" : ""),
+              feedbackAt: new Date().toLocaleString("zh-CN"),
+            };
+          });
+          // 驳回：直接退回给提交人，状态重置为 "rejected"（提交人可重新提交）
+          const newStatus = approved ? "approved" as const : "rejected" as const;
+          return { ...ua, status: newStatus, submissions: updatedSubs };
+        });
+        // 检查部门所有用户是否都已通过
+        const allApproved = updatedUsers.every(ua => ua.status === "approved");
+        return {
+          ...dept,
+          status: allApproved ? "approved" as const : "in_progress" as const,
+          userAssignments: updatedUsers,
+        };
+      });
+      return { ...task, pptWorkflow: { ...ppt, deptAssignments: updatedDepts } };
+    }));
+  };
+
+  const assignPptPagesToUser = (
+    taskId: string,
+    deptId: string,
+    assignment: Omit<PptUserAssignment, "id" | "status" | "submissions">
+  ) => {
+    setTasks(prev => prev.map(task => {
+      if (task.id !== taskId || !task.pptWorkflow) return task;
+      const ppt = task.pptWorkflow;
+      const updatedDepts = ppt.deptAssignments.map(dept => {
+        if (dept.id !== deptId) return dept;
+        // 检查是否已有该用户的分配
+        const exists = dept.userAssignments.find(ua => ua.userId === assignment.userId);
+        const newAssignment: PptUserAssignment = {
+          ...assignment,
+          id: `ua-${Date.now()}`,
+          status: "pending",
+          submissions: [],
+        };
+        return {
+          ...dept,
+          status: "in_progress" as const,
+          userAssignments: exists
+            ? dept.userAssignments.map(ua => ua.userId === assignment.userId ? { ...ua, pages: assignment.pages } : ua)
+            : [...dept.userAssignments, newAssignment],
+        };
+      });
+      return { ...task, pptWorkflow: { ...ppt, deptAssignments: updatedDepts } };
+    }));
+  };
+
+  const advancePptStage = (taskId: string, toStage: PptStage) => {
+    setTasks(prev => prev.map(task => {
+      if (task.id !== taskId || !task.pptWorkflow) return task;
+      return {
+        ...task,
+        pptWorkflow: {
+          ...task.pptWorkflow,
+          stage: toStage,
+          mergedFileUrl: toStage === "merged" ? "https://example.com/merged.pptx" : task.pptWorkflow.mergedFileUrl,
+        },
+      };
+    }));
+  };
+
   return (
     <TaskContext.Provider value={{
       tasks,
@@ -347,7 +803,11 @@ export function TaskProvider({ children }: { children: ReactNode }) {
       getTasksForEmployee,
       submitWork,
       reviewSubmission,
-      deleteTask
+      deleteTask,
+      submitPptWork,
+      reviewPptWork,
+      assignPptPagesToUser,
+      advancePptStage,
     }}>
       {children}
     </TaskContext.Provider>

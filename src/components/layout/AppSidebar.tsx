@@ -4,14 +4,22 @@ import {
   FolderKanban,
   FileText,
   ChevronRight,
+  ChevronDown,
   LogOut,
   Settings,
   User as UserIcon,
   Sparkles,
   Workflow,
-  Users
+  Users,
+  Search,
+  BarChart3,
+  BookOpen,
+  GraduationCap,
+  Star,
+  Presentation,
+  Plus
 } from "lucide-react";
-import { NavLink, useLocation } from "react-router-dom";
+import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import {
   Sidebar,
   SidebarContent,
@@ -36,11 +44,29 @@ import {
   DropdownMenuLabel,
 } from "@/components/ui/dropdown-menu";
 import { useUserContext } from "@/contexts/UserContext";
+import { useState } from "react";
+import { TaskType } from "@/contexts/TaskContext";
 
-const mainNavItems = [
+interface TaskTypeNavItem {
+  type: TaskType;
+  label: string;
+  icon: React.ElementType;
+  color: string;
+}
+
+const taskTypeItems: TaskTypeNavItem[] = [
+  { type: "调研反馈", label: "调研反馈", icon: Search, color: "text-blue-500" },
+  { type: "例会反馈", label: "例会反馈", icon: Users, color: "text-indigo-500" },
+  { type: "标杆机组评价", label: "标杆机组评价", icon: Star, color: "text-amber-500" },
+  { type: "体系能力评价", label: "体系能力评价", icon: BarChart3, color: "text-purple-500" },
+  { type: "对标找差", label: "对标找差", icon: BookOpen, color: "text-green-500" },
+  { type: "培训交流", label: "培训交流", icon: GraduationCap, color: "text-cyan-500" },
+  { type: "PPT拆分合并", label: "PPT拆分合并", icon: Presentation, color: "text-rose-500" },
+];
+
+const staticNavItems = [
   { title: "工作台", url: "/", icon: LayoutDashboard },
   { title: "待办中心", url: "/todos", icon: ClipboardList },
-  { title: "任务中心", url: "/tasks", icon: FolderKanban },
   { title: "流程中心", url: "/processes", icon: Workflow },
   { title: "文档中心", url: "/documents", icon: FileText },
   { title: "用户管理", url: "/settings/users", icon: Users },
@@ -50,7 +76,21 @@ export function AppSidebar() {
   const { state } = useSidebar();
   const collapsed = state === "collapsed";
   const location = useLocation();
+  const navigate = useNavigate();
   const { currentUser, users, switchUser } = useUserContext();
+
+  // 判断当前是否在任务中心相关路径
+  const isOnTasksPage = location.pathname.startsWith("/tasks");
+  const [taskMenuOpen, setTaskMenuOpen] = useState(isOnTasksPage);
+
+  const currentTaskType = (() => {
+    const match = location.pathname.match(/^\/tasks\/(.+)$/);
+    if (!match) return null;
+    const raw = decodeURIComponent(match[1]);
+    // 不是 "create" 路径
+    if (raw.startsWith("create")) return null;
+    return raw;
+  })();
 
   return (
     <Sidebar
@@ -81,39 +121,124 @@ export function AppSidebar() {
       <SidebarContent className="px-3">
         <SidebarGroup>
           <SidebarGroupContent>
-            <SidebarMenu className="space-y-2">
-              {mainNavItems.map((item) => {
+            <SidebarMenu className="space-y-1">
+              {/* 工作台 */}
+              {staticNavItems.slice(0, 2).map((item) => {
                 const isActive = location.pathname === item.url;
                 return (
                   <SidebarMenuItem key={item.title}>
-                    <SidebarMenuButton
-                      asChild
-                      isActive={isActive}
-                      tooltip={item.title}
-                    >
+                    <SidebarMenuButton asChild isActive={isActive} tooltip={item.title}>
                       <NavLink
                         to={item.url}
                         className={cn(
-                          "group flex items-center gap-4 rounded-xl px-4 py-5 transition-all duration-200",
+                          "group flex items-center gap-3 rounded-xl px-3 py-2.5 transition-all duration-200",
                           isActive
                             ? "bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-600/25"
                             : "text-sidebar-foreground hover:bg-white/60 dark:hover:bg-white/10"
                         )}
                       >
-                        <item.icon className={cn(
-                          "h-8 w-8 shrink-0 transition-colors",
-                          isActive ? "text-white" : "text-sidebar-muted group-hover:text-primary"
-                        )} />
+                        <item.icon className={cn("h-5 w-5 shrink-0", isActive ? "text-white" : "text-sidebar-muted group-hover:text-primary")} />
                         {!collapsed && (
-                          <>
-                            <span className={cn(
-                              "text-base font-medium transition-colors",
-                              isActive ? "text-white" : "group-hover:text-foreground"
-                            )}>{item.title}</span>
-                            {isActive && (
-                              <ChevronRight className="ml-auto h-5 w-5 text-white/70" />
-                            )}
-                          </>
+                          <span className={cn("text-sm font-medium", isActive ? "text-white" : "group-hover:text-foreground")}>{item.title}</span>
+                        )}
+                      </NavLink>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                );
+              })}
+
+              {/* 任务中心 - 可展开 */}
+              <SidebarMenuItem>
+                <button
+                  onClick={() => {
+                    if (collapsed) {
+                      navigate("/tasks");
+                    } else {
+                      setTaskMenuOpen(v => !v);
+                      if (!isOnTasksPage) navigate("/tasks");
+                    }
+                  }}
+                  className={cn(
+                    "group w-full flex items-center gap-3 rounded-xl px-3 py-2.5 transition-all duration-200",
+                    isOnTasksPage && !currentTaskType
+                      ? "bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-600/25"
+                      : isOnTasksPage
+                        ? "bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300"
+                        : "text-sidebar-foreground hover:bg-white/60 dark:hover:bg-white/10"
+                  )}
+                >
+                  <FolderKanban className={cn(
+                    "h-5 w-5 shrink-0",
+                    isOnTasksPage ? (currentTaskType ? "text-blue-600" : "text-white") : "text-sidebar-muted group-hover:text-primary"
+                  )} />
+                  {!collapsed && (
+                    <>
+                      <span className={cn(
+                        "text-sm font-medium flex-1 text-left",
+                        isOnTasksPage && !currentTaskType ? "text-white" : isOnTasksPage ? "text-blue-700" : "group-hover:text-foreground"
+                      )}>任务中心</span>
+                      {taskMenuOpen
+                        ? <ChevronDown className={cn("h-4 w-4", isOnTasksPage && !currentTaskType ? "text-white/70" : "text-muted-foreground")} />
+                        : <ChevronRight className={cn("h-4 w-4", isOnTasksPage && !currentTaskType ? "text-white/70" : "text-muted-foreground")} />
+                      }
+                    </>
+                  )}
+                </button>
+
+                {/* Task type sub-menu */}
+                {!collapsed && taskMenuOpen && (
+                  <div className="mt-1 space-y-0.5">
+                    {taskTypeItems.map((item) => {
+                      const Icon = item.icon;
+                      const isTypeActive = currentTaskType === item.type;
+                      return (
+                        <SidebarMenuItem key={item.type}>
+                          <div className="group flex items-center gap-1">
+                            <NavLink
+                              to={`/tasks/${encodeURIComponent(item.type)}`}
+                              className={cn(
+                                "flex-1 flex items-center gap-3 rounded-xl pl-8 pr-3 py-2.5 transition-all duration-200 text-sm font-medium",
+                                isTypeActive
+                                  ? "bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-600/25"
+                                  : "text-sidebar-foreground hover:bg-white/60 dark:hover:bg-white/10"
+                              )}
+                            >
+                              <Icon className={cn("h-4.5 w-4.5 shrink-0", isTypeActive ? "text-white" : item.color)} />
+                              <span className="flex-1 truncate">{item.label}</span>
+                            </NavLink>
+                            <button
+                              onClick={() => navigate(`/tasks/create/${encodeURIComponent(item.type)}`)}
+                              className="h-7 w-7 flex items-center justify-center rounded-lg text-muted-foreground hover:text-primary hover:bg-primary/10 transition-all shrink-0 opacity-0 group-hover:opacity-100"
+                              title={`新建${item.label}`}
+                            >
+                              <Plus className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                        </SidebarMenuItem>
+                      );
+                    })}
+                  </div>
+                )}
+              </SidebarMenuItem>
+
+              {/* 其余静态菜单 */}
+              {staticNavItems.slice(2).map((item) => {
+                const isActive = location.pathname === item.url;
+                return (
+                  <SidebarMenuItem key={item.title}>
+                    <SidebarMenuButton asChild isActive={isActive} tooltip={item.title}>
+                      <NavLink
+                        to={item.url}
+                        className={cn(
+                          "group flex items-center gap-3 rounded-xl px-3 py-2.5 transition-all duration-200",
+                          isActive
+                            ? "bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-600/25"
+                            : "text-sidebar-foreground hover:bg-white/60 dark:hover:bg-white/10"
+                        )}
+                      >
+                        <item.icon className={cn("h-5 w-5 shrink-0", isActive ? "text-white" : "text-sidebar-muted group-hover:text-primary")} />
+                        {!collapsed && (
+                          <span className={cn("text-sm font-medium", isActive ? "text-white" : "group-hover:text-foreground")}>{item.title}</span>
                         )}
                       </NavLink>
                     </SidebarMenuButton>
@@ -144,7 +269,9 @@ export function AppSidebar() {
               {!collapsed && (
                 <div className="flex flex-col items-start animate-fade-in truncate">
                   <span className="text-sm font-medium text-sidebar-foreground truncate w-full text-left">{currentUser.name}</span>
-                  <span className="text-xs text-sidebar-muted truncate w-full text-left">{currentUser.department}</span>
+                  <span className="text-[10px] text-sidebar-muted truncate w-full text-left font-mono">
+                    {currentUser.department} <span className="opacity-50">|</span> {currentUser.role}
+                  </span>
                 </div>
               )}
             </button>
