@@ -74,7 +74,8 @@ function applyPermissionFilter(
     t.department === currentUser.department ||
     t.department === "全公司" ||
     t.assignees.some(a => a.name === currentUser.name) ||
-    t.createdBy === currentUser.name
+    t.createdBy === currentUser.name ||
+    (t.type === "PPT拆分合并" && t.pptWorkflow?.deptAssignments.some(da => da.headUserId === currentUser.id || da.userAssignments.some(ua => ua.userId === currentUser.id)))
   );
   
   // 普通员工：在“任务中心”只看到“我作为发起人/创建人”的任务，如果仅仅是参与者，应该去待办中心看
@@ -372,28 +373,15 @@ export default function TaskCenter() {
                     <CollapsibleContent>
                       <CardContent className="pt-0 pb-4">
                         <div className="border-t border-border pt-4 space-y-6">
-                          {/* PPT 工作台快捷入口 */}
-                          {task.type === "PPT拆分合并" && (
-                            <Button
-                              className="w-full gradient-primary"
-                              onClick={(e) => { 
-                                e.stopPropagation(); 
-                                setPptTaskId(task.id);
-                                setPptTaskDrawerOpen(true);
-                              }}
-                            >
-                              <Layers className="h-4 w-4 mr-2" />
-                              进入PPT拆分合并工作台
-                            </Button>
-                          )}
                           {/* Sub-task List Section */}
                           <div className="space-y-3">
                             <div className="flex items-center justify-between">
                               <h4 className="text-sm font-semibold flex items-center gap-2">
                                 <Users className="h-4 w-4 text-primary" />
-                                子任务列表
+                                {task.type === "PPT拆分合并" ? "各部门拆分情况" : "子任务列表"}
                               </h4>
-                              {task.assignees.some(a => a.status === "approved" || a.status === "submitted") && (
+                              {(task.assignees.some(a => a.status === "approved" || a.status === "submitted") || 
+                                (task.pptWorkflow?.deptAssignments.some(d => d.status === "completed" || d.userAssignments.some(ua => ua.status === "approved" || ua.status === "submitted")))) && (
                                 <Button
                                   variant="outline"
                                   size="sm"
@@ -412,7 +400,34 @@ export default function TaskCenter() {
                               )}
                             </div>
                             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                              {task.assignees.map((assignee) => (
+                              {task.type === "PPT拆分合并" && task.pptWorkflow ? (
+                                task.pptWorkflow.deptAssignments.map((dept) => (
+                                  <div 
+                                    key={dept.id}
+                                    className="flex flex-col p-3 rounded-lg border border-border bg-card hover:border-primary/30 transition-colors cursor-pointer"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setPptTaskId(task.id);
+                                      setPptTaskDrawerOpen(true);
+                                    }}
+                                  >
+                                    <div className="flex items-center justify-between mb-2">
+                                      <p className="text-sm font-medium flex items-center gap-1.5"><Users className="h-3.5 w-3.5 text-muted-foreground" />{dept.department}</p>
+                                      <Badge variant="outline" className={cn("text-[10px] px-2 py-0 h-5 border shadow-none", dept.status === "pending" ? "bg-muted/50 text-muted-foreground" : (dept.status === "completed" || dept.status === "approved" ? "bg-success/10 text-success border-success/20" : "bg-warning/10 text-warning border-warning/20"))}>
+                                        {dept.status === "pending" ? "待分配" : (dept.status === "completed" || dept.status === "approved" ? "已完成" : "进行中")}
+                                      </Badge>
+                                    </div>
+                                    <p className="text-xs text-muted-foreground line-clamp-2 mt-1 flex-1 leading-relaxed">
+                                      {dept.requirement || "暂无具体要求"}
+                                    </p>
+                                    <div className="flex justify-between text-xs text-muted-foreground mt-3 pt-2 border-t border-border/40">
+                                      <span>负责人: <span className="font-medium text-foreground/80">{dept.headUserName}</span></span>
+                                      <span>已分配: <span className="font-medium text-foreground/80">{dept.userAssignments.length}人</span></span>
+                                    </div>
+                                  </div>
+                                ))
+                              ) : (
+                              task.assignees.map((assignee) => (
                                 <div 
                                   key={assignee.id}
                                   className="flex flex-col p-3 rounded-lg border border-border bg-card hover:border-primary/30 transition-colors"
@@ -468,7 +483,8 @@ export default function TaskCenter() {
                                     </Badge>
                                   )}
                                 </div>
-                              ))}
+                              ))
+                              )}
                             </div>
                           </div>
 

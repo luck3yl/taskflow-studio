@@ -62,7 +62,7 @@ export default function TodoCenter() {
   const [pptDrawerOpen, setPptDrawerOpen] = useState(false);
   const [pptTaskId, setPptTaskId] = useState<string>("");
 
-  const { tasks, submitWork } = useTaskContext();
+  const { tasks, submitWork, submitPptWork } = useTaskContext();
   const { currentUser } = useUserContext();
   const navigate = useNavigate();
 
@@ -76,11 +76,12 @@ export default function TodoCenter() {
     
     // 处理 PPT拆分合并任务 的分配（在 task.pptWorkflow 中）
     if (task.type === "PPT拆分合并" && task.pptWorkflow) {
-      let myPptAssignments: { task: Task, assignee: Assignee }[] = [];
+      let myPptAssignments: { task: Task, assignee: Assignee & { isDeptHeadDistribution?: boolean } }[] = [];
 
       // 1. 如果当前登录人是该部门的负责人，并且状态还是 pending 或分配进行中，作为一个专门的“需要分配任务”待办出来
       task.pptWorkflow.deptAssignments.forEach(deptAssignment => {
-        if (deptAssignment.headUserId === currentUser.id && deptAssignment.status === "pending") {
+        if (deptAssignment.headUserId === currentUser.id && deptAssignment.status !== "approved") {
+          const hasPendingReview = deptAssignment.userAssignments.some(ua => ua.status === "submitted");
           myPptAssignments.push({
             task,
             assignee: {
@@ -89,11 +90,14 @@ export default function TodoCenter() {
               name: currentUser.name,
               avatar: currentUser.avatar,
               department: currentUser.department,
-              taskDescription: `分配给本部门的任务：第 ${deptAssignment.pages.join(',')} 页。请尽快下发给具体员工：${deptAssignment.requirement || ''}`,
+              taskDescription: deptAssignment.status === "pending" 
+                ? `分配给本部门的任务：第 ${deptAssignment.pages.join(',')} 页。请尽快下发给具体员工：${deptAssignment.requirement || ''}`
+                : (hasPendingReview ? `【有待审】您有员工提交的PPT页签等待审核，请及时跟进` : `【进行中】本部门PPT拆分执行中，随时掌握进度。${deptAssignment.requirement || ''}`),
               pageRange: deptAssignment.pages.join(','),
-              status: "pending" as Assignee["status"],
-              submissions: []
-            } as Assignee
+              status: hasPendingReview ? "submitted" : "pending",
+              submissions: [],
+              isDeptHeadDistribution: true
+            } as Assignee & { isDeptHeadDistribution?: boolean }
           });
         }
         
@@ -104,7 +108,7 @@ export default function TodoCenter() {
               task,
               assignee: {
                 ...ua,
-                id: ua.userId, // Map to assignee interface closely
+                id: ua.id, // Map to assignee interface closely
                 memberId: ua.userId,
                 name: currentUser.name,
                 avatar: currentUser.avatar,
@@ -112,8 +116,9 @@ export default function TodoCenter() {
                 taskDescription: `负责第 ${ua.pages.join(',')} 页：${deptAssignment.requirement || ''}`,
                 pageRange: ua.pages.join(','),
                 status: ua.status as Assignee["status"],
-                submissions: ua.submissions
-              } as Assignee
+                submissions: ua.submissions,
+                isDeptHeadDistribution: false
+              } as Assignee & { isDeptHeadDistribution?: boolean }
             });
           }
         });
@@ -134,8 +139,8 @@ export default function TodoCenter() {
     return matchesSearch && matchesStatus;
   });
 
-  const handleProcessTask = (task: Task, assignee: Assignee) => {
-    if (task.type === "PPT拆分合并") {
+  const handleProcessTask = (task: Task, assignee: Assignee & { isDeptHeadDistribution?: boolean }) => {
+    if (task.type === "PPT拆分合并" && assignee.isDeptHeadDistribution) {
       setPptTaskId(task.id);
       setPptDrawerOpen(true);
       return;
@@ -147,12 +152,35 @@ export default function TodoCenter() {
   const handleSubmit = (file: File, note: string) => {
     if (!selectedItem) return;
 
-    submitWork(selectedItem.task.id, selectedItem.assignee.id, {
-      fileName: file.name,
-      fileSize: file.size / (1024 * 1024),
-      submittedAt: new Date().toISOString().replace('T', ' ').slice(0, 16),
-      note,
-    });
+    if (selectedItem.task.type === "PPT拆分合并" && selectedItem.task.pptWorkflow) {
+      // Find deptId
+      let submitDeptId = "";
+      let baseVersion = 0;
+      selectedItem.task.pptWorkflow.deptAssignments.forEach(da => {
+        if (da.userAssignments.some(ua => ua.id === selectedItem.assignee.id)) {
+          submitDeptId = da.id;
+          da.userAssignments.find(ua => ua.id === selectedItem.assignee.id)?.pages.forEach(p => {
+             baseVersion = Math.max(baseVersion, selectedItem.task.pptWorkflow!.pageVersions[p] || 0);
+          });
+        }
+      });
+
+      if (submitDeptId) {
+        submitPptWork(selectedItem.task.id, submitDeptId, selectedItem.assignee.id, {
+          fileName: file.name,
+          fileSize: Math.round(file.size / 1024 / 1024 * 10) / 10 || 0.1,
+          note,
+          baseVersion
+        });
+      }
+    } else {
+      submitWork(selectedItem.task.id, selectedItem.assignee.id, {
+        fileName: file.name,
+        fileSize: file.size / (1024 * 1024),
+        submittedAt: new Date().toISOString().replace('T', ' ').slice(0, 16),
+        note,
+      });
+    }
 
     setDrawerOpen(false);
   };
