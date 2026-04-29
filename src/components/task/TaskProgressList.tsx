@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+﻿import React, { useState } from "react";
 import {
   Sheet,
   SheetContent,
@@ -125,7 +125,7 @@ export function TaskProgressList({ open, onOpenChange, tasks }: TaskProgressList
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2">
-                        <div className="h-7 w-7 rounded-sm bg-primary/10 flex items-center justify-center text-[10px] font-bold text-primary">
+                        <div className="h-7 w-7 rounded-sm bg-primary/10 flex items-center justify-center text-xs font-bold text-primary">
                           {st.avatar}
                         </div>
                         <span className="text-sm">{st.name}</span>
@@ -134,11 +134,11 @@ export function TaskProgressList({ open, onOpenChange, tasks }: TaskProgressList
                     <TableCell>
                       <p className="text-xs text-muted-foreground line-clamp-1">{st.taskDescription}</p>
                       {st.pageRange && (
-                        <Badge variant="outline" className="mt-1 text-[10px] h-4 py-0">第 {st.pageRange} 页</Badge>
+                        <Badge variant="outline" className="mt-1 text-xs h-4 py-0">第 {st.pageRange} 页</Badge>
                       )}
                     </TableCell>
                     <TableCell>
-                      <Badge variant="secondary" className="text-[10px] font-normal">{st.department}</Badge>
+                      <Badge variant="secondary" className="text-xs font-normal">{st.department}</Badge>
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-1.5">

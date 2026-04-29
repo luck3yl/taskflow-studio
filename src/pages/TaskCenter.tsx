@@ -1,4 +1,4 @@
-import { useState } from "react";
+﻿import { useState } from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -40,7 +40,6 @@ import {
 } from "@/components/ui/collapsible";
 import { useNavigate, useParams } from "react-router-dom";
 import { ReviewDrawer } from "@/components/drawers/ReviewDrawer";
-import { MergedPPTDrawer } from "@/components/drawers/MergedPPTDrawer";
 import { PptTaskDrawer } from "@/components/drawers/PptTaskDrawer";
 import { useTaskContext, Task, Assignee, TaskType } from "@/contexts/TaskContext";
 import { useUserContext } from "@/contexts/UserContext";
@@ -48,6 +47,7 @@ import { cn } from "@/lib/utils";
 import { TaskKanbanView } from "@/components/task/TaskKanbanView";
 import { TaskCalendarView } from "@/components/task/TaskCalendarView";
 import { TaskProgressList } from "@/components/task/TaskProgressList";
+import { PptTaskDetail } from "@/components/task/PptTaskDetail";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 const statusStyles = {
@@ -57,7 +57,7 @@ const statusStyles = {
   rejected: { bg: "bg-destructive/20", dot: "bg-destructive" },
 };
 
-// 按职级返回权限过滤后的任务（任务中心是给领导看的，或者说只展示与自己相关的，或者创建的）
+// 按职级返回权限过滤后的任务
 function applyPermissionFilter(
   tasks: Task[],
   currentUser: ReturnType<typeof useUserContext>["currentUser"]
@@ -66,8 +66,7 @@ function applyPermissionFilter(
   const isAdmin = roles.includes("设备部长") || roles.includes("设备厂长");
   const isVice = !isAdmin && roles.includes("分管副部长");
   const isRoom = !isAdmin && !isVice && (roles.includes("室主任") || roles.includes("设备组长"));
-  
-  // 领导看全部/部分，员工只看自己创建的或参与的
+
   if (isAdmin) return tasks;
   if (isVice) return tasks.filter(t => t.department === currentUser.department || t.department === "全公司" || t.createdBy === currentUser.name);
   if (isRoom) return tasks.filter(t =>
@@ -75,13 +74,26 @@ function applyPermissionFilter(
     t.department === "全公司" ||
     t.assignees.some(a => a.name === currentUser.name) ||
     t.createdBy === currentUser.name ||
-    (t.type === "PPT拆分合并" && t.pptWorkflow?.deptAssignments.some(da => da.headUserId === currentUser.id || da.userAssignments.some(ua => ua.userId === currentUser.id)))
+    (t.type === "例会资料" && t.pptWorkflow?.deptAssignments.some(da =>
+      da.headUserId === currentUser.id || da.userAssignments.some(ua => ua.userId === currentUser.id)
+    ))
   );
-  
-  // 普通员工：在“任务中心”只看到“我作为发起人/创建人”的任务，如果仅仅是参与者，应该去待办中心看
+  // 普通员工：任务中心只看自己创建的，参与的去待办中心
   return tasks.filter(t => t.createdBy === currentUser.name);
 }
 
+// 用户状态标签
+function userStatusBadge(status: string) {
+  switch (status) {
+    case "pending": return <Badge variant="outline" className="text-xs px-2 py-0 h-5 bg-muted/50 text-muted-foreground">待提交</Badge>;
+    case "in_progress": return <Badge variant="outline" className="text-xs px-2 py-0 h-5 bg-blue-50 text-blue-700 border-blue-200">编辑中</Badge>;
+    case "submitted": return <Badge variant="outline" className="text-xs px-2 py-0 h-5 bg-amber-100/90 text-amber-700 border-amber-300">待审核</Badge>;
+    case "dept_approved": return <Badge variant="outline" className="text-xs px-2 py-0 h-5 bg-purple-50 text-purple-700 border-purple-200">室主任已审核</Badge>;
+    case "final_approved": return <Badge variant="outline" className="text-xs px-2 py-0 h-5 bg-success/10 text-success border-success/20">部长已审批</Badge>;
+    case "rejected": return <Badge variant="outline" className="text-xs px-2 py-0 h-5 bg-destructive/10 text-destructive border-destructive/20">已驳回</Badge>;
+    default: return null;
+  }
+}
 const departmentFilters = [
   { value: "all", label: "全部部门" },
   { value: "设备部", label: "设备部" },
@@ -101,8 +113,6 @@ export default function TaskCenter() {
   const [departmentFilter, setDepartmentFilter] = useState("all");
   const [expandedTasks, setExpandedTasks] = useState<string[]>([]);
   const [reviewDrawerOpen, setReviewDrawerOpen] = useState(false);
-  const [mergedDrawerOpen, setMergedDrawerOpen] = useState(false);
-  const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [pptTaskDrawerOpen, setPptTaskDrawerOpen] = useState(false);
   const [pptTaskId, setPptTaskId] = useState<string>("");
   const [selectedReview, setSelectedReview] = useState<{
@@ -113,11 +123,9 @@ export default function TaskCenter() {
   const navigate = useNavigate();
   const { tasks, reviewSubmission, deleteTask } = useTaskContext();
   const { currentUser } = useUserContext();
-
-  const handleViewMerged = (task: Task) => {
-    setSelectedTask(task);
-    setMergedDrawerOpen(true);
-  };
+  const roles = (currentUser as any).roles ?? [currentUser.role];
+  const isRoomHead = roles.includes("室主任") || roles.includes("设备组长");
+  const canViewMergedFile = !isRoomHead;
 
   const toggleExpand = (taskId: string) => {
     setExpandedTasks(prev => 
@@ -271,6 +279,16 @@ export default function TaskCenter() {
               const progress = task.totalAssignees > 0 
                 ? (task.completedCount / task.totalAssignees) * 100 
                 : 0;
+              const isMyPptDeptHead = task.type === "例会资料" && !!task.pptWorkflow?.deptAssignments.some(
+                dept => dept.headUserId === currentUser.id
+              );
+              const canViewMergedPpt = canViewMergedFile && (task.assignees.some(a => a.status === "approved" || a.status === "submitted") ||
+                !!task.pptWorkflow?.deptAssignments.some(d =>
+                  d.status === "final_approved" ||
+                  d.userAssignments.some(ua =>
+                    ua.status === "submitted" || ua.status === "dept_approved" || ua.status === "final_approved"
+                  )
+                ));
 
               return (
                 <Collapsible 
@@ -342,13 +360,13 @@ export default function TaskCenter() {
                                 </Button>
                               </DropdownMenuTrigger>
                               <DropdownMenuContent align="end">
-                                {task.type === "PPT拆分合并" && (
+                                {task.type === "例会资料" && (
                                   <DropdownMenuItem onClick={(e) => { 
                                     e.stopPropagation(); 
                                     setPptTaskId(task.id);
                                     setPptTaskDrawerOpen(true);
                                   }}>
-                                    进入PPT工作台
+                                    进入例会资料工作台
                                   </DropdownMenuItem>
                                 )}
                                 <DropdownMenuItem>编辑任务</DropdownMenuItem>
@@ -375,60 +393,30 @@ export default function TaskCenter() {
                         <div className="border-t border-border pt-4 space-y-6">
                           {/* Sub-task List Section */}
                           <div className="space-y-3">
-                            <div className="flex items-center justify-between">
-                              <h4 className="text-sm font-semibold flex items-center gap-2">
-                                <Users className="h-4 w-4 text-primary" />
-                                {task.type === "PPT拆分合并" ? "各部门拆分情况" : "子任务列表"}
-                              </h4>
-                              {(task.assignees.some(a => a.status === "approved" || a.status === "submitted") || 
-                                (task.pptWorkflow?.deptAssignments.some(d => d.status === "completed" || d.userAssignments.some(ua => ua.status === "approved" || ua.status === "submitted")))) && (
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleViewMerged(task);
+                            {task.type !== "例会资料" && (
+                              <div className="flex items-center justify-between">
+                                <h4 className="text-sm font-semibold flex items-center gap-2">
+                                  <Users className="h-4 w-4 text-primary" />
+                                  子任务列表
+                                </h4>
+                              </div>
+                            )}
+
+                            {task.type === "例会资料" && task.pptWorkflow ? (
+                              <div className="w-full">
+                                <PptTaskDetail
+                                  task={task}
+                                  currentUser={currentUser}
+                                  onOpenPptDrawer={() => {
+                                    setPptTaskId(task.id);
+                                    setPptTaskDrawerOpen(true);
                                   }}
-                                  className="h-7"
-                                >
-                                  <Layers className="h-3.5 w-3.5 mr-1.5" />
-                                  查看合并PPT
-                                  <Badge variant="secondary" className="ml-2 text-xs px-1.5 py-0">
-                                    {task.completedCount}/{task.totalAssignees}
-                                  </Badge>
-                                </Button>
-                              )}
-                            </div>
+                                />
+                              </div>
+                            ) : (
                             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                              {task.type === "PPT拆分合并" && task.pptWorkflow ? (
-                                task.pptWorkflow.deptAssignments.map((dept) => (
-                                  <div 
-                                    key={dept.id}
-                                    className="flex flex-col p-3 rounded-lg border border-border bg-card hover:border-primary/30 transition-colors cursor-pointer"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      setPptTaskId(task.id);
-                                      setPptTaskDrawerOpen(true);
-                                    }}
-                                  >
-                                    <div className="flex items-center justify-between mb-2">
-                                      <p className="text-sm font-medium flex items-center gap-1.5"><Users className="h-3.5 w-3.5 text-muted-foreground" />{dept.department}</p>
-                                      <Badge variant="outline" className={cn("text-[10px] px-2 py-0 h-5 border shadow-none", dept.status === "pending" ? "bg-muted/50 text-muted-foreground" : (dept.status === "completed" || dept.status === "approved" ? "bg-success/10 text-success border-success/20" : "bg-warning/10 text-warning border-warning/20"))}>
-                                        {dept.status === "pending" ? "待分配" : (dept.status === "completed" || dept.status === "approved" ? "已完成" : "进行中")}
-                                      </Badge>
-                                    </div>
-                                    <p className="text-xs text-muted-foreground line-clamp-2 mt-1 flex-1 leading-relaxed">
-                                      {dept.requirement || "暂无具体要求"}
-                                    </p>
-                                    <div className="flex justify-between text-xs text-muted-foreground mt-3 pt-2 border-t border-border/40">
-                                      <span>负责人: <span className="font-medium text-foreground/80">{dept.headUserName}</span></span>
-                                      <span>已分配: <span className="font-medium text-foreground/80">{dept.userAssignments.length}人</span></span>
-                                    </div>
-                                  </div>
-                                ))
-                              ) : (
-                              task.assignees.map((assignee) => (
-                                <div 
+                              {task.assignees.map((assignee) => (
+                                <div
                                   key={assignee.id}
                                   className="flex flex-col p-3 rounded-lg border border-border bg-card hover:border-primary/30 transition-colors"
                                 >
@@ -440,14 +428,14 @@ export default function TaskCenter() {
                                             {assignee.avatar}
                                           </AvatarFallback>
                                         </Avatar>
-                                        <div className={`absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-card ${statusStyles[assignee.status].dot}`} />
+                                        <div className={`absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-card ${statusStyles[assignee.status]?.dot ?? "bg-muted-foreground"}`} />
                                       </div>
                                       <div>
                                         <p className="text-sm font-medium">{assignee.name}</p>
-                                        <Badge 
+                                        <Badge
                                           variant="outline"
                                           className={cn(
-                                            "text-[10px] px-2 py-0 h-5 mt-1 border shadow-none font-bold rounded",
+                                            "text-xs px-2 py-0 h-5 mt-1 border shadow-none font-bold rounded",
                                             assignee.status === "pending" && "bg-muted/50 text-muted-foreground border-muted-foreground/10",
                                             assignee.status === "submitted" && "bg-amber-100/90 text-amber-700 border-amber-300 shadow-sm",
                                             assignee.status === "approved" && "bg-success/10 text-success border-success/20",
@@ -462,8 +450,8 @@ export default function TaskCenter() {
                                       </div>
                                     </div>
                                     {(assignee.status === "submitted" || assignee.status === "approved" || assignee.status === "rejected") && (
-                                      <Button 
-                                        variant="ghost" 
+                                      <Button
+                                        variant="ghost"
                                         size="sm"
                                         className="h-7 px-2"
                                         onClick={() => handleReview(task, assignee)}
@@ -484,8 +472,9 @@ export default function TaskCenter() {
                                   )}
                                 </div>
                               ))
-                              )}
+                              }
                             </div>
+                            )}
                           </div>
 
                         </div>
@@ -531,13 +520,6 @@ export default function TaskCenter() {
         assignee={selectedReview?.assignee}
         onApprove={handleApprove}
         onReject={handleReject}
-      />
-
-      {/* Merged PPT Drawer */}
-      <MergedPPTDrawer
-        open={mergedDrawerOpen}
-        onOpenChange={setMergedDrawerOpen}
-        task={selectedTask || undefined}
       />
 
       {/* Progress List Drawer/Dialog */}

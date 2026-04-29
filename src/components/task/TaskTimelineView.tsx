@@ -1,4 +1,4 @@
-import React from "react";
+﻿import React from "react";
 import { Task, Assignee, Submission } from "@/contexts/TaskContext";
 import { 
   CheckCircle2, 
@@ -135,10 +135,10 @@ export function TaskTimelineView({ task, assignee }: TaskTimelineViewProps) {
               )}
               {event.user && (
                 <div className="flex items-center gap-1 mt-2">
-                  <div className="h-4 w-4 rounded-full bg-primary/10 flex items-center justify-center text-[8px] font-bold">
+                  <div className="h-4 w-4 rounded-full bg-primary/10 flex items-center justify-center text-xs font-bold">
                     {event.user.slice(0, 1)}
                   </div>
-                  <span className="text-[10px] text-muted-foreground">{event.user}</span>
+                  <span className="text-xs text-muted-foreground">{event.user}</span>
                 </div>
               )}
             </div>

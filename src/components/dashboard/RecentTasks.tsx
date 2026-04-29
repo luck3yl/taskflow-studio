@@ -1,4 +1,4 @@
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+﻿import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Clock, ArrowRight, AlertCircle } from "lucide-react";
@@ -76,7 +76,7 @@ export function RecentTasks({ tasks = [] }: { tasks?: Task[] }) {
                       "h-8 w-8 ring-1 ring-offset-1 ring-offset-white dark:ring-offset-card transition-transform group-hover:scale-105",
                       isUrgent ? "ring-destructive/50" : "ring-primary/20"
                     )}>
-                      <AvatarFallback className={`bg-gradient-to-br ${avatarColors[index % avatarColors.length]} text-[10px] text-white font-bold`}>
+                      <AvatarFallback className={`bg-gradient-to-br ${avatarColors[index % avatarColors.length]} text-xs text-white font-bold`}>
                         {task.createdBy[0]}
                       </AvatarFallback>
                     </Avatar>
@@ -84,21 +84,21 @@ export function RecentTasks({ tasks = [] }: { tasks?: Task[] }) {
                       <div className="flex items-center gap-2">
                         <p className="text-sm font-bold text-foreground truncate group-hover:text-primary transition-colors">{task.title}</p>
                         {isUrgent && (
-                          <Badge variant="destructive" className="text-[9px] px-1 py-0 gap-0.5 shrink-0">
+                          <Badge variant="destructive" className="text-xs px-1 py-0 gap-0.5 shrink-0">
                             紧急
                           </Badge>
                         )}
                       </div>
                     </div>
                     <Badge className={cn(
-                      "rounded-lg font-bold text-[10px] px-2 py-0.5 shrink-0",
+                      "rounded-lg font-bold text-xs px-2 py-0.5 shrink-0",
                       statusStyles[status as keyof typeof statusStyles]
                     )}>
                       {statusTextMap[status as keyof typeof statusTextMap]}
                     </Badge>
                   </div>
                   
-                  <div className="flex items-center gap-3 pl-11 text-[11px] text-muted-foreground font-medium">
+                  <div className="flex items-center gap-3 pl-11 text-xs text-muted-foreground font-medium">
                     <div className="flex items-center gap-1 text-red-500">
                       <Clock className="h-3 w-3" />
                       <span>{task.deadline}</span>

@@ -1,4 +1,4 @@
-import {
+﻿import {
   LayoutDashboard,
   ClipboardList,
   FolderKanban,
@@ -16,8 +16,7 @@ import {
   BookOpen,
   GraduationCap,
   Star,
-  Presentation,
-  Plus
+  Presentation
 } from "lucide-react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import {
@@ -61,7 +60,7 @@ const taskTypeItems: TaskTypeNavItem[] = [
   { type: "体系能力评价", label: "体系能力评价", icon: BarChart3, color: "text-purple-500" },
   { type: "对标找差", label: "对标找差", icon: BookOpen, color: "text-green-500" },
   { type: "培训交流", label: "培训交流", icon: GraduationCap, color: "text-cyan-500" },
-  { type: "PPT拆分合并", label: "PPT拆分合并", icon: Presentation, color: "text-rose-500" },
+  { type: "例会资料", label: "例会资料", icon: Presentation, color: "text-rose-500" },
 ];
 
 const staticNavItems = [
@@ -193,27 +192,18 @@ export function AppSidebar() {
                       const isTypeActive = currentTaskType === item.type;
                       return (
                         <SidebarMenuItem key={item.type}>
-                          <div className="group flex items-center gap-1">
-                            <NavLink
-                              to={`/tasks/${encodeURIComponent(item.type)}`}
-                              className={cn(
-                                "flex-1 flex items-center gap-3 rounded-xl pl-8 pr-3 py-2.5 transition-all duration-200 text-sm font-medium",
-                                isTypeActive
-                                  ? "bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-600/25"
-                                  : "text-sidebar-foreground hover:bg-white/60 dark:hover:bg-white/10"
-                              )}
-                            >
-                              <Icon className={cn("h-4.5 w-4.5 shrink-0", isTypeActive ? "text-white" : item.color)} />
-                              <span className="flex-1 truncate">{item.label}</span>
-                            </NavLink>
-                            <button
-                              onClick={() => navigate(`/tasks/create/${encodeURIComponent(item.type)}`)}
-                              className="h-7 w-7 flex items-center justify-center rounded-lg text-muted-foreground hover:text-primary hover:bg-primary/10 transition-all shrink-0 opacity-0 group-hover:opacity-100"
-                              title={`新建${item.label}`}
-                            >
-                              <Plus className="h-3.5 w-3.5" />
-                            </button>
-                          </div>
+                          <NavLink
+                            to={`/tasks/${encodeURIComponent(item.type)}`}
+                            className={cn(
+                              "flex items-center gap-3 rounded-xl pl-8 pr-3 py-2.5 transition-all duration-200 text-sm font-medium",
+                              isTypeActive
+                                ? "bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-600/25"
+                                : "text-sidebar-foreground hover:bg-white/60 dark:hover:bg-white/10"
+                            )}
+                          >
+                            <Icon className={cn("h-4 w-4 shrink-0", isTypeActive ? "text-white" : item.color)} />
+                            <span className="flex-1 truncate">{item.label}</span>
+                          </NavLink>
                         </SidebarMenuItem>
                       );
                     })}
@@ -268,15 +258,15 @@ export function AppSidebar() {
               </div>
               {!collapsed && (
                 <div className="flex flex-col items-start animate-fade-in truncate">
-                  <span className="text-sm font-medium text-sidebar-foreground truncate w-full text-left">{currentUser.name}</span>
-                  <span className="text-[10px] text-sidebar-muted truncate w-full text-left font-mono">
+                  <span className="text-sm font-medium truncate w-full text-left">{currentUser.name}</span>
+                  <span className="text-xs truncate w-full text-left">
                     {currentUser.department} <span className="opacity-50">|</span> {currentUser.role}
                   </span>
                 </div>
               )}
             </button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-64">
+          <DropdownMenuContent align="end" className="w-72">
             <DropdownMenuLabel className="flex items-center gap-2 px-2 py-1.5 text-xs font-normal text-muted-foreground">
               <Users className="h-3.5 w-3.5" />
               <span>切换身份 (仅测试用)</span>
@@ -291,15 +281,18 @@ export function AppSidebar() {
                   )}
                   onClick={() => switchUser(user.id)}
                 >
-                  <div className="flex items-center gap-2">
-                    <Avatar className="h-6 w-6">
-                      <AvatarFallback className="text-[10px] bg-primary/10 text-primary">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <Avatar className="h-6 w-6 shrink-0">
+                      <AvatarFallback className="text-xs bg-primary/10 text-primary">
                         {user.avatar}
                       </AvatarFallback>
                     </Avatar>
-                    <span>{user.name}</span>
+                    <div className="flex flex-col min-w-0">
+                      <span className="text-xs font-medium leading-tight">{user.name}</span>
+                      <span className="text-xs text-muted-foreground leading-tight truncate">{user.department} · {user.role}</span>
+                    </div>
                   </div>
-                  {user.id === currentUser.id && <div className="h-1.5 w-1.5 rounded-full bg-primary" />}
+                  {user.id === currentUser.id && <div className="h-1.5 w-1.5 rounded-full bg-primary shrink-0" />}
                 </DropdownMenuItem>
               ))}
             </div>

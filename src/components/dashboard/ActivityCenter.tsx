@@ -1,4 +1,4 @@
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+﻿import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Users2, CheckCircle2, FileUp, MessageSquare, Plus, Bell } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -90,7 +90,7 @@ export function ActivityCenter() {
               <div className="flex-1 min-w-0">
                 <div className="flex items-center justify-between gap-2 mb-1">
                   <span className="text-sm font-bold text-foreground">{item.user}</span>
-                  <span className="text-[10px] text-muted-foreground font-medium uppercase tracking-wider">{item.timestamp}</span>
+                  <span className="text-xs text-muted-foreground font-medium uppercase tracking-wider">{item.timestamp}</span>
                 </div>
                 <p className="text-sm leading-snug">
                   <span className="text-muted-foreground mr-1">{item.action}</span>

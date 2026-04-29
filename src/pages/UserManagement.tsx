@@ -1,4 +1,4 @@
-import { useState } from "react";
+﻿import { useState } from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -15,7 +15,8 @@ import {
   Settings2,
   Mail,
   Phone,
-  ArrowRight
+  ChevronDown,
+  ChevronRight
 } from "lucide-react";
 import {
   Table,
@@ -48,10 +49,27 @@ import {
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
+const ORG_HIERARCHIES = {
+  department: {
+    label: "部级层级",
+    description: "普通职员 -> 室主任 -> 分管副部长 -> 设备部长",
+    roles: ["普通职员", "室主任", "分管副部长", "设备部长"],
+  },
+  factory: {
+    label: "厂级层级",
+    description: "普通职员 -> 设备组长 -> 设备厂长",
+    roles: ["普通职员", "设备组长", "设备厂长"],
+  },
+} as const;
+
 export default function UserManagement() {
   const { users, departments, addUser, updateUser, deleteUser, addDepartment, updateDepartment, deleteDepartment } = useUserContext();
   const { toast } = useToast();
   const [search, setSearch] = useState("");
+  const [selectedDepartment, setSelectedDepartment] = useState<string>("all");
+  const [expandedDeptIds, setExpandedDeptIds] = useState<string[]>(
+    departments.filter((dept) => !dept.parentId).map((dept) => dept.id)
+  );
 
   // Department Dialog State
   const [isDeptDialogOpen, setIsDeptDialogOpen] = useState(false);
@@ -64,16 +82,54 @@ export default function UserManagement() {
     name: "",
     staffId: "",
     department: "",
+    orgSystem: "department" as "department" | "factory",
     role: "",
     email: "",
     phone: ""
   });
 
-  const filteredUsers = users.filter(u =>
-    u.name.toLowerCase().includes(search.toLowerCase()) ||
-    u.department.toLowerCase().includes(search.toLowerCase()) ||
-    u.staffId.toLowerCase().includes(search.toLowerCase())
-  );
+  const currentRoleOptions = ORG_HIERARCHIES[formData.orgSystem].roles;
+
+  const getDescendantDepartmentNames = (departmentId: string): string[] => {
+    const directChildren = departments.filter((dept) => dept.parentId === departmentId);
+    const currentDept = departments.find((dept) => dept.id === departmentId);
+
+    return [
+      currentDept?.name,
+      ...directChildren.flatMap((child) => getDescendantDepartmentNames(child.id)),
+    ].filter((name): name is string => !!name);
+  };
+
+  const filteredUsers = users.filter(u => {
+    const matchesSearch =
+      u.name.toLowerCase().includes(search.toLowerCase()) ||
+      u.department.toLowerCase().includes(search.toLowerCase()) ||
+      u.staffId.toLowerCase().includes(search.toLowerCase());
+    const allowedDepartments = selectedDepartment === "all"
+      ? null
+      : getDescendantDepartmentNames(selectedDepartment);
+    const matchesDepartment = !allowedDepartments || allowedDepartments.includes(u.department);
+    return matchesSearch && matchesDepartment;
+  });
+
+  const departmentStats = departments.map((dept) => ({
+    ...dept,
+    totalUsers: users.filter((user) => getDescendantDepartmentNames(dept.id).includes(user.department)).length,
+    onlineUsers: users.filter((user) => getDescendantDepartmentNames(dept.id).includes(user.department) && user.online).length,
+  }));
+  const rootDepartments = departmentStats.filter((dept) => !dept.parentId);
+
+  const toggleDepartment = (departmentId: string) => {
+    setExpandedDeptIds((prev) =>
+      prev.includes(departmentId)
+        ? prev.filter((id) => id !== departmentId)
+        : [...prev, departmentId]
+    );
+  };
+
+  const titleLabel = selectedDepartment === "all"
+    ? "用户列表"
+    : `${departments.find((dept) => dept.id === selectedDepartment)?.name || "部门"} 用户列表`;
 
   const handleAddDept = () => {
     if (!newDeptName) return;
@@ -89,6 +145,7 @@ export default function UserManagement() {
         name: user.name,
         staffId: user.staffId,
         department: user.department,
+        orgSystem: user.orgSystem,
         role: user.role,
         email: user.email,
         phone: user.phone
@@ -99,7 +156,8 @@ export default function UserManagement() {
         name: "",
         staffId: "",
         department: departments[0]?.name || "",
-        role: "",
+        orgSystem: "department",
+        role: ORG_HIERARCHIES.department.roles[0],
         email: "",
         phone: ""
       });
@@ -113,17 +171,24 @@ export default function UserManagement() {
       return;
     }
 
+    const submitData = {
+      ...formData,
+      roles: [formData.role],
+    };
+
     if (editingUser) {
-      updateUser(editingUser.id, formData);
+      updateUser(editingUser.id, submitData);
       toast({ title: "用户信息已更新" });
     } else {
       addUser({
-        name: formData.name,
-        staffId: formData.staffId,
-        department: formData.department,
-        role: formData.role,
-        email: formData.email,
-        phone: formData.phone,
+        name: submitData.name,
+        staffId: submitData.staffId,
+        department: submitData.department,
+        orgSystem: submitData.orgSystem,
+        role: submitData.role,
+        roles: submitData.roles,
+        email: submitData.email,
+        phone: submitData.phone,
         avatar: formData.name.charAt(0),
         lastLogin: "-",
         online: false
@@ -218,116 +283,222 @@ export default function UserManagement() {
           </div>
         </div>
 
-        {/* User Module Card */}
-        <Card className="border-border/50 shadow-sm rounded-2xl overflow-hidden bg-white/80 dark:bg-black/20 backdrop-blur-sm">
-          <CardHeader className="pb-6 border-b border-border/30">
-            <div className="flex items-center justify-between">
-              <div>
-                <CardTitle className="text-xl">用户列表</CardTitle>
-                <CardDescription className="text-sm">查看组织内全员信息，支持便捷调岗与实时在线状态监控</CardDescription>
-              </div>
+        <div className="grid gap-6 xl:grid-cols-[260px_minmax(0,1fr)] items-start">
+          <Card className="border-border/50 shadow-sm rounded-2xl overflow-hidden bg-white/80 dark:bg-black/20 backdrop-blur-sm xl:sticky xl:top-6">
+            <CardHeader className="pb-4 border-b border-border/30">
               <div className="flex items-center gap-2">
-                <Badge variant="outline" className="bg-green-500/5 text-green-600 border-green-500/20 text-xs px-2 py-1">
-                  <div className="h-1.5 w-1.5 rounded-full bg-green-500 mr-1.5 animate-pulse" />
-                  当前在线: {users.filter(u => u.online).length}
-                </Badge>
-                <Badge variant="outline" className="text-xs px-2 py-1">
-                  全员总计: {users.length}
-                </Badge>
+                <Building2 className="h-5 w-5 text-primary" />
+                <CardTitle className="text-lg">部门</CardTitle>
               </div>
-            </div>
-          </CardHeader>
-          <CardContent className="p-0">
-            <Table>
-              <TableHeader className="bg-muted/20">
-                <TableRow className="hover:bg-transparent">
-                  <TableHead className="py-4 text-sm font-bold w-[15%] text-foreground px-6">人员</TableHead>
-                  <TableHead className="text-sm font-bold w-[12%] text-foreground">工号/职级</TableHead>
-                  <TableHead className="text-sm font-bold w-[12%] text-foreground">所属部门</TableHead>
-                  <TableHead className="text-sm font-bold w-[20%] text-foreground">联系方式</TableHead>
-                  <TableHead className="text-sm font-bold w-[20%] text-foreground">状态</TableHead>
-                  <TableHead className="pr-6 text-sm font-bold w-[15%] text-foreground">操作</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredUsers.map((user) => (
-                  <TableRow key={user.id} className="hover:bg-muted/5 transition-all group">
-                    <TableCell className="pl-6 py-4">
-                      <div className="flex items-center gap-3">
-                        <Avatar className="h-10 w-10 ring-2 ring-primary/5 shadow-sm">
-                          <AvatarFallback className="bg-primary/10 text-primary font-bold">{user.avatar}</AvatarFallback>
-                        </Avatar>
-                        <p className="font-bold text-[14px] text-foreground">{user.name}</p>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <p className="text-sm font-medium text-foreground">{user.staffId}</p>
-                      <p className="text-xs text-muted-foreground">{user.role}</p>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant="secondary" className="rounded-lg bg-secondary/40 font-medium text-xs px-2.5 py-0.5 whitespace-nowrap">
-                        {user.department}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                          <Mail className="h-3 w-3" />
-                          <span>{user.email}</span>
-                        </div>
-                        <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                          <Phone className="h-3 w-3" />
-                          <span>{user.phone.replace(/(\d{3})\d{4}(\d{4})/, '$1****$2')}</span>
-                        </div>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="space-y-1.5">
-                        <div className="flex items-center gap-2">
-                          <div className={`h-2 w-2 rounded-full ${user.online ? 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.4)]' : 'bg-slate-300'}`} />
-                          <span className={`text-xs font-medium ${user.online ? 'text-green-600' : 'text-muted-foreground'}`}>
-                            {user.online ? '在线' : '离线'}
-                          </span>
-                        </div>
-                        <p className="text-xs text-muted-foreground pl-4">最后登录时间: {user.lastLogin}</p>
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-right pr-6 whitespace-nowrap">
-                      <div className="flex justify-end gap-1.5">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-8 px-2 text-primary hover:text-primary hover:bg-primary/5 text-xs font-bold border border-transparent hover:border-primary/20"
-                          onClick={() => openUserDialog(user)}
-                        >
-                          <Settings2 className="h-3.5 w-3.5 mr-1" />
-                          调岗/编辑
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-8 px-2 text-destructive hover:text-destructive hover:bg-destructive/5 text-xs font-bold"
-                          onClick={() => deleteUser(user.id)}
-                        >
-                          <Trash2 className="h-3.5 w-3.5 mr-1" />
-                          删除
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-            {filteredUsers.length === 0 && (
-              <div className="text-center py-24 bg-muted/5 border-t border-border/30">
-                <div className="h-16 w-16 bg-muted/20 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <Users className="h-8 w-8 text-muted-foreground/30" />
+            </CardHeader>
+            <CardContent className="p-3 space-y-3">
+              <button
+                type="button"
+                onClick={() => setSelectedDepartment("all")}
+                className={`w-full rounded-xl px-3 py-3 text-left transition-colors border ${
+                  selectedDepartment === "all"
+                    ? "bg-primary text-primary-foreground border-primary shadow-sm"
+                    : "bg-background/70 border-border/40 hover:bg-muted/40"
+                }`}
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-semibold">全部</p>
+                    <p className={`text-xs mt-1 ${selectedDepartment === "all" ? "text-primary-foreground/80" : "text-muted-foreground"}`}>
+                      查看所有部门成员
+                    </p>
+                  </div>
+                  <Badge variant={selectedDepartment === "all" ? "secondary" : "outline"} className="shrink-0">
+                    {users.length}
+                  </Badge>
                 </div>
-                <p className="text-sm font-medium text-muted-foreground">暂无符合条件的成员信息</p>
+              </button>
+
+              <div className="space-y-1.5">
+                {rootDepartments.map((dept) => {
+                  const children = departmentStats.filter((child) => child.parentId === dept.id);
+                  const isExpanded = expandedDeptIds.includes(dept.id);
+                  const isActive = selectedDepartment === dept.id;
+
+                  return (
+                    <div key={dept.id} className="space-y-1">
+                      <button
+                        type="button"
+                        onClick={() => setSelectedDepartment(dept.id)}
+                        className={`w-full rounded-xl px-3 py-2.5 text-left text-sm transition-colors ${isActive ? "bg-primary/10 text-primary" : "hover:bg-muted/40"}`}
+                      >
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="flex items-center gap-2 min-w-0">
+                            {children.length > 0 ? (
+                              <span
+                                role="button"
+                                tabIndex={0}
+                                className="shrink-0 text-muted-foreground"
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  toggleDepartment(dept.id);
+                                }}
+                                onKeyDown={(event) => {
+                                  if (event.key === "Enter" || event.key === " ") {
+                                    event.preventDefault();
+                                    event.stopPropagation();
+                                    toggleDepartment(dept.id);
+                                  }
+                                }}
+                              >
+                                {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                              </span>
+                            ) : (
+                              <span className="w-4 shrink-0" />
+                            )}
+                            <div className="min-w-0">
+                              <p className="truncate font-medium">{dept.name}</p>
+                              <p className="text-xs text-muted-foreground mt-0.5 truncate">{dept.description || ""}</p>
+                            </div>
+                          </div>
+                          <span className="shrink-0 text-xs text-muted-foreground">{dept.totalUsers}人</span>
+                        </div>
+                      </button>
+
+                      {children.length > 0 && isExpanded && (
+                        <div className="ml-7 space-y-1 border-l border-border/40 pl-3">
+                          {children.map((child) => (
+                            <button
+                              key={child.id}
+                              type="button"
+                              onClick={() => setSelectedDepartment(child.id)}
+                              className={`w-full rounded-lg px-3 py-2 text-left text-sm transition-colors ${selectedDepartment === child.id ? "bg-primary/10 text-primary" : "hover:bg-muted/40"}`}
+                            >
+                              <div className="flex items-center justify-between gap-3">
+                                <div className="min-w-0">
+                                  <p className="truncate">{child.name}</p>
+                                  <p className="text-xs text-muted-foreground mt-0.5 truncate">{child.description || "下属科室"}</p>
+                                </div>
+                                <span className="shrink-0 text-xs text-muted-foreground">{child.totalUsers}人</span>
+                              </div>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
-            )}
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+
+          <Card className="border-border/50 shadow-sm rounded-2xl overflow-hidden bg-white/80 dark:bg-black/20 backdrop-blur-sm">
+            <CardHeader className="pb-6 border-b border-border/30">
+              <div className="flex items-center justify-between gap-4 flex-wrap">
+                <div>
+                  <CardTitle className="text-xl">
+                    {titleLabel}
+                  </CardTitle>
+                  <CardDescription className="text-sm">查看组织内全员信息，支持便捷调岗与实时在线状态监控</CardDescription>
+                </div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <Badge variant="outline" className="bg-green-500/5 text-green-600 border-green-500/20 text-xs px-2 py-1">
+                    <div className="h-1.5 w-1.5 rounded-full bg-green-500 mr-1.5 animate-pulse" />
+                    当前在线: {filteredUsers.filter(u => u.online).length}
+                  </Badge>
+                  <Badge variant="outline" className="text-xs px-2 py-1">
+                    当前列表: {filteredUsers.length}
+                  </Badge>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="p-0">
+              <Table>
+                <TableHeader className="bg-muted/20">
+                  <TableRow className="hover:bg-transparent">
+                    <TableHead className="py-4 text-sm font-bold w-[15%] text-foreground px-6">人员</TableHead>
+                    <TableHead className="text-sm font-bold w-[12%] text-foreground">工号/职级</TableHead>
+                    <TableHead className="text-sm font-bold w-[12%] text-foreground">所属部门</TableHead>
+                    <TableHead className="text-sm font-bold w-[20%] text-foreground">联系方式</TableHead>
+                    <TableHead className="text-sm font-bold w-[20%] text-foreground">状态</TableHead>
+                    <TableHead className="pr-6 text-sm font-bold w-[15%] text-foreground">操作</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredUsers.map((user) => (
+                    <TableRow key={user.id} className="hover:bg-muted/5 transition-all group">
+                      <TableCell className="pl-6 py-4">
+                        <div className="flex items-center gap-3">
+                          <Avatar className="h-10 w-10 ring-2 ring-primary/5 shadow-sm">
+                            <AvatarFallback className="bg-primary/10 text-primary font-bold">{user.avatar}</AvatarFallback>
+                          </Avatar>
+                          <p className="font-bold text-[14px] text-foreground">{user.name}</p>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <p className="text-sm font-medium text-foreground">{user.staffId}</p>
+                        <p className="text-xs text-muted-foreground mt-1">{user.role}</p>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="secondary" className="rounded-lg bg-secondary/40 font-medium text-xs px-2.5 py-0.5 whitespace-nowrap">
+                          {user.department}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                            <Mail className="h-3 w-3" />
+                            <span>{user.email}</span>
+                          </div>
+                          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                            <Phone className="h-3 w-3" />
+                            <span>{user.phone.replace(/(\d{3})\d{4}(\d{4})/, '$1****$2')}</span>
+                          </div>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="space-y-1.5">
+                          <div className="flex items-center gap-2">
+                            <div className={`h-2 w-2 rounded-full ${user.online ? 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.4)]' : 'bg-slate-300'}`} />
+                            <span className={`text-xs font-medium ${user.online ? 'text-green-600' : 'text-muted-foreground'}`}>
+                              {user.online ? '在线' : '离线'}
+                            </span>
+                          </div>
+                          <p className="text-xs text-muted-foreground pl-4">最后登录时间: {user.lastLogin}</p>
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-right pr-6 whitespace-nowrap">
+                        <div className="flex justify-end gap-1.5">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 px-2 text-primary hover:text-primary hover:bg-primary/5 text-xs font-bold border border-transparent hover:border-primary/20"
+                            onClick={() => openUserDialog(user)}
+                          >
+                            <Settings2 className="h-3.5 w-3.5 mr-1" />
+                            调岗/编辑
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 px-2 text-destructive hover:text-destructive hover:bg-destructive/5 text-xs font-bold"
+                            onClick={() => deleteUser(user.id)}
+                          >
+                            <Trash2 className="h-3.5 w-3.5 mr-1" />
+                            删除
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+              {filteredUsers.length === 0 && (
+                <div className="text-center py-24 bg-muted/5 border-t border-border/30">
+                  <div className="h-16 w-16 bg-muted/20 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <Users className="h-8 w-8 text-muted-foreground/30" />
+                  </div>
+                  <p className="text-sm font-medium text-muted-foreground">暂无符合条件的成员信息</p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
       </div>
 
       {/* Add/Edit User Dialog */}
@@ -380,14 +551,44 @@ export default function UserManagement() {
               </Select>
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="orgSystem" className="text-right text-sm font-medium">层级体系</Label>
+              <Select
+                value={formData.orgSystem}
+                onValueChange={(value: "department" | "factory") => setFormData({
+                  ...formData,
+                  orgSystem: value,
+                  role: ORG_HIERARCHIES[value].roles[0],
+                })}
+              >
+                <SelectTrigger className="col-span-3 text-sm h-10 rounded-xl">
+                  <SelectValue placeholder="请选择层级体系" />
+                </SelectTrigger>
+                <SelectContent className="rounded-xl">
+                  <SelectItem value="department">部级层级</SelectItem>
+                  <SelectItem value="factory">厂级层级</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="role" className="text-right text-sm font-medium">职位/角色</Label>
-              <Input
-                id="role"
-                placeholder="请输入当前担任职位"
-                value={formData.role}
-                onChange={(e) => setFormData({ ...formData, role: e.target.value })}
-                className="col-span-3 text-sm h-10 rounded-xl"
-              />
+              <div className="col-span-3 space-y-2">
+                <Select
+                  value={formData.role}
+                  onValueChange={(value) => setFormData({ ...formData, role: value })}
+                >
+                  <SelectTrigger className="text-sm h-10 rounded-xl">
+                    <SelectValue placeholder="请选择当前职级" />
+                  </SelectTrigger>
+                  <SelectContent className="rounded-xl">
+                    {currentRoleOptions.map((role) => (
+                      <SelectItem key={role} value={role} className="text-sm">{role}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  当前层级关系：{ORG_HIERARCHIES[formData.orgSystem].description}
+                </p>
+              </div>
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="email" className="text-right text-sm font-medium">电子邮箱</Label>

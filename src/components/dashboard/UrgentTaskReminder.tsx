@@ -1,4 +1,4 @@
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+﻿import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { AlertCircle, Clock, ArrowRight, CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -71,13 +71,13 @@ export function UrgentTaskReminder() {
               <div className="flex items-center justify-between pl-11">
                 <div className="flex flex-wrap items-center gap-2">
                   <span className={cn(
-                    "text-[10px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wider shrink-0",
+                    "text-xs font-bold px-1.5 py-0.5 rounded uppercase tracking-wider shrink-0",
                     task.priority === "high" ? "bg-red-100 text-red-600" :
                     task.priority === "medium" ? "bg-orange-100 text-orange-600" : "bg-blue-100 text-blue-600"
                   )}>
                     {task.priority === "high" ? "紧急" : task.priority === "medium" ? "重要" : "普通"}
                   </span>
-                  <span className="text-[11px] text-muted-foreground font-medium truncate">截止: {task.deadline}</span>
+                  <span className="text-xs text-muted-foreground font-medium truncate">截止: {task.deadline}</span>
                 </div>
               </div>
             </div>

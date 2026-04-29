@@ -1,4 +1,4 @@
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+﻿import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Bell, Mail, Info, CheckCircle2, MoreHorizontal, Inbox, Star, Archive, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -95,13 +95,13 @@ export function MessageCenter() {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between gap-2 mb-1">
                     <span className="text-sm font-bold text-foreground line-clamp-1">{item.title}</span>
-                    <span className="text-[10px] text-muted-foreground font-medium uppercase tracking-wider shrink-0">{item.time}</span>
+                    <span className="text-xs text-muted-foreground font-medium uppercase tracking-wider shrink-0">{item.time}</span>
                   </div>
                   <p className="text-sm text-muted-foreground leading-snug line-clamp-2 mb-2">
                     {item.content}
                   </p>
                   <div className="flex items-center justify-between">
-                    <span className="text-[10px] font-bold text-muted-foreground bg-muted/50 px-2 py-0.5 rounded-md">{item.sender}</span>
+                    <span className="text-xs font-bold text-muted-foreground bg-muted/50 px-2 py-0.5 rounded-md">{item.sender}</span>
                     <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                       <Button variant="ghost" size="icon" className="h-7 w-7 rounded-lg text-muted-foreground hover:text-primary hover:bg-primary/10">
                         <CheckCircle2 className="h-3.5 w-3.5" />

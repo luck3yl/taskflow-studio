@@ -1,4 +1,4 @@
-import {
+﻿import {
   Sheet,
   SheetContent,
   SheetHeader,
@@ -106,7 +106,7 @@ export function TaskProcessDrawer({
   const isUrgent = hours > 0 && hours < 24;
   const isOverdue = hours <= 0;
 
-  const canSubmit = assignee.status === "pending" || assignee.status === "rejected";
+  const canSubmit = assignee.status === "pending" || assignee.status === "rejected" || assignee.status === "in_progress";
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -172,7 +172,7 @@ export function TaskProcessDrawer({
                       {task.templateFileName}
                     </span>
                     {task.templatePageCount && (
-                      <span className="text-[10px] text-muted-foreground shrink-0">
+                      <span className="text-xs text-muted-foreground shrink-0">
                         ({task.templatePageCount}页)
                       </span>
                     )}
@@ -346,7 +346,7 @@ export function TaskProcessDrawer({
                               </Badge>
                             </div>
                           </div>
-                          <p className="text-[10px] text-muted-foreground">
+                          <p className="text-xs text-muted-foreground">
                             {submission.submittedAt}
                           </p>
                           {submission.note && (
@@ -372,7 +372,7 @@ export function TaskProcessDrawer({
                                 {submission.feedback}
                               </p>
                               {submission.feedbackAt && (
-                                <p className="text-[10px] opacity-60 mt-2">
+                                <p className="text-xs opacity-60 mt-2">
                                   {submission.feedbackAt}
                                 </p>
                               )}

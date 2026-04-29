@@ -1,4 +1,4 @@
-import {
+﻿import {
   Sheet,
   SheetContent,
   SheetHeader,
@@ -209,7 +209,7 @@ export function ReviewDrawer({
                       }`}>
                         {assignee.status === "rejected" ? "驳回记录" : "审批通过记录"}
                       </span>
-                      <span className="text-[10px] text-muted-foreground">
+                      <span className="text-xs text-muted-foreground">
                         {assignee.submissions[assignee.submissions.length - 1].feedbackAt}
                       </span>
                     </div>

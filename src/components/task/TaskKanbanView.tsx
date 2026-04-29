@@ -1,4 +1,4 @@
-import React from "react";
+﻿import React from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Task } from "@/contexts/TaskContext";
@@ -50,10 +50,10 @@ export function TaskKanbanView({ tasks }: TaskKanbanViewProps) {
                 <Card key={task.id} className="shadow-sm hover:shadow-md transition-shadow cursor-grab active:cursor-grabbing border-border/50">
                   <CardHeader className="p-4 pb-2">
                     <div className="flex justify-between items-start gap-2">
-                      <Badge variant="outline" className="text-[10px] uppercase tracking-wider">
+                      <Badge variant="outline" className="text-xs uppercase tracking-wider">
                         {task.type}
                       </Badge>
-                      <span className="text-[10px] text-muted-foreground flex items-center">
+                      <span className="text-xs text-muted-foreground flex items-center">
                         <Calendar className="h-3 w-3 mr-1" />
                         {task.deadline.split(' ')[0]}
                       </span>
@@ -70,13 +70,13 @@ export function TaskKanbanView({ tasks }: TaskKanbanViewProps) {
                         {task.assignees.slice(0, 3).map((a) => (
                           <div 
                             key={a.id} 
-                            className="h-6 w-6 rounded-full bg-primary/10 border-2 border-card flex items-center justify-center text-[10px] font-medium text-primary"
+                            className="h-6 w-6 rounded-full bg-primary/10 border-2 border-card flex items-center justify-center text-xs font-medium text-primary"
                           >
                             {a.avatar}
                           </div>
                         ))}
                         {task.assignees.length > 3 && (
-                          <div className="h-6 w-6 rounded-full bg-muted border-2 border-card flex items-center justify-center text-[8px] text-muted-foreground">
+                          <div className="h-6 w-6 rounded-full bg-muted border-2 border-card flex items-center justify-center text-xs text-muted-foreground">
                             +{task.assignees.length - 3}
                           </div>
                         )}

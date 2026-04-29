@@ -1,4 +1,4 @@
-import { useState } from "react";
+﻿import { useState } from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -32,7 +32,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { cn } from "@/lib/utils";
+import { cn, formatPageRange } from "@/lib/utils";
 import {
   Select,
   SelectContent,
@@ -107,7 +107,7 @@ export default function TaskCreate() {
   const { users, departments, currentUser } = useUserContext();
   const [currentStep, setCurrentStep] = useState(1);
   const { taskType: taskTypeParam } = useParams<{ taskType?: string }>();
-  const [taskType, setTaskType] = useState(() => taskTypeParam ? decodeURIComponent(taskTypeParam) : "PPT拆分合并");
+  const [taskType, setTaskType] = useState(() => taskTypeParam ? decodeURIComponent(taskTypeParam) : "例会资料");
   const [taskTitle, setTaskTitle] = useState("");
   const [taskDescription, setTaskDescription] = useState("");
   const [taskDepartment, setTaskDepartment] = useState("全公司");
@@ -176,7 +176,7 @@ export default function TaskCreate() {
       });
       return;
     }
-    if (currentStep === 2 && taskType === "PPT拆分合并") {
+    if (currentStep === 2 && taskType === "例会资料") {
       const valid = pptDeptRows.some(r => r.deptName && r.headUserId && parsePageInput(r.pageSelection, templatePageCount).length > 0);
       if (!valid) {
         toast({
@@ -187,7 +187,7 @@ export default function TaskCreate() {
         return;
       }
     }
-    if (currentStep === 2 && taskType !== "PPT拆分合并" && assignments.length === 0) {
+    if (currentStep === 2 && taskType !== "例会资料" && assignments.length === 0) {
       toast({
         title: "请添加执行人",
         description: "至少需要添加一名执行人",
@@ -246,7 +246,7 @@ export default function TaskCreate() {
   };
 
   const handlePublish = () => {
-    if (taskType === "PPT拆分合并") {
+    if (taskType === "例会资料") {
       // Build pptWorkflow from dept rows
       const deptAssignments = pptDeptRows
         .filter(r => r.deptName && parsePageInput(r.pageSelection, templatePageCount).length > 0)
@@ -271,7 +271,7 @@ export default function TaskCreate() {
       const newId = addTask({
         title: taskTitle,
         description: taskDescription,
-        type: "PPT拆分合并",
+        type: "例会资料",
         department: taskDepartment,
         deadline: formattedDeadline,
         createdBy: currentUser.name,
@@ -293,7 +293,7 @@ export default function TaskCreate() {
         },
       });
       toast({ title: "PPT任务已创建", description: `已分配 ${deptAssignments.length} 个部门。` });
-      navigate('/tasks');
+      navigate(taskType ? `/tasks/${encodeURIComponent(taskType)}` : '/tasks');
       return;
     }
 
@@ -343,7 +343,7 @@ export default function TaskCreate() {
       title: "任务已下发",
       description: `任务已成功分发给 ${assignments.length} 名执行人`,
     });
-    navigate("/tasks");
+    navigate(taskType ? `/tasks/${encodeURIComponent(taskType)}` : "/tasks");
   };
 
   const getMemberById = (id: string) => users.find(m => m.id === id);
@@ -467,7 +467,7 @@ export default function TaskCreate() {
               <CardHeader>
                 <CardTitle>任务拆解</CardTitle>
                 <CardDescription>
-                  {taskType === "PPT拆分合并"
+                  {taskType === "例会资料"
                     ? "将PPT页面分配给各部门，部门负责人后续再分配给员工"
                     : "为每位执行人分配具体的工作包"}
                   {templatePageCount > 0 && (
@@ -479,7 +479,7 @@ export default function TaskCreate() {
               </CardHeader>
               <CardContent className="space-y-6">
                 {/* PPT 部门分配 UI */}
-                {taskType === "PPT拆分合并" ? (
+                {taskType === "例会资料" ? (
                   <div className="space-y-4">
                     {/* Page coverage grid */}
                     {templatePageCount > 0 && (() => {
@@ -532,7 +532,7 @@ export default function TaskCreate() {
                                     <div className="flex items-center gap-2 px-2 py-1.5 rounded bg-primary/10 border border-primary/20 cursor-pointer hover:bg-primary/20 transition-colors" 
                                       onClick={() => { setDeptHeadPickerIdx(idx); setDeptHeadSearch(""); }}>
                                       <Avatar className="h-5 w-5">
-                                        <AvatarFallback className="text-[10px] bg-primary text-white">{row.headUserAvatar}</AvatarFallback>
+                                        <AvatarFallback className="text-xs bg-primary text-white">{row.headUserAvatar}</AvatarFallback>
                                       </Avatar>
                                       <span className="text-sm font-semibold text-primary">{row.headUserName}</span>
                                     </div>
@@ -638,7 +638,7 @@ export default function TaskCreate() {
                                         </Avatar>
                                         <div className="min-w-0">
                                           <p className="text-sm font-semibold truncate">{u.name}</p>
-                                          <p className="text-[11px] text-muted-foreground truncate">{u.role} · {u.staffId}</p>
+                                          <p className="text-xs text-muted-foreground truncate">{u.role} · {u.staffId}</p>
                                         </div>
                                       </div>
                                     ))}
@@ -681,7 +681,7 @@ export default function TaskCreate() {
                     {remainingPages.length > 0 && remainingPages.length < templatePageCount && (
                       <p className="text-xs text-warning mt-2 flex items-center gap-1">
                         <AlertCircle className="h-3 w-3" />
-                        未分配页面：{remainingPages.join(", ")}
+                        未分配页面：{formatPageRange(remainingPages)}
                       </p>
                     )}
                   </div>
@@ -793,7 +793,7 @@ export default function TaskCreate() {
                                             </Avatar>
                                             <div className="min-w-0 flex-1">
                                                <p className="text-sm font-bold truncate">{member.name}</p>
-                                               <p className="text-[11px] text-muted-foreground truncate">{member.role}</p>
+                                               <p className="text-xs text-muted-foreground truncate">{member.role}</p>
                                             </div>
                                             {isSelected && <CheckCircle2 className="h-4 w-4 text-primary shrink-0" />}
                                          </div>
@@ -922,7 +922,7 @@ export default function TaskCreate() {
               <CardHeader>
                 <CardTitle>时限与审核配置</CardTitle>
                 <CardDescription>
-                  {taskType === "PPT拆分合并"
+                  {taskType === "例会资料"
                     ? "设置截止时间、审核人（汇总审核）和审批人（最终批准）"
                     : "设置截止时间和指定审核人"}
                 </CardDescription>
@@ -963,7 +963,7 @@ export default function TaskCreate() {
                   </div>
                 </div>
 
-                {taskType === "PPT拆分合并" ? (
+                {taskType === "例会资料" ? (
                   <>
                     {/* 审核人（从真实用户中选） */}
                     <div className="space-y-2">
@@ -1070,7 +1070,7 @@ export default function TaskCreate() {
                                           </Avatar>
                                           <div className="min-w-0">
                                             <p className="text-sm font-semibold truncate">{u.name}</p>
-                                            <p className="text-[11px] text-muted-foreground truncate">{u.role} · {u.staffId}</p>
+                                            <p className="text-xs text-muted-foreground truncate">{u.role} · {u.staffId}</p>
                                           </div>
                                           {isSelected && <CheckCircle2 className="h-4 w-4 text-primary shrink-0 ml-auto" />}
                                         </div>
@@ -1147,17 +1147,17 @@ export default function TaskCreate() {
                   <div className="flex items-center justify-between py-2 border-b border-border">
                     <span className="text-muted-foreground">审核人</span>
                     <span>
-                      {taskType === "PPT拆分合并"
+                      {taskType === "例会资料"
                         ? (users.find(u => u.id === pptReviewerId)?.name || <span className="text-muted-foreground text-sm">未设置</span>)
                         : (reviewerOptions.find(r => r.id === reviewer)?.name || "")}
-                      {taskType !== "PPT拆分合并" && (
+                      {taskType !== "例会资料" && (
                         <span className="text-muted-foreground ml-1">
                           ({reviewerOptions.find(r => r.id === reviewer)?.title || ""})
                         </span>
                       )}
                     </span>
                   </div>
-                  {taskType === "PPT拆分合并" && (
+                  {taskType === "例会资料" && (
                     <div className="flex items-center justify-between py-2 border-b border-border">
                       <span className="text-muted-foreground">审批人</span>
                       <span>{users.find(u => u.id === pptApproverId)?.name || <span className="text-muted-foreground text-sm">未设置</span>}</span>
@@ -1168,7 +1168,7 @@ export default function TaskCreate() {
                 {/* Assignment List */}
                 <div className="space-y-3">
                   <Label>分配清单</Label>
-                  {taskType === "PPT拆分合并" ? (
+                  {taskType === "例会资料" ? (
                     <div className="rounded-lg border border-border overflow-hidden">
                       <table className="w-full">
                         <thead className="bg-muted/50">
@@ -1185,7 +1185,7 @@ export default function TaskCreate() {
                                 <div className="font-medium mb-1">{row.deptName}</div>
                                 {row.headUserName ? (
                                   <div className="flex items-center gap-1.5 text-muted-foreground">
-                                    <Avatar className="h-5 w-5"><AvatarFallback className="text-[10px] bg-primary/10 text-primary">{row.headUserAvatar}</AvatarFallback></Avatar>
+                                    <Avatar className="h-5 w-5"><AvatarFallback className="text-xs bg-primary/10 text-primary">{row.headUserAvatar}</AvatarFallback></Avatar>
                                     <span className="text-xs">{row.headUserName}</span>
                                   </div>
                                 ) : <span className="text-xs text-muted-foreground/70">未指派负责人</span>}

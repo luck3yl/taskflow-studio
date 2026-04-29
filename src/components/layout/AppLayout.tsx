@@ -1,4 +1,4 @@
-import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
+﻿import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "./AppSidebar";
 import { Bell, Search, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -44,7 +44,7 @@ export function AppLayout({ children, title }: AppLayoutProps) {
                   <Bell className="h-5 w-5 text-muted-foreground" />
                   <span className="absolute -top-0.5 -right-0.5 h-5 w-5 flex items-center justify-center">
                     <span className="absolute inline-flex h-full w-full rounded-full bg-accent opacity-75 animate-ping" />
-                    <span className="relative inline-flex rounded-full h-4 w-4 bg-accent text-[10px] font-bold text-accent-foreground items-center justify-center">
+                    <span className="relative inline-flex rounded-full h-4 w-4 bg-accent text-xs font-bold text-accent-foreground items-center justify-center">
                       3
                     </span>
                   </span>

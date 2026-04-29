@@ -1,3 +1,4 @@
+import { formatPageRange } from "@/lib/utils";
 import React, { createContext, useContext, useState, ReactNode } from "react";
 
 // ===================== PPT 拆分合并工作流类型 =====================
@@ -31,7 +32,9 @@ export interface PptUserAssignment {
   department: string;
   /** 负责的页面（支持跳跃式，如 [1,3,5,7,9]） */
   pages: number[];
-  status: "pending" | "in_progress" | "submitted" | "approved" | "rejected";
+  /** 任务描述 */
+  taskDescription?: string;
+  status: "pending" | "in_progress" | "submitted" | "dept_approved" | "final_approved" | "rejected";
   submissions: PptPageSubmission[];
 }
 
@@ -43,7 +46,7 @@ export interface PptDeptAssignment {
   requirement?: string;
   headUserId?: string;
   headUserName?: string;
-  status: "pending" | "in_progress" | "submitted" | "approved";
+  status: "pending" | "in_progress" | "dept_approved" | "final_approved";
   userAssignments: PptUserAssignment[];
 }
 
@@ -97,7 +100,7 @@ export interface Assignee {
   submissions: Submission[];
 }
 
-export type TaskType = "调研反馈" | "例会反馈" | "标杆机组评价" | "体系能力评价" | "对标找差" | "培训交流" | "PPT拆分合并";
+export type TaskType = "调研反馈" | "例会反馈" | "标杆机组评价" | "体系能力评价" | "对标找差" | "培训交流" | "例会资料";
 
 export interface Task {
   id: string;
@@ -117,8 +120,62 @@ export interface Task {
   completedCount: number;
   status: "in_progress" | "completed";
   assignees: Assignee[];
-  /** PPT拆分合并工作流（仅type="PPT拆分合并"时使用） */
+  /** 例会资料工作流（仅type="例会资料"时使用） */
   pptWorkflow?: PptWorkflow;
+}
+
+function derivePptStage(ppt: PptWorkflow): PptStage {
+  if (ppt.stage === "merged") {
+    return "merged";
+  }
+
+  const userAssignments = ppt.deptAssignments.flatMap(dept => dept.userAssignments);
+  const allAssigned = ppt.deptAssignments.every(dept => dept.userAssignments.length > 0);
+
+  if (userAssignments.length === 0) {
+    return ppt.deptAssignments.length > 0 ? "user_assignment" : "dept_assignment";
+  }
+
+  if (userAssignments.every(ua => ua.status === "final_approved")) {
+    return "approved";
+  }
+
+  if (userAssignments.some(ua => ua.status === "dept_approved")) {
+    return "final_reviewing";
+  }
+
+  if (userAssignments.some(ua => ua.status === "submitted")) {
+    return "dept_reviewing";
+  }
+
+  if (allAssigned) {
+    return "in_progress";
+  }
+
+  return "user_assignment";
+}
+
+function syncPptTask(task: Task): Task {
+  if (!task.pptWorkflow) {
+    return task;
+  }
+
+  const totalUserAssignments = task.pptWorkflow.deptAssignments.flatMap(dept => dept.userAssignments).length;
+  const finalApprovedCount = task.pptWorkflow.deptAssignments
+    .flatMap(dept => dept.userAssignments)
+    .filter(ua => ua.status === "final_approved").length;
+  const nextStage = derivePptStage(task.pptWorkflow);
+
+  return {
+    ...task,
+    totalAssignees: totalUserAssignments || task.totalAssignees,
+    completedCount: finalApprovedCount,
+    status: totalUserAssignments > 0 && finalApprovedCount === totalUserAssignments ? "completed" : "in_progress",
+    pptWorkflow: {
+      ...task.pptWorkflow,
+      stage: nextStage,
+    },
+  };
 }
 
 interface TaskContextType {
@@ -134,6 +191,7 @@ interface TaskContextType {
     fileName: string; fileSize: number; fileUrl?: string; note?: string; baseVersion: number;
   }) => { hasConflict: boolean; conflictDescription?: string };
   reviewPptWork: (taskId: string, deptId: string, userAssignmentId: string, submissionId: string, approved: boolean, feedback?: string) => void;
+  finalApprovePptWork: (taskId: string, deptId: string, userAssignmentId: string, approved: boolean, feedback?: string) => void;
   assignPptPagesToUser: (taskId: string, deptId: string, assignment: Omit<PptUserAssignment, "id" | "status" | "submissions">) => void;
   advancePptStage: (taskId: string, toStage: PptStage) => void;
 }
@@ -151,7 +209,7 @@ const initialTasks: Task[] = [
   {
     id: "task-1",
     title: "2026年度集团战略发展规划演示文稿",
-    type: "PPT拆分合并",
+    type: "例会资料",
     department: "全公司",
     createdAt: "2026-03-01",
     deadline: "2026-03-30 18:00",
@@ -263,11 +321,11 @@ const initialTasks: Task[] = [
       deptAssignments: [
         {
           id: "da-1",
-          department: "设备部",
+          department: "设备室",
           // 注意：页面15在两个部门都有分配（冲突场景）
           pages: [1,2,3,4,5,6,7,8,9,10,15],
-          headUserId: "user-2",
-          headUserName: "李华",
+          headUserId: "user-3",
+          headUserName: "王芳",
           status: "in_progress",
           userAssignments: [
             {
@@ -275,20 +333,23 @@ const initialTasks: Task[] = [
               userId: "user-1",
               userName: "张明",
               userAvatar: "张",
-              department: "设备部",
+              department: "设备室",
               pages: [1,3,5,7,9],  // 跳跃式分配：第1、3、5、7、9页
-              status: "submitted",
+              taskDescription: "负责设备管理系统架构设计",
+              status: "dept_approved",
               submissions: [{
                 id: "ps-1",
                 submittedBy: "张明",
                 submittedById: "user-1",
-                department: "设备部",
+                department: "设备室",
                 submittedAt: "2026-04-20 10:30",
                 fileName: "张明_第1357910页_初稿.pptx",
                 fileSize: 1.2,
                 version: 1,
                 baseVersion: 0,
-                status: "pending",
+                status: "approved",
+                feedback: "内容完整，格式规范，室主任审核通过",
+                feedbackAt: "2026-04-21 09:00",
                 hasConflict: false,
               }]
             },
@@ -297,38 +358,35 @@ const initialTasks: Task[] = [
               userId: "user-2",
               userName: "李华",
               userAvatar: "李",
-              department: "设备部",
+              department: "设备室",
               pages: [2,4,6,8,10,15],
-              status: "approved",
+              taskDescription: "负责设备维护流程优化方案",
+              status: "submitted",
               submissions: [
                 {
                   id: "ps-2",
                   submittedBy: "李华",
                   submittedById: "user-2",
-                  department: "设备部",
+                  department: "设备室",
                   submittedAt: "2026-04-18 15:00",
                   fileName: "李华_第2468010页.pptx",
                   fileSize: 1.5,
                   version: 1,
                   baseVersion: 0,
-                  status: "approved",
-                  feedback: "内容完整，格式规范，通过",
-                  feedbackAt: "2026-04-19 09:00",
+                  status: "pending",
                   hasConflict: false,
                 },
                 {
                   id: "ps-3",
                   submittedBy: "李华",
                   submittedById: "user-2",
-                  department: "设备部",
+                  department: "设备室",
                   submittedAt: "2026-04-19 11:00",
                   fileName: "李华_第15页_封面设计.pptx",
                   fileSize: 0.8,
                   version: 1,
                   baseVersion: 0,
-                  status: "approved",
-                  feedback: "封面设计美观，通过",
-                  feedbackAt: "2026-04-19 14:00",
+                  status: "pending",
                   hasConflict: false,
                 }
               ]
@@ -413,18 +471,7 @@ const initialTasks: Task[] = [
           headUserId: "user-4",
           headUserName: "赵强",
           status: "pending",
-          userAssignments: [
-            {
-              id: "ua-5",
-              userId: "user-4",
-              userName: "赵强",
-              userAvatar: "赵",
-              department: "综合管理组",
-              pages: [21,22,23,24,25,26,27,28,29,30],
-              status: "pending",
-              submissions: []
-            }
-          ]
+          userAssignments: []
         }
       ]
     }
@@ -498,11 +545,11 @@ const initialTasks: Task[] = [
 ];
 
 export function TaskProvider({ children }: { children: ReactNode }) {
-  const [tasks, setTasks] = useState<Task[]>(initialTasks);
+  const [tasks, setTasks] = useState<Task[]>(() => initialTasks.map(syncPptTask));
 
   const addTask = (taskData: Omit<Task, "id" | "createdAt" | "completedCount" | "status">): string => {
     const newId = `task-${Date.now()}`;
-    const autoWorkflow: PptWorkflow | undefined = taskData.type === "PPT拆分合并"
+    const autoWorkflow: PptWorkflow | undefined = taskData.type === "例会资料"
       ? {
           stage: "dept_assignment",
           totalPages: taskData.templatePageCount ?? 10,
@@ -518,7 +565,7 @@ export function TaskProvider({ children }: { children: ReactNode }) {
       status: "in_progress",
       pptWorkflow: autoWorkflow ?? taskData.pptWorkflow,
     };
-    setTasks(prev => [newTask, ...prev]);
+    setTasks(prev => [syncPptTask(newTask), ...prev]);
     return newId;
   };
 
@@ -644,7 +691,7 @@ export function TaskProvider({ children }: { children: ReactNode }) {
               conflictPages.push(page);
               if (!hasConflict) {
                 hasConflict = true;
-                conflictDescription = `⚠️ 第${conflictPages.join("、")}页已由 ${conflictUser} 提交了更新版本（v${currentVer}），您的提交基于 v${data.baseVersion}，可能覆盖已有内容。建议下载最新版本后重新编辑。`;
+                conflictDescription = `⚠️ 第${formatPageRange(conflictPages)}页已由 ${conflictUser} 提交了更新版本（v${currentVer}），您的提交基于 v${data.baseVersion}，可能覆盖已有内容。建议下载最新版本后重新编辑。`;
               }
             }
           }
@@ -688,10 +735,10 @@ export function TaskProvider({ children }: { children: ReactNode }) {
         }
       }
 
-      return {
+      return syncPptTask({
         ...task,
         pptWorkflow: { ...ppt, deptAssignments: updatedDepts, pageVersions: newVersions },
-      };
+      });
     }));
 
     return { hasConflict, conflictDescription };
@@ -735,19 +782,59 @@ export function TaskProvider({ children }: { children: ReactNode }) {
               feedbackAt: new Date().toLocaleString("zh-CN"),
             };
           });
+          // 室主任审核通过后，状态变为 dept_approved（等待部长审批）
           // 驳回：直接退回给提交人，状态重置为 "rejected"（提交人可重新提交）
-          const newStatus = approved ? "approved" as const : "rejected" as const;
+          const newStatus = approved ? "dept_approved" as const : "rejected" as const;
           return { ...ua, status: newStatus, submissions: updatedSubs };
         });
-        // 检查部门所有用户是否都已通过
-        const allApproved = updatedUsers.every(ua => ua.status === "approved");
+        // 检查部门所有用户是否都已通过室主任审核
+        const allDeptApproved = updatedUsers.every(ua => ua.status === "dept_approved" || ua.status === "final_approved");
         return {
           ...dept,
-          status: allApproved ? "approved" as const : "in_progress" as const,
+          status: allDeptApproved ? "dept_approved" as const : "in_progress" as const,
           userAssignments: updatedUsers,
         };
       });
-      return { ...task, pptWorkflow: { ...ppt, deptAssignments: updatedDepts } };
+      return syncPptTask({ ...task, pptWorkflow: { ...ppt, deptAssignments: updatedDepts } });
+    }));
+  };
+
+  const finalApprovePptWork = (
+    taskId: string,
+    deptId: string,
+    userAssignmentId: string,
+    approved: boolean,
+    feedback?: string
+  ) => {
+    setTasks(prev => prev.map(task => {
+      if (task.id !== taskId || !task.pptWorkflow) return task;
+      const ppt = task.pptWorkflow;
+      const updatedDepts = ppt.deptAssignments.map(dept => {
+        if (dept.id !== deptId) return dept;
+        const updatedUsers = dept.userAssignments.map(ua => {
+          if (ua.id !== userAssignmentId) return ua;
+          // 部长审批：通过则 final_approved，驳回则退回 rejected
+          const newStatus = approved ? "final_approved" as const : "rejected" as const;
+          // 更新最新提交的审核状态
+          const updatedSubs = ua.submissions.map((sub, idx, arr) => {
+            if (idx !== arr.length - 1) return sub; // 只更新最新一条
+            return {
+              ...sub,
+              status: approved ? "approved" as const : "rejected" as const,
+              feedback: feedback || (approved ? "部长审批通过" : ""),
+              feedbackAt: new Date().toLocaleString("zh-CN"),
+            };
+          });
+          return { ...ua, status: newStatus, submissions: updatedSubs };
+        });
+        const allFinalApproved = updatedUsers.every(ua => ua.status === "final_approved");
+        return {
+          ...dept,
+          status: allFinalApproved ? "final_approved" as const : "in_progress" as const,
+          userAssignments: updatedUsers,
+        };
+      });
+      return syncPptTask({ ...task, pptWorkflow: { ...ppt, deptAssignments: updatedDepts } });
     }));
   };
 
@@ -773,25 +860,40 @@ export function TaskProvider({ children }: { children: ReactNode }) {
           ...dept,
           status: "in_progress" as const,
           userAssignments: exists
-            ? dept.userAssignments.map(ua => ua.userId === assignment.userId ? { ...ua, pages: assignment.pages } : ua)
+            ? dept.userAssignments.map(ua => ua.userId === assignment.userId ? {
+                ...ua,
+                pages: assignment.pages,
+                taskDescription: assignment.taskDescription,
+              } : ua)
             : [...dept.userAssignments, newAssignment],
         };
       });
-      return { ...task, pptWorkflow: { ...ppt, deptAssignments: updatedDepts } };
+      return syncPptTask({ ...task, pptWorkflow: { ...ppt, deptAssignments: updatedDepts } });
     }));
   };
 
   const advancePptStage = (taskId: string, toStage: PptStage) => {
     setTasks(prev => prev.map(task => {
       if (task.id !== taskId || !task.pptWorkflow) return task;
-      return {
+
+      const mergedPreviewUrl = toStage === "merged"
+        ? task.pptWorkflow.deptAssignments
+            .flatMap(dept => dept.userAssignments)
+            .filter(ua => ua.status === "final_approved")
+            .flatMap(ua => ua.submissions)
+            .map(sub => sub.fileUrl)
+            .filter((fileUrl): fileUrl is string => !!fileUrl)
+            .slice(-1)[0] || task.pptWorkflow.templateFileUrl || task.pptWorkflow.mergedFileUrl
+        : task.pptWorkflow.mergedFileUrl;
+
+      return syncPptTask({
         ...task,
         pptWorkflow: {
           ...task.pptWorkflow,
           stage: toStage,
-          mergedFileUrl: toStage === "merged" ? "https://example.com/merged.pptx" : task.pptWorkflow.mergedFileUrl,
+          mergedFileUrl: mergedPreviewUrl,
         },
-      };
+      });
     }));
   };
 
@@ -806,6 +908,7 @@ export function TaskProvider({ children }: { children: ReactNode }) {
       deleteTask,
       submitPptWork,
       reviewPptWork,
+      finalApprovePptWork,
       assignPptPagesToUser,
       advancePptStage,
     }}>

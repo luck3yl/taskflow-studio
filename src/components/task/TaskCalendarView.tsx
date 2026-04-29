@@ -1,4 +1,4 @@
-import React from "react";
+﻿import React from "react";
 import { Calendar } from "@/components/ui/calendar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -81,7 +81,7 @@ export function TaskCalendarView({ tasks }: TaskCalendarViewProps) {
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex-1">
                       <div className="flex items-center gap-2 mb-1">
-                        <Badge variant="outline" className="text-[10px] h-4">
+                        <Badge variant="outline" className="text-xs h-4">
                           {task.type}
                         </Badge>
                         <h4 className="font-medium text-sm text-foreground group-hover:text-primary transition-colors">

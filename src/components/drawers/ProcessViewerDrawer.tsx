@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+﻿import { useState, useEffect, useRef } from "react";
 import NavigatedViewer from "bpmn-js/lib/NavigatedViewer";
 import "bpmn-js/dist/assets/diagram-js.css";
 import "bpmn-js/dist/assets/bpmn-font/css/bpmn-embedded.css";
@@ -160,7 +160,7 @@ export function ProcessViewerDrawer({ open, onOpenChange, processId }: ProcessVi
                 <SheetHeader className="h-14 shrink-0 flex flex-row items-center justify-between border-b border-border/50 px-6 bg-card space-y-0 text-left">
                     <div className="flex items-center gap-4">
                         <SheetTitle className="text-base font-semibold">{process.name}</SheetTitle>
-                        <Badge variant="outline" className="text-[10px] px-1.5 py-0 rounded-sm">V{process.version}</Badge>
+                        <Badge variant="outline" className="text-xs px-1.5 py-0 rounded-sm">V{process.version}</Badge>
                         <span className="text-xs text-muted-foreground">{process.key}</span>
                         <SheetDescription className="sr-only">
                             流程定义的详细可视化大图

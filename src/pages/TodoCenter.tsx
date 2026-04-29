@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { formatPageRange } from "@/lib/utils";
+﻿import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Card, CardContent } from "@/components/ui/card";
@@ -32,14 +33,20 @@ import { useUserContext } from "@/contexts/UserContext";
 
 const statusStyles = {
   pending: "bg-warning/10 text-warning border-warning/20",
+  in_progress: "bg-blue-50 text-blue-700 border-blue-200",
   submitted: "bg-info/10 text-info border-info/20",
+  dept_approved: "bg-orange-50 text-orange-700 border-orange-200",
+  final_approved: "bg-success/10 text-success border-success/20",
   approved: "bg-success/10 text-success border-success/20",
   rejected: "bg-destructive/10 text-destructive border-destructive/20",
 };
 
 const statusLabels = {
   pending: "待处理",
+  in_progress: "进行中",
   submitted: "已提交",
+  dept_approved: "待部长审批",
+  final_approved: "已审批通过",
   approved: "已通过",
   rejected: "已驳回",
 };
@@ -47,8 +54,10 @@ const statusLabels = {
 const statusFilters = [
   { value: "all", label: "全部状态" },
   { value: "pending", label: "待处理" },
+  { value: "in_progress", label: "进行中" },
   { value: "submitted", label: "已提交" },
-  { value: "approved", label: "已通过" },
+  { value: "dept_approved", label: "待部长审批" },
+  { value: "final_approved", label: "已审批通过" },
   { value: "rejected", label: "已驳回" },
 ];
 
@@ -74,47 +83,24 @@ export default function TodoCenter() {
       return [{ task, assignee }];
     }
     
-    // 处理 PPT拆分合并任务 的分配（在 task.pptWorkflow 中）
-    if (task.type === "PPT拆分合并" && task.pptWorkflow) {
-      let myPptAssignments: { task: Task, assignee: Assignee & { isDeptHeadDistribution?: boolean } }[] = [];
+    // 处理例会资料任务的分配（在 task.pptWorkflow 中）
+    if (task.type === "例会资料" && task.pptWorkflow) {
+      const myPptAssignments: { task: Task, assignee: Assignee & { isDeptHeadDistribution?: boolean } }[] = [];
 
-      // 1. 如果当前登录人是该部门的负责人，并且状态还是 pending 或分配进行中，作为一个专门的“需要分配任务”待办出来
       task.pptWorkflow.deptAssignments.forEach(deptAssignment => {
-        if (deptAssignment.headUserId === currentUser.id && deptAssignment.status !== "approved") {
-          const hasPendingReview = deptAssignment.userAssignments.some(ua => ua.status === "submitted");
-          myPptAssignments.push({
-            task,
-            assignee: {
-              id: deptAssignment.id,
-              memberId: currentUser.id,
-              name: currentUser.name,
-              avatar: currentUser.avatar,
-              department: currentUser.department,
-              taskDescription: deptAssignment.status === "pending" 
-                ? `分配给本部门的任务：第 ${deptAssignment.pages.join(',')} 页。请尽快下发给具体员工：${deptAssignment.requirement || ''}`
-                : (hasPendingReview ? `【有待审】您有员工提交的PPT页签等待审核，请及时跟进` : `【进行中】本部门PPT拆分执行中，随时掌握进度。${deptAssignment.requirement || ''}`),
-              pageRange: deptAssignment.pages.join(','),
-              status: hasPendingReview ? "submitted" : "pending",
-              submissions: [],
-              isDeptHeadDistribution: true
-            } as Assignee & { isDeptHeadDistribution?: boolean }
-          });
-        }
-        
-        // 2. 抓取该员工自己被分配到的具体PPT编辑任务
         deptAssignment.userAssignments.forEach(ua => {
           if (ua.userId === currentUser.id) {
             myPptAssignments.push({
               task,
               assignee: {
                 ...ua,
-                id: ua.id, // Map to assignee interface closely
+                id: ua.id,
                 memberId: ua.userId,
                 name: currentUser.name,
                 avatar: currentUser.avatar,
                 department: currentUser.department,
-                taskDescription: `负责第 ${ua.pages.join(',')} 页：${deptAssignment.requirement || ''}`,
-                pageRange: ua.pages.join(','),
+                taskDescription: ua.taskDescription || deptAssignment.requirement || `负责第 ${formatPageRange(ua.pages)} 页`,
+                pageRange: formatPageRange(ua.pages),
                 status: ua.status as Assignee["status"],
                 submissions: ua.submissions,
                 isDeptHeadDistribution: false
@@ -140,7 +126,7 @@ export default function TodoCenter() {
   });
 
   const handleProcessTask = (task: Task, assignee: Assignee & { isDeptHeadDistribution?: boolean }) => {
-    if (task.type === "PPT拆分合并" && assignee.isDeptHeadDistribution) {
+    if (task.type === "例会资料" && assignee.isDeptHeadDistribution) {
       setPptTaskId(task.id);
       setPptDrawerOpen(true);
       return;
@@ -152,7 +138,7 @@ export default function TodoCenter() {
   const handleSubmit = (file: File, note: string) => {
     if (!selectedItem) return;
 
-    if (selectedItem.task.type === "PPT拆分合并" && selectedItem.task.pptWorkflow) {
+    if (selectedItem.task.type === "例会资料" && selectedItem.task.pptWorkflow) {
       // Find deptId
       let submitDeptId = "";
       let baseVersion = 0;
@@ -291,7 +277,7 @@ export default function TodoCenter() {
                       ? "bg-destructive/[0.03] border-destructive/20 text-destructive/90"
                       : "bg-success/[0.03] border-success/20 text-success/90"
                       }`}>
-                      <span className="font-bold block text-[10px] uppercase tracking-wider opacity-70 mb-1">
+                      <span className="font-bold block text-xs uppercase tracking-wider opacity-70 mb-1">
                         {assignee.status === "rejected" ? "驳回意见" : "审批通过"}
                       </span>
                       <p className="italic leading-relaxed line-clamp-2">"{latestSubmission.feedback}"</p>
