@@ -82,7 +82,7 @@ export default function TodoCenter() {
     if (assignee) {
       return [{ task, assignee }];
     }
-    
+
     // 处理例会资料任务的分配（在 task.pptWorkflow 中）
     if (task.type === "例会资料" && task.pptWorkflow) {
       const myPptAssignments: { task: Task, assignee: Assignee & { isDeptHeadDistribution?: boolean } }[] = [];
@@ -114,7 +114,7 @@ export default function TodoCenter() {
         return myPptAssignments;
       }
     }
-    
+
     return [];
   });
 

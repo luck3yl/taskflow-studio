@@ -5,8 +5,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { 
-  Search, 
+import {
+  Search,
   Plus,
   ChevronDown,
   ChevronRight,
@@ -128,8 +128,8 @@ export default function TaskCenter() {
   const canViewMergedFile = !isRoomHead;
 
   const toggleExpand = (taskId: string) => {
-    setExpandedTasks(prev => 
-      prev.includes(taskId) 
+    setExpandedTasks(prev =>
+      prev.includes(taskId)
         ? prev.filter(id => id !== taskId)
         : [...prev, taskId]
     );
@@ -192,7 +192,7 @@ export default function TaskCenter() {
         {/* Header */}
         <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
           <div className="flex items-center gap-3">
-            <Button 
+            <Button
               className="gradient-primary"
               onClick={() => navigate(createUrl)}
             >
@@ -201,7 +201,7 @@ export default function TaskCenter() {
             </Button>
 
           </div>
-          
+
           <div className="flex flex-wrap gap-3 w-full sm:w-auto items-center">
             <Tabs value={viewMode} onValueChange={(v) => setViewMode(v as any)} className="mr-2">
               <TabsList className="bg-secondary/50 border border-border/50">
@@ -276,8 +276,8 @@ export default function TaskCenter() {
           <div className="space-y-4">
             {filteredTasks.map((task, index) => {
               const isExpanded = expandedTasks.includes(task.id);
-              const progress = task.totalAssignees > 0 
-                ? (task.completedCount / task.totalAssignees) * 100 
+              const progress = task.totalAssignees > 0
+                ? (task.completedCount / task.totalAssignees) * 100
                 : 0;
               const isMyPptDeptHead = task.type === "例会资料" && !!task.pptWorkflow?.deptAssignments.some(
                 dept => dept.headUserId === currentUser.id
@@ -291,12 +291,12 @@ export default function TaskCenter() {
                 ));
 
               return (
-                <Collapsible 
-                  key={task.id} 
+                <Collapsible
+                  key={task.id}
                   open={isExpanded}
                   onOpenChange={() => toggleExpand(task.id)}
                 >
-                  <Card 
+                  <Card
                     className="shadow-card animate-slide-up overflow-hidden"
                     style={{ animationDelay: `${index * 50}ms` }}
                   >
@@ -334,8 +334,8 @@ export default function TaskCenter() {
                             {/* Assignee Avatars */}
                             <div className="hidden md:flex -space-x-2">
                               {task.assignees.slice(0, 4).map((assignee) => (
-                                <Avatar 
-                                  key={assignee.id} 
+                                <Avatar
+                                  key={assignee.id}
                                   className="h-8 w-8 border-2 border-card"
                                 >
                                   <AvatarFallback className={`text-xs ${statusStyles[assignee.status].bg}`}>
@@ -361,8 +361,8 @@ export default function TaskCenter() {
                               </DropdownMenuTrigger>
                               <DropdownMenuContent align="end">
                                 {task.type === "例会资料" && (
-                                  <DropdownMenuItem onClick={(e) => { 
-                                    e.stopPropagation(); 
+                                  <DropdownMenuItem onClick={(e) => {
+                                    e.stopPropagation();
                                     setPptTaskId(task.id);
                                     setPptTaskDrawerOpen(true);
                                   }}>
@@ -371,7 +371,7 @@ export default function TaskCenter() {
                                 )}
                                 <DropdownMenuItem>编辑任务</DropdownMenuItem>
                                 <DropdownMenuItem>催办提醒</DropdownMenuItem>
-                                <DropdownMenuItem 
+                                <DropdownMenuItem
                                   className="text-destructive focus:text-destructive"
                                   onClick={(e) => {
                                     e.stopPropagation();
@@ -523,9 +523,9 @@ export default function TaskCenter() {
       />
 
       {/* Progress List Drawer/Dialog */}
-      <TaskProgressList 
-        open={progressListOpen} 
-        onOpenChange={setProgressListOpen} 
+      <TaskProgressList
+        open={progressListOpen}
+        onOpenChange={setProgressListOpen}
         tasks={tasks}
       />
 

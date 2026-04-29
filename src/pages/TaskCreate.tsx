@@ -138,8 +138,8 @@ export default function TaskCreate() {
     { id: "chen", name: "陈总监", title: "技术总监" },
   ];
 
-  const filteredMembers = users.filter(m => 
-    m.name.includes(memberSearch) || 
+  const filteredMembers = users.filter(m =>
+    m.name.includes(memberSearch) ||
     m.department.includes(memberSearch) ||
     m.staffId.includes(memberSearch)
   );
@@ -234,7 +234,7 @@ export default function TaskCreate() {
     if (!file) return;
 
     setTemplateFile(file);
-    
+
     // Hardcode PPT page count to 10 as per requirements
     const pageCount = 10;
     setTemplatePageCount(pageCount);
@@ -529,7 +529,7 @@ export default function TaskCreate() {
                                   </Select>
 
                                   {row.headUserId ? (
-                                    <div className="flex items-center gap-2 px-2 py-1.5 rounded bg-primary/10 border border-primary/20 cursor-pointer hover:bg-primary/20 transition-colors" 
+                                    <div className="flex items-center gap-2 px-2 py-1.5 rounded bg-primary/10 border border-primary/20 cursor-pointer hover:bg-primary/20 transition-colors"
                                       onClick={() => { setDeptHeadPickerIdx(idx); setDeptHeadSearch(""); }}>
                                       <Avatar className="h-5 w-5">
                                         <AvatarFallback className="text-xs bg-primary text-white">{row.headUserAvatar}</AvatarFallback>
@@ -564,7 +564,7 @@ export default function TaskCreate() {
                                 />
                               </div>
                             </div>
-                            
+
                             <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive shrink-0 mt-6"
                               onClick={() => setPptDeptRows(prev => prev.filter((_, i) => i !== idx))}>
                               <X className="h-4 w-4" />
@@ -576,8 +576,8 @@ export default function TaskCreate() {
                             <label className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5">
                               <FileText className="h-3.5 w-3.5" /> 本次分配说明 / 页面要求
                             </label>
-                            <Input 
-                              placeholder="详细描述该部门需要在这几页PPT上补充的数据或内容说明..." 
+                            <Input
+                              placeholder="详细描述该部门需要在这几页PPT上补充的数据或内容说明..."
                               className="h-9 text-sm bg-background border-muted-foreground/20"
                               value={row.requirement}
                               onChange={(e) => setPptDeptRows(prev => prev.map((r, i) => i === idx ? { ...r, requirement: e.target.value } : r))}
@@ -693,8 +693,8 @@ export default function TaskCreate() {
                     <Label>添加执行人</Label>
                     <div className="relative w-64 group">
                       <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground group-focus-within:text-primary" />
-                      <Input 
-                        placeholder="搜索姓名、工号或部门" 
+                      <Input
+                        placeholder="搜索姓名、工号或部门"
                         className="h-8 pl-8 text-xs rounded-lg"
                         value={memberSearch}
                         onChange={(e) => setMemberSearch(e.target.value)}
@@ -722,7 +722,7 @@ export default function TaskCreate() {
                         </Button>
                       );
                     })}
-                    
+
                     <Dialog open={isAdvancedSelectOpen} onOpenChange={setIsAdvancedSelectOpen}>
                       <DialogTrigger asChild>
                         <Button variant="outline" size="sm" className="h-8 px-3 text-xs border-dashed border-primary/30 text-primary hover:bg-primary/5 hover:text-primary">
@@ -740,11 +740,11 @@ export default function TaskCreate() {
                             支持跨部门搜索与选择，已选中 {assignments.length} 位执行人。
                           </DialogDescription>
                         </DialogHeader>
-                        
+
                         <div className="relative mt-4 mb-4">
                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                           <Input 
-                             placeholder="搜索姓名、工号、部门或职位..." 
+                           <Input
+                             placeholder="搜索姓名、工号、部门或职位..."
                              className="pl-10 h-10 rounded-xl"
                              value={memberSearch}
                              onChange={(e) => setMemberSearch(e.target.value)}
@@ -755,7 +755,7 @@ export default function TaskCreate() {
                            <div className="space-y-6 pb-4">
                              {departments.map(dept => {
                                const deptMembers = users.filter(u => u.department === dept.name && (
-                                 u.name.includes(memberSearch) || 
+                                 u.name.includes(memberSearch) ||
                                  u.department.includes(memberSearch) ||
                                  u.staffId.includes(memberSearch) ||
                                  u.role.includes(memberSearch)
@@ -768,7 +768,7 @@ export default function TaskCreate() {
                                    <div className="flex items-center justify-between sticky top-0 bg-background/95 backdrop-blur-sm py-1 z-10 border-b border-border/30">
                                       <h4 className="text-sm font-bold flex items-center gap-2">
                                         <Building2 className="h-4 w-4 text-muted-foreground" />
-                                        {dept.name} 
+                                        {dept.name}
                                         <span className="text-xs font-normal text-muted-foreground">({deptMembers.length}人)</span>
                                       </h4>
                                    </div>
@@ -776,13 +776,13 @@ export default function TaskCreate() {
                                      {deptMembers.map(member => {
                                        const isSelected = assignments.some(a => a.memberId === member.id);
                                        return (
-                                         <div 
+                                         <div
                                            key={member.id}
                                            onClick={() => toggleMemberSelection(member.id)}
                                            className={cn(
                                              "flex items-center gap-3 p-2 rounded-xl border cursor-pointer transition-all hover:shadow-md",
-                                             isSelected 
-                                               ? "bg-primary/5 border-primary/30 shadow-sm ring-1 ring-primary/20" 
+                                             isSelected
+                                               ? "bg-primary/5 border-primary/30 shadow-sm ring-1 ring-primary/20"
                                                : "bg-muted/10 border-border/40 hover:bg-muted/30"
                                            )}
                                          >

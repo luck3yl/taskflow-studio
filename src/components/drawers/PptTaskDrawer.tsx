@@ -552,8 +552,8 @@ export function PptTaskDrawer({
               </div>
               <div className={cn(
                   "rounded-2xl border p-4 sm:p-5 shadow-sm transition-all hover:shadow-md flex flex-col justify-center group overflow-hidden relative",
-                  uniqueConflictPages.length > 0 
-                      ? "border-red-200/60 bg-red-50/50" 
+                  uniqueConflictPages.length > 0
+                      ? "border-red-200/60 bg-red-50/50"
                       : "border-border/60 bg-card"
               )}>
                   <div className="flex items-center justify-between z-10 relative">
@@ -571,8 +571,8 @@ export function PptTaskDrawer({
                     </div>
                     <div className={cn(
                         "h-10 w-10 rounded-xl transition-colors shrink-0 flex items-center justify-center border",
-                        uniqueConflictPages.length > 0 
-                            ? "bg-red-100/80 border-red-200 group-hover:bg-red-200" 
+                        uniqueConflictPages.length > 0
+                            ? "bg-red-100/80 border-red-200 group-hover:bg-red-200"
                             : "bg-amber-50/80 border-amber-100 group-hover:bg-amber-100/80"
                     )}>
                       <GitMerge className={cn("h-5 w-5", uniqueConflictPages.length > 0 ? "text-red-600" : "text-amber-500")} />
@@ -850,8 +850,8 @@ export function PptTaskDrawer({
                         return (
                           <div key={ua.id} className={cn(
                             "group relative p-4 sm:p-5 transition-all duration-200 ease-in-out rounded-2xl",
-                            ua.submissions.some(s => s.hasConflict) 
-                              ? "bg-amber-50/50 border border-amber-200/60 shadow-sm" 
+                            ua.submissions.some(s => s.hasConflict)
+                              ? "bg-amber-50/50 border border-amber-200/60 shadow-sm"
                               : "bg-card border border-border/60 shadow-sm hover:shadow-md hover:border-primary/20"
                           )}>
                             <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
@@ -989,7 +989,7 @@ export function PptTaskDrawer({
                                 {canReview && (
                                   <div className="space-y-4 pt-2">
                                     <h4 className="font-semibold text-foreground text-sm">审核意见</h4>
-                                    
+
                                     <div className="flex flex-wrap gap-2">
                                       {quickFeedbacks.map((text) => (
                                         <button
@@ -997,8 +997,8 @@ export function PptTaskDrawer({
                                           onClick={() => setReviewFeedback(text)}
                                           className={cn(
                                             "px-3 py-1.5 rounded-lg text-xs font-medium transition-colors border",
-                                            reviewFeedback === text 
-                                              ? "bg-orange-100/80 text-orange-800 border-orange-200" 
+                                            reviewFeedback === text
+                                              ? "bg-orange-100/80 text-orange-800 border-orange-200"
                                               : "bg-background border-border/80 text-muted-foreground hover:bg-secondary/50 hover:text-foreground"
                                           )}
                                         >
@@ -1006,7 +1006,7 @@ export function PptTaskDrawer({
                                         </button>
                                       ))}
                                     </div>
-                                    
+
                                     <Textarea
                                       rows={3}
                                       placeholder="输入审核意见（驳回时必填）..."
@@ -1024,8 +1024,8 @@ export function PptTaskDrawer({
                                         <XCircle className="h-4 w-4" />
                                         驳回
                                       </Button>
-                                      <Button 
-                                        className="flex-1 h-11 rounded-xl bg-[#10b981] hover:bg-[#059669] text-white gap-2 text-sm font-semibold shadow-sm transition-colors" 
+                                      <Button
+                                        className="flex-1 h-11 rounded-xl bg-[#10b981] hover:bg-[#059669] text-white gap-2 text-sm font-semibold shadow-sm transition-colors"
                                         onClick={() => handleReview(true)}
                                       >
                                         <CheckCircle2 className="h-4 w-4" />
