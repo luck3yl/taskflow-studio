@@ -48,6 +48,7 @@ import { TaskKanbanView } from "@/components/task/TaskKanbanView";
 import { TaskCalendarView } from "@/components/task/TaskCalendarView";
 import { TaskProgressList } from "@/components/task/TaskProgressList";
 import { PptTaskDetail } from "@/components/task/PptTaskDetail";
+import { TaskSpecialTableView } from "@/components/task/TaskSpecialTableView";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 const statusStyles = {
@@ -272,7 +273,13 @@ export default function TaskCenter() {
         </div>
 
         {/* Dynamic Views */}
-        {viewMode === "list" && (
+        {viewMode === "list" && ["标杆机组评价", "培训交流", "例会反馈", "调研反馈", "对标找差", "体系能力评价"].includes(activeTaskType) && (
+          <div className="space-y-4">
+            <TaskSpecialTableView type={activeTaskType} />
+          </div>
+        )}
+
+        {viewMode === "list" && !["标杆机组评价", "培训交流", "例会反馈", "调研反馈", "对标找差", "体系能力评价"].includes(activeTaskType) && (
           <div className="space-y-4">
             {filteredTasks.map((task, index) => {
               const isExpanded = expandedTasks.includes(task.id);
