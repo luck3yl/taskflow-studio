@@ -103,6 +103,56 @@ const parsePageInput = (input: string, maxPages: number): number[] => {
   return Array.from(pages).sort((a, b) => a - b);
 };
 
+const formatPageSelection = (pages: number[]): string => {
+  if (pages.length === 0) return "";
+
+  const sorted = [...new Set(pages)].sort((a, b) => a - b);
+  const ranges: string[] = [];
+  let start = sorted[0];
+  let end = sorted[0];
+
+  for (let i = 1; i < sorted.length; i++) {
+    if (sorted[i] === end + 1) {
+      end = sorted[i];
+    } else {
+      ranges.push(start === end ? `${start}` : `${start}-${end}`);
+      start = sorted[i];
+      end = sorted[i];
+    }
+  }
+
+  ranges.push(start === end ? `${start}` : `${start}-${end}`);
+  return ranges.join(", ");
+};
+
+const togglePageSelection = (input: string, page: number, maxPages: number): string => {
+  const pages = new Set(parsePageInput(input, maxPages));
+
+  if (pages.has(page)) {
+    pages.delete(page);
+  } else {
+    pages.add(page);
+  }
+
+  return formatPageSelection(Array.from(pages));
+};
+
+const togglePageGroupSelection = (input: string, targetPages: number[], maxPages: number): string => {
+  const pages = new Set(parsePageInput(input, maxPages));
+  const normalizedTargets = targetPages.filter(page => page >= 1 && page <= maxPages);
+  const isFullySelected = normalizedTargets.every(page => pages.has(page));
+
+  normalizedTargets.forEach(page => {
+    if (isFullySelected) {
+      pages.delete(page);
+    } else {
+      pages.add(page);
+    }
+  });
+
+  return formatPageSelection(Array.from(pages));
+};
+
 export default function TaskCreate() {
   const { users, departments, currentUser } = useUserContext();
   const [currentStep, setCurrentStep] = useState(1);
@@ -118,6 +168,7 @@ export default function TaskCreate() {
   const [pptReviewerId, setPptReviewerId] = useState("");
   const [pptApproverId, setPptApproverId] = useState("");
   const [deptHeadPickerIdx, setDeptHeadPickerIdx] = useState<number | null>(null);
+  const [pagePickerRowIdx, setPagePickerRowIdx] = useState<number | null>(null);
   const [deptHeadSearch, setDeptHeadSearch] = useState("");
   const [reviewerPickerOpen, setReviewerPickerOpen] = useState<"reviewer" | "approver" | null>(null);
   const [rolePickerSearch, setRolePickerSearch] = useState("");
@@ -348,6 +399,46 @@ export default function TaskCreate() {
 
   const getMemberById = (id: string) => users.find(m => m.id === id);
 
+  const setDeptRowPageSelection = (rowIndex: number, pageSelection: string) => {
+    setPptDeptRows(prev => prev.map((row, idx) => (
+      idx === rowIndex ? { ...row, pageSelection } : row
+    )));
+  };
+
+  const activePagePickerIdx = pagePickerRowIdx !== null
+    ? Math.min(pagePickerRowIdx, Math.max(pptDeptRows.length - 1, 0))
+    : (pptDeptRows.length > 0 ? 0 : null);
+  const activePagePickerRow = activePagePickerIdx !== null ? pptDeptRows[activePagePickerIdx] : undefined;
+  const activePagePickerSelection = activePagePickerRow
+    ? parsePageInput(activePagePickerRow.pageSelection, templatePageCount)
+    : [];
+  const pageAssignmentCounts = new Map<number, number>();
+
+  pptDeptRows.forEach(row => {
+    parsePageInput(row.pageSelection, templatePageCount).forEach(page => {
+      pageAssignmentCounts.set(page, (pageAssignmentCounts.get(page) ?? 0) + 1);
+    });
+  });
+
+  const coveredPages = Array.from(pageAssignmentCounts.keys()).sort((left, right) => left - right);
+  const repeatedPages = coveredPages.filter(page => (pageAssignmentCounts.get(page) ?? 0) > 1);
+  const uncoveredPages = Array.from({ length: templatePageCount }, (_, index) => index + 1)
+    .filter(page => !pageAssignmentCounts.has(page));
+  const activePagesAssignedElsewhere = new Set<number>();
+
+  if (activePagePickerIdx !== null) {
+    pptDeptRows.forEach((row, idx) => {
+      if (idx === activePagePickerIdx) return;
+      parsePageInput(row.pageSelection, templatePageCount).forEach(page => {
+        activePagesAssignedElsewhere.add(page);
+      });
+    });
+  }
+
+  const activeOverlapPages = activePagePickerSelection.filter(page => activePagesAssignedElsewhere.has(page));
+  const activeUnassignedPages = Array.from({ length: templatePageCount }, (_, index) => index + 1)
+    .filter(page => !activePagesAssignedElsewhere.has(page));
+
   const remainingPages = getRemainingPages();
 
   return (
@@ -481,115 +572,280 @@ export default function TaskCreate() {
                 {/* PPT 部门分配 UI */}
                 {taskType === "例会资料" ? (
                   <div className="space-y-4">
-                    {/* Page coverage grid */}
-                    {templatePageCount > 0 && (() => {
-                      const covered = new Set<number>();
-                      pptDeptRows.forEach(r => {
-                        const pages = parsePageInput(r.pageSelection, templatePageCount);
-                        pages.forEach(p => covered.add(p));
-                      });
-                      return (
-                        <div className="rounded-lg border border-border p-4 bg-secondary/30">
-                          <div className="flex items-center justify-between mb-3">
-                            <span className="text-sm font-medium">页面分配状态</span>
-                            <span className="text-xs text-muted-foreground">已覆盖 {covered.size} / {templatePageCount} 页</span>
-                          </div>
-                          <div className="flex flex-wrap gap-1.5">
-                            {Array.from({ length: templatePageCount }).map((_, i) => {
-                              const p = i + 1;
-                              return (
-                                <div key={p} className={`w-8 h-8 rounded flex items-center justify-center text-xs font-medium transition-colors ${covered.has(p) ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground border border-border"}`}>{p}</div>
-                              );
-                            })}
-                          </div>
+                    <div className="grid gap-4 xl:grid-cols-[320px_minmax(0,1fr)] xl:items-start">
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between">
+                          <Label>部门</Label>
+                          <span className="text-xs text-muted-foreground">共 {pptDeptRows.length} 个部门</span>
                         </div>
-                      );
-                    })()}
 
-                    {/* Dept rows */}
-                    <div className="space-y-3">
-                      <Label>部门 & 负责人 & 页面分配</Label>
-                      {pptDeptRows.map((row, idx) => (
-                        <div key={idx} className="p-4 rounded-xl border border-border bg-card shadow-sm space-y-4 hover:border-primary/30 transition-all">
-                          <div className="flex items-start justify-between gap-4">
-                            <div className="grid grid-cols-[auto_1fr] gap-6 flex-1">
-                              {/* 部门 & 负责人 */}
-                              <div className="space-y-2 border-r border-border pr-6">
-                                <label className="text-xs font-semibold text-muted-foreground">部门及负责人</label>
-                                <div className="flex items-center gap-2">
-                                  <Select value={row.deptName} onValueChange={(v) => setPptDeptRows(prev => prev.map((r, i) => i === idx ? { ...r, deptName: v, headUserId: "", headUserName: "", headUserAvatar: "" } : r))}>
-                                    <SelectTrigger className="h-9 w-[130px] font-medium shrink-0">
-                                      <SelectValue placeholder="选择部门" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                      {departments.map(d => (
-                                        <SelectItem key={d.id} value={d.name}>{d.name}</SelectItem>
-                                      ))}
-                                    </SelectContent>
-                                  </Select>
+                        {pptDeptRows.map((row, idx) => {
+                          const selectedPages = parsePageInput(row.pageSelection, templatePageCount);
+                          const pagesAssignedElsewhere = new Set<number>();
 
-                                  {row.headUserId ? (
-                                    <div className="flex items-center gap-2 px-2 py-1.5 rounded bg-primary/10 border border-primary/20 cursor-pointer hover:bg-primary/20 transition-colors"
-                                      onClick={() => { setDeptHeadPickerIdx(idx); setDeptHeadSearch(""); }}>
-                                      <Avatar className="h-5 w-5">
-                                        <AvatarFallback className="text-xs bg-primary text-white">{row.headUserAvatar}</AvatarFallback>
-                                      </Avatar>
-                                      <span className="text-sm font-semibold text-primary">{row.headUserName}</span>
+                          pptDeptRows.forEach((otherRow, otherIdx) => {
+                            if (otherIdx === idx) return;
+                            parsePageInput(otherRow.pageSelection, templatePageCount).forEach(page => {
+                              pagesAssignedElsewhere.add(page);
+                            });
+                          });
+
+                          const sharedPageCount = selectedPages.filter(page => pagesAssignedElsewhere.has(page)).length;
+                          const isActive = activePagePickerIdx === idx;
+
+                          return (
+                            <div
+                              key={idx}
+                              onClick={() => setPagePickerRowIdx(idx)}
+                              className={cn(
+                                "w-full cursor-pointer rounded-lg border px-4 py-3 text-left transition-all",
+                                isActive ? "border-primary bg-primary/5" : "border-border bg-card hover:border-primary/30"
+                              )}
+                            >
+                              <div className="flex items-start justify-between gap-3">
+                                <div className="min-w-0 flex-1 space-y-1.5">
+                                  <div className="flex min-w-0 items-center gap-2">
+                                    <span className={cn(
+                                      "h-2.5 w-2.5 shrink-0 rounded-full",
+                                      isActive ? "bg-primary" : sharedPageCount > 0 ? "bg-emerald-500" : selectedPages.length > 0 ? "bg-sky-500" : "bg-muted-foreground/30"
+                                    )} />
+                                    <div className="flex min-w-0 items-center gap-1.5">
+                                      <p className="truncate text-sm font-medium text-foreground">
+                                        {row.deptName || `部门 ${idx + 1}`}
+                                      </p>
+                                      <span className="truncate text-xs text-muted-foreground">
+                                        {row.headUserName ? `· ${row.headUserName}` : "· 未选择负责人"}
+                                      </span>
                                     </div>
-                                  ) : (
-                                    <Button variant="outline" size="sm" className="h-9 text-xs border-dashed shrink-0"
-                                      onClick={() => { setDeptHeadPickerIdx(idx); setDeptHeadSearch(""); }}>
-                                      <Plus className="h-3 w-3 mr-1" />
-                                      委派负责人
-                                    </Button>
-                                  )}
+                                  </div>
+                                  <div className="flex flex-wrap gap-1.5" title={selectedPages.length > 0 ? formatPageSelection(selectedPages) : "未分配页码"}>
+                                    {selectedPages.length > 0 ? (
+                                      <span
+                                        className="inline-flex max-w-full items-center rounded-md border border-primary/40 bg-primary/10 px-2 py-0.5 text-[11px] font-medium text-primary"
+                                      >
+                                        <span className="truncate">{formatPageSelection(selectedPages)}</span>
+                                      </span>
+                                    ) : (
+                                      <span className="inline-flex items-center rounded-md border border-primary/30 bg-primary/8 px-2 py-0.5 text-[11px] font-medium text-primary/70">
+                                        未分配
+                                      </span>
+                                    )}
+                                  </div>
+                                  <p
+                                    className="truncate text-xs text-muted-foreground"
+                                    title={row.requirement || "未填写说明"}
+                                  >
+                                    {row.requirement || "未填写说明"}
+                                  </p>
+                                </div>
+
+                                <div className="flex items-start pl-2">
+                                  <button
+                                    type="button"
+                                    className="rounded p-1 text-muted-foreground transition-colors hover:text-destructive"
+                                    onClick={(event) => {
+                                      event.stopPropagation();
+                                      setPptDeptRows(prev => prev.filter((_, itemIdx) => itemIdx !== idx));
+                                      setPagePickerRowIdx(prev => (
+                                        prev === null ? null : prev === idx ? null : prev > idx ? prev - 1 : prev
+                                      ));
+                                    }}
+                                  >
+                                    <X className="h-4 w-4" />
+                                  </button>
                                 </div>
                               </div>
+                            </div>
+                          );
+                        })}
 
-                              {/* 页面范围 */}
-                              <div className="space-y-2 pl-2">
-                                <div className="flex items-center justify-between">
-                                  <label className="text-xs font-semibold text-muted-foreground">分配页面</label>
-                                  {parsePageInput(row.pageSelection, templatePageCount).length > 0 && (
-                                    <span className="text-xs font-medium text-primary bg-primary/10 px-2 py-0.5 rounded">
-                                      已选 {parsePageInput(row.pageSelection, templatePageCount).length} 页
-                                    </span>
-                                  )}
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="w-full border-dashed border-primary/40 text-primary hover:bg-primary/5"
+                          onClick={() => {
+                            const nextIndex = pptDeptRows.length;
+                            setPptDeptRows(prev => [...prev, { deptName: "", pageSelection: "", requirement: "", headUserId: "", headUserName: "", headUserAvatar: "" }]);
+                            setPagePickerRowIdx(nextIndex);
+                          }}
+                        >
+                          <Plus className="mr-2 h-4 w-4" />
+                          添加部门
+                        </Button>
+                      </div>
+
+                      <div className="space-y-3 xl:sticky xl:top-24">
+                        {templatePageCount > 0 ? (
+                          <div className="rounded-xl border border-border bg-card shadow-sm">
+                            <div className="border-b border-border px-4 py-4">
+                              <div className="flex items-center justify-between gap-3">
+                                <Label>页面</Label>
+                                <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                                  <span>{coveredPages.length}/{templatePageCount}</span>
+                                  {uncoveredPages.length > 0 && <span>未分配 {uncoveredPages.length}</span>}
+                                  {repeatedPages.length > 0 && <span className="text-emerald-600">共同负责 {repeatedPages.length}</span>}
                                 </div>
-                                <Input
-                                  type="text" placeholder="例如: 1-3, 5, 7"
-                                  className="h-9 text-sm font-mono"
-                                  value={row.pageSelection}
-                                  onChange={(e) => setPptDeptRows(prev => prev.map((r, i) => i === idx ? { ...r, pageSelection: e.target.value } : r))}
-                                />
                               </div>
                             </div>
 
-                            <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive shrink-0 mt-6"
-                              onClick={() => setPptDeptRows(prev => prev.filter((_, i) => i !== idx))}>
-                              <X className="h-4 w-4" />
-                            </Button>
-                          </div>
+                            <div className="space-y-4 p-4">
+                              {activePagePickerRow ? (
+                                <>
+                                  <div className="grid gap-3 lg:grid-cols-[160px_minmax(0,1fr)_auto]">
+                                    <Select value={activePagePickerRow.deptName} onValueChange={(value) => activePagePickerIdx !== null && setPptDeptRows(prev => prev.map((item, itemIdx) => itemIdx === activePagePickerIdx ? { ...item, deptName: value, headUserId: "", headUserName: "", headUserAvatar: "" } : item))}>
+                                      <SelectTrigger className="h-9 w-full font-medium">
+                                        <SelectValue placeholder="选择部门" />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        {departments.map(dept => (
+                                          <SelectItem key={dept.id} value={dept.name}>{dept.name}</SelectItem>
+                                        ))}
+                                      </SelectContent>
+                                    </Select>
 
-                          {/* 任务要求 */}
-                          <div className="bg-secondary/50 p-3 rounded-lg border border-border space-y-2">
-                            <label className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5">
-                              <FileText className="h-3.5 w-3.5" /> 本次分配说明 / 页面要求
-                            </label>
-                            <Input
-                              placeholder="详细描述该部门需要在这几页PPT上补充的数据或内容说明..."
-                              className="h-9 text-sm bg-background border-muted-foreground/20"
-                              value={row.requirement}
-                              onChange={(e) => setPptDeptRows(prev => prev.map((r, i) => i === idx ? { ...r, requirement: e.target.value } : r))}
-                            />
+                                    {activePagePickerRow.headUserId ? (
+                                      <button
+                                        type="button"
+                                        className="flex h-9 items-center gap-2 rounded-lg border border-primary/20 bg-primary/10 px-3 text-left transition-colors hover:bg-primary/15"
+                                        onClick={() => {
+                                          if (activePagePickerIdx !== null) {
+                                            setDeptHeadPickerIdx(activePagePickerIdx);
+                                            setDeptHeadSearch("");
+                                          }
+                                        }}
+                                      >
+                                        <Avatar className="h-5 w-5 shrink-0">
+                                          <AvatarFallback className="text-xs bg-primary text-white">{activePagePickerRow.headUserAvatar}</AvatarFallback>
+                                        </Avatar>
+                                        <span className="truncate text-sm font-medium text-primary">{activePagePickerRow.headUserName}</span>
+                                      </button>
+                                    ) : (
+                                      <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="sm"
+                                        className="h-9 justify-start border-dashed"
+                                        onClick={() => {
+                                          if (activePagePickerIdx !== null) {
+                                            setDeptHeadPickerIdx(activePagePickerIdx);
+                                            setDeptHeadSearch("");
+                                          }
+                                        }}
+                                      >
+                                        <Plus className="mr-2 h-3.5 w-3.5" />
+                                        负责人
+                                      </Button>
+                                    )}
+
+                                    <div className="flex flex-wrap gap-2">
+                                      <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => activePagePickerIdx !== null && setDeptRowPageSelection(
+                                          activePagePickerIdx,
+                                          formatPageSelection(Array.from({ length: templatePageCount }, (_, index) => index + 1))
+                                        )}
+                                      >
+                                        全选
+                                      </Button>
+                                      <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="sm"
+                                        disabled={activeUnassignedPages.length === 0}
+                                        onClick={() => activePagePickerIdx !== null && setDeptRowPageSelection(
+                                          activePagePickerIdx,
+                                          togglePageGroupSelection(activePagePickerRow.pageSelection, activeUnassignedPages, templatePageCount)
+                                        )}
+                                      >
+                                        剩余页
+                                      </Button>
+                                      <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="sm"
+                                        className="text-muted-foreground"
+                                        onClick={() => activePagePickerIdx !== null && setDeptRowPageSelection(activePagePickerIdx, "")}
+                                      >
+                                        清空
+                                      </Button>
+                                    </div>
+                                  </div>
+
+                                  <div className="flex flex-wrap gap-4 text-xs text-muted-foreground">
+                                    <span className="inline-flex items-center gap-1.5">
+                                      <span className="h-2.5 w-2.5 rounded-full bg-primary" /> 当前
+                                    </span>
+                                    <span className="inline-flex items-center gap-1.5">
+                                      <span className="h-2.5 w-2.5 rounded-full bg-emerald-500" /> 共同负责
+                                    </span>
+                                    <span className="inline-flex items-center gap-1.5">
+                                      <span className="h-2.5 w-2.5 rounded-full bg-amber-400" /> 已占用
+                                    </span>
+                                  </div>
+
+                                  <div className="max-h-[360px] overflow-auto rounded-xl border border-border/60 bg-secondary/10 p-4">
+                                    <div className="grid grid-cols-5 gap-2 sm:grid-cols-7 lg:grid-cols-8 2xl:grid-cols-10">
+                                      {Array.from({ length: templatePageCount }).map((_, pageIndex) => {
+                                        const page = pageIndex + 1;
+                                        const isSelected = activePagePickerSelection.includes(page);
+                                        const assignedElsewhere = activePagesAssignedElsewhere.has(page);
+                                        const isConflict = isSelected && assignedElsewhere;
+
+                                        return (
+                                          <button
+                                            key={page}
+                                            type="button"
+                                            className={cn(
+                                              "flex h-11 items-center justify-center rounded-lg border text-sm font-semibold transition-all",
+                                              isConflict && "border-emerald-500 bg-emerald-500 text-white shadow-sm",
+                                              isSelected && !isConflict && "border-primary bg-primary text-primary-foreground shadow-sm",
+                                              !isSelected && assignedElsewhere && "border-amber-300 bg-amber-50 text-amber-700",
+                                              !isSelected && !assignedElsewhere && "border-border bg-background text-muted-foreground hover:border-primary/40 hover:text-primary"
+                                            )}
+                                            onClick={() => activePagePickerIdx !== null && setDeptRowPageSelection(
+                                              activePagePickerIdx,
+                                              togglePageSelection(activePagePickerRow.pageSelection, page, templatePageCount)
+                                            )}
+                                          >
+                                            {page}
+                                          </button>
+                                        );
+                                      })}
+                                    </div>
+                                  </div>
+
+                                  <div className="space-y-2">
+                                    <Label>说明</Label>
+                                    <Textarea
+                                      rows={5}
+                                      placeholder="补充该部门要处理的内容说明、数据要求或输出要求..."
+                                      value={activePagePickerRow.requirement}
+                                      onChange={(e) => activePagePickerIdx !== null && setPptDeptRows(prev => prev.map((item, itemIdx) => itemIdx === activePagePickerIdx ? { ...item, requirement: e.target.value } : item))}
+                                    />
+                                  </div>
+
+                                  {activeOverlapPages.length > 0 && (
+                                    <div className="text-xs text-emerald-700">
+                                      当前与其他部门共同负责的页码：{formatPageRange(activeOverlapPages)}
+                                    </div>
+                                  )}
+                                </>
+                              ) : (
+                                <div className="rounded-lg border border-dashed border-border bg-secondary/10 px-4 py-6 text-sm text-muted-foreground">
+                                  先在左侧添加部门，然后选择一个部门开始分配页面。
+                                </div>
+                              )}
+                            </div>
                           </div>
-                        </div>
-                      ))}
-                      <Button variant="outline" size="sm" className="w-full border-dashed border-primary/40 text-primary hover:bg-primary/5"
-                        onClick={() => setPptDeptRows(prev => [...prev, { deptName: "", pageSelection: "", requirement: "", headUserId: "", headUserName: "", headUserAvatar: "" }])}>
-                        <Plus className="h-4 w-4 mr-2" />
-                        添加部门
-                      </Button>
+                        ) : (
+                          <div className="rounded-xl border border-dashed border-border bg-secondary/10 px-4 py-6 text-sm text-muted-foreground">
+                            上传模板后，这里会显示统一的页码分配工作台。
+                          </div>
+                        )}
+                      </div>
                     </div>
 
                     {/* 负责人选择弹窗 */}
