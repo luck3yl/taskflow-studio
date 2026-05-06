@@ -42,7 +42,7 @@ import {
   DropdownMenuTrigger,
   DropdownMenuLabel,
 } from "@/components/ui/dropdown-menu";
-import { useUserContext } from "@/contexts/UserContext";
+import { summarizeUserRole, useUserContext } from "@/contexts/UserContext";
 import { useState } from "react";
 import { TaskType } from "@/contexts/TaskContext";
 
@@ -260,7 +260,7 @@ export function AppSidebar() {
                 <div className="flex flex-col items-start animate-fade-in truncate">
                   <span className="text-sm font-medium truncate w-full text-left">{currentUser.name}</span>
                   <span className="text-xs truncate w-full text-left">
-                    {currentUser.department} <span className="opacity-50">|</span> {currentUser.role}
+                    {currentUser.department} <span className="opacity-50">|</span> {summarizeUserRole(currentUser)}
                   </span>
                 </div>
               )}
@@ -289,7 +289,7 @@ export function AppSidebar() {
                     </Avatar>
                     <div className="flex flex-col min-w-0">
                       <span className="text-xs font-medium leading-tight">{user.name}</span>
-                      <span className="text-xs text-muted-foreground leading-tight truncate">{user.department} · {user.role}</span>
+                      <span className="text-xs text-muted-foreground leading-tight truncate">{user.department} · {summarizeUserRole(user)}</span>
                     </div>
                   </div>
                   {user.id === currentUser.id && <div className="h-1.5 w-1.5 rounded-full bg-primary shrink-0" />}

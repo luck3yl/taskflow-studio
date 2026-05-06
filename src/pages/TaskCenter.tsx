@@ -13,7 +13,6 @@ import {
   Eye,
   FileText,
   Users,
-  Layers,
   LayoutGrid,
   Trello,
   Calendar as CalendarIcon,
@@ -42,7 +41,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { ReviewDrawer } from "@/components/drawers/ReviewDrawer";
 import { PptTaskDrawer } from "@/components/drawers/PptTaskDrawer";
 import { useTaskContext, Task, Assignee, TaskType } from "@/contexts/TaskContext";
-import { useUserContext } from "@/contexts/UserContext";
+import { hasCapability, isManagementUser, useUserContext } from "@/contexts/UserContext";
 import { cn } from "@/lib/utils";
 import { TaskKanbanView } from "@/components/task/TaskKanbanView";
 import { TaskCalendarView } from "@/components/task/TaskCalendarView";
@@ -58,19 +57,25 @@ const statusStyles = {
   rejected: { bg: "bg-destructive/20", dot: "bg-destructive" },
 };
 
-// 按职级返回权限过滤后的任务
+// 按管理能力返回权限过滤后的任务
 function applyPermissionFilter(
   tasks: Task[],
   currentUser: ReturnType<typeof useUserContext>["currentUser"]
 ): Task[] {
-  const roles = (currentUser as any).roles ?? [currentUser.role];
-  const isAdmin = roles.includes("设备部长") || roles.includes("设备厂长");
-  const isVice = !isAdmin && roles.includes("分管副部长");
-  const isRoom = !isAdmin && !isVice && (roles.includes("室主任") || roles.includes("设备组长"));
+  const canViewAll = hasCapability(currentUser, "task.view.all");
+  const canMinisterReview = hasCapability(currentUser, "task.review.minister");
+  const canDirectorReview = hasCapability(currentUser, "task.review.director");
+  const canAssignMembers = hasCapability(currentUser, "task.assign.member");
 
-  if (isAdmin) return tasks;
-  if (isVice) return tasks.filter(t => t.department === currentUser.department || t.department === "全公司" || t.createdBy === currentUser.name);
-  if (isRoom) return tasks.filter(t =>
+  if (canViewAll) return tasks;
+  if (canMinisterReview) {
+    return tasks.filter(t =>
+      t.department === currentUser.department ||
+      t.department === "全公司" ||
+      t.createdBy === currentUser.name
+    );
+  }
+  if (canDirectorReview || canAssignMembers) return tasks.filter(t =>
     t.department === currentUser.department ||
     t.department === "全公司" ||
     t.assignees.some(a => a.name === currentUser.name) ||
@@ -79,8 +84,8 @@ function applyPermissionFilter(
       da.headUserId === currentUser.id || da.userAssignments.some(ua => ua.userId === currentUser.id)
     ))
   );
-  // 普通员工：任务中心只看自己创建的，参与的去待办中心
-  return tasks.filter(t => t.createdBy === currentUser.name);
+
+  return [];
 }
 
 // 用户状态标签
@@ -124,9 +129,11 @@ export default function TaskCenter() {
   const navigate = useNavigate();
   const { tasks, reviewSubmission, deleteTask } = useTaskContext();
   const { currentUser } = useUserContext();
-  const roles = (currentUser as any).roles ?? [currentUser.role];
-  const isRoomHead = roles.includes("室主任") || roles.includes("设备组长");
-  const canViewMergedFile = !isRoomHead;
+  const canManageTasks = isManagementUser(currentUser);
+  const canCreateTask = hasCapability(currentUser, "task.create");
+  const canMinisterReview = hasCapability(currentUser, "task.review.minister");
+  const canMergeTask = hasCapability(currentUser, "task.merge");
+  const canViewMergedFile = canMinisterReview || canMergeTask || hasCapability(currentUser, "task.view.all");
 
   const toggleExpand = (taskId: string) => {
     setExpandedTasks(prev =>
@@ -181,8 +188,6 @@ export default function TaskCenter() {
     return matchesSearch && matchesType && matchesDepartment;
   });
 
-  const totalParticipants = permissionFilteredTasks.reduce((sum, t) => sum + t.totalAssignees, 0);
-
   const createUrl = activeTaskType === "all"
     ? "/tasks/create"
     : `/tasks/create/${encodeURIComponent(activeTaskType)}`;
@@ -193,13 +198,15 @@ export default function TaskCenter() {
         {/* Header */}
         <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
           <div className="flex items-center gap-3">
-            <Button
-              className="gradient-primary"
-              onClick={() => navigate(createUrl)}
-            >
-              <Plus className="h-4 w-4 mr-2" />
-              {activeTaskType === "all" ? "创建任务" : `新建${activeTaskType}`}
-            </Button>
+            {canCreateTask && (
+              <Button
+                className="gradient-primary"
+                onClick={() => navigate(createUrl)}
+              >
+                <Plus className="h-4 w-4 mr-2" />
+                {activeTaskType === "all" ? "创建任务" : `新建${activeTaskType}`}
+              </Button>
+            )}
 
           </div>
 
@@ -246,276 +253,278 @@ export default function TaskCenter() {
           </div>
         </div>
 
-        {/* Stats Overview */}
-        <div className="grid gap-4 md:grid-cols-2">
-          <Card className="shadow-card">
-            <CardContent className="p-4 flex items-center gap-4">
-              <div className="h-12 w-12 rounded-xl gradient-primary flex items-center justify-center">
-                <FileText className="h-6 w-6 text-primary-foreground" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold">{filteredTasks.length}</p>
-                <p className="text-sm text-muted-foreground">{activeTaskType === "all" ? "进行中任务" : `${activeTaskType}任务`}</p>
-              </div>
+        {!canManageTasks ? (
+          <Card className="shadow-card border-amber-200 bg-amber-50/60">
+            <CardContent className="p-8 text-center space-y-3">
+              <h3 className="text-lg font-semibold text-foreground">当前没有可处理的管理任务</h3>
+              <p className="text-sm text-muted-foreground max-w-2xl mx-auto">
+                任务中心主要展示分配、审核、审批相关任务。当前账号没有对应任务时，可以直接前往待办中心处理执行事项。
+              </p>
+              <Button variant="outline" onClick={() => navigate("/todos")}>
+                前往待办中心
+              </Button>
             </CardContent>
           </Card>
-          <Card className="shadow-card">
-            <CardContent className="p-4 flex items-center gap-4">
-              <div className="h-12 w-12 rounded-xl gradient-success flex items-center justify-center">
-                <Users className="h-6 w-6 text-primary-foreground" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold">{totalParticipants}</p>
-                <p className="text-sm text-muted-foreground">参与人员</p>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
+        ) : (
+          <>
+            <div className="flex items-center justify-between text-sm text-muted-foreground">
+              <span>
+                当前筛选结果共 <span className="font-semibold text-foreground">{filteredTasks.length}</span> 个任务
+              </span>
+              {viewMode === "list" && (
+                <span>展开任务可查看分配、审核和审批详情</span>
+              )}
+            </div>
 
-        {/* Dynamic Views */}
-        {viewMode === "list" && ["标杆机组评价", "培训交流", "例会反馈", "调研反馈", "对标找差", "体系能力评价"].includes(activeTaskType) && (
-          <div className="space-y-4">
-            <TaskSpecialTableView type={activeTaskType} />
-          </div>
-        )}
-
-        {viewMode === "list" && !["标杆机组评价", "培训交流", "例会反馈", "调研反馈", "对标找差", "体系能力评价"].includes(activeTaskType) && (
-          <div className="space-y-4">
-            {filteredTasks.map((task, index) => {
-              const isExpanded = expandedTasks.includes(task.id);
-              const progress = task.totalAssignees > 0
-                ? (task.completedCount / task.totalAssignees) * 100
-                : 0;
-              const isMyPptDeptHead = task.type === "例会资料" && !!task.pptWorkflow?.deptAssignments.some(
-                dept => dept.headUserId === currentUser.id
-              );
-              const canViewMergedPpt = canViewMergedFile && (task.assignees.some(a => a.status === "approved" || a.status === "submitted") ||
-                !!task.pptWorkflow?.deptAssignments.some(d =>
-                  d.status === "final_approved" ||
-                  d.userAssignments.some(ua =>
-                    ua.status === "submitted" || ua.status === "dept_approved" || ua.status === "final_approved"
-                  )
-                ));
-
-              return (
-                <Collapsible
-                  key={task.id}
-                  open={isExpanded}
-                  onOpenChange={() => toggleExpand(task.id)}
-                >
-                  <Card
-                    className="shadow-card animate-slide-up overflow-hidden"
-                    style={{ animationDelay: `${index * 50}ms` }}
-                  >
-                    <CollapsibleTrigger asChild>
-                      <CardHeader className="cursor-pointer hover:bg-secondary/30 transition-colors py-4">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-4">
-                            {isExpanded ? (
-                              <ChevronDown className="h-5 w-5 text-muted-foreground" />
-                            ) : (
-                              <ChevronRight className="h-5 w-5 text-muted-foreground" />
-                            )}
-                            <div>
-                              <CardTitle className="text-base">{task.title}</CardTitle>
-                              <div className="flex items-center gap-2 mt-1">
-                                <Badge variant="outline" className="text-xs">
-                                  {task.type}
-                                </Badge>
-                                <Badge variant="secondary" className="text-xs">
-                                  {task.department}
-                                </Badge>
-                                {task.templatePageCount && (
-                                  <Badge variant="outline" className="text-xs text-primary border-primary/30">
-                                    {task.templatePageCount}页
-                                  </Badge>
-                                )}
-                                <span className="text-xs text-muted-foreground">
-                                  截止：{task.deadline}
-                                </span>
-                              </div>
-                            </div>
-                          </div>
-
-                          <div className="flex items-center gap-6">
-                            {/* Assignee Avatars */}
-                            <div className="hidden md:flex -space-x-2">
-                              {task.assignees.slice(0, 4).map((assignee) => (
-                                <Avatar
-                                  key={assignee.id}
-                                  className="h-8 w-8 border-2 border-card"
-                                >
-                                  <AvatarFallback className={`text-xs ${statusStyles[assignee.status].bg}`}>
-                                    {assignee.avatar}
-                                  </AvatarFallback>
-                                </Avatar>
-                              ))}
-                              {task.assignees.length > 4 && (
-                                <div className="h-8 w-8 rounded-full bg-muted border-2 border-card flex items-center justify-center">
-                                  <span className="text-xs text-muted-foreground">
-                                    +{task.assignees.length - 4}
-                                  </span>
-                                </div>
-                              )}
-                            </div>
-
-
-                            <DropdownMenu>
-                              <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-                                <Button variant="ghost" size="icon" className="h-8 w-8">
-                                  <MoreHorizontal className="h-4 w-4" />
-                                </Button>
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end">
-                                {task.type === "例会资料" && (
-                                  <DropdownMenuItem onClick={(e) => {
-                                    e.stopPropagation();
-                                    setPptTaskId(task.id);
-                                    setPptTaskDrawerOpen(true);
-                                  }}>
-                                    进入例会资料工作台
-                                  </DropdownMenuItem>
-                                )}
-                                <DropdownMenuItem>编辑任务</DropdownMenuItem>
-                                <DropdownMenuItem>催办提醒</DropdownMenuItem>
-                                <DropdownMenuItem
-                                  className="text-destructive focus:text-destructive"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    deleteTask(task.id);
-                                  }}
-                                >
-                                  <Trash2 className="h-4 w-4 mr-2" />
-                                  删除任务
-                                </DropdownMenuItem>
-                              </DropdownMenuContent>
-                            </DropdownMenu>
-                          </div>
-                        </div>
-                      </CardHeader>
-                    </CollapsibleTrigger>
-
-                    <CollapsibleContent>
-                      <CardContent className="pt-0 pb-4">
-                        <div className="border-t border-border pt-4 space-y-6">
-                          {/* Sub-task List Section */}
-                          <div className="space-y-3">
-                            {task.type !== "例会资料" && (
-                              <div className="flex items-center justify-between">
-                                <h4 className="text-sm font-semibold flex items-center gap-2">
-                                  <Users className="h-4 w-4 text-primary" />
-                                  子任务列表
-                                </h4>
-                              </div>
-                            )}
-
-                            {task.type === "例会资料" && task.pptWorkflow ? (
-                              <div className="w-full">
-                                <PptTaskDetail
-                                  task={task}
-                                  currentUser={currentUser}
-                                  onOpenPptDrawer={() => {
-                                    setPptTaskId(task.id);
-                                    setPptTaskDrawerOpen(true);
-                                  }}
-                                />
-                              </div>
-                            ) : (
-                            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                              {task.assignees.map((assignee) => (
-                                <div
-                                  key={assignee.id}
-                                  className="flex flex-col p-3 rounded-lg border border-border bg-card hover:border-primary/30 transition-colors"
-                                >
-                                  <div className="flex items-center justify-between mb-2">
-                                    <div className="flex items-center gap-2">
-                                      <div className="relative">
-                                        <Avatar className="h-8 w-8">
-                                          <AvatarFallback className="bg-primary/10 text-primary text-xs">
-                                            {assignee.avatar}
-                                          </AvatarFallback>
-                                        </Avatar>
-                                        <div className={`absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-card ${statusStyles[assignee.status]?.dot ?? "bg-muted-foreground"}`} />
-                                      </div>
-                                      <div>
-                                        <p className="text-sm font-medium">{assignee.name}</p>
-                                        <Badge
-                                          variant="outline"
-                                          className={cn(
-                                            "text-xs px-2 py-0 h-5 mt-1 border shadow-none font-bold rounded",
-                                            assignee.status === "pending" && "bg-muted/50 text-muted-foreground border-muted-foreground/10",
-                                            assignee.status === "submitted" && "bg-amber-100/90 text-amber-700 border-amber-300 shadow-sm",
-                                            assignee.status === "approved" && "bg-success/10 text-success border-success/20",
-                                            assignee.status === "rejected" && "bg-destructive/10 text-destructive border-destructive/20"
-                                          )}
-                                        >
-                                          {assignee.status === "pending" && "待提交"}
-                                          {assignee.status === "submitted" && "待审核"}
-                                          {assignee.status === "approved" && "已通过"}
-                                          {assignee.status === "rejected" && "已驳回"}
-                                        </Badge>
-                                      </div>
-                                    </div>
-                                    {(assignee.status === "submitted" || assignee.status === "approved" || assignee.status === "rejected") && (
-                                      <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        className="h-7 px-2"
-                                        onClick={() => handleReview(task, assignee)}
-                                      >
-                                        <Eye className="h-3.5 w-3.5 mr-1" />
-                                        查看
-                                      </Button>
-                                    )}
-                                  </div>
-                                  <div className="text-xs text-muted-foreground bg-secondary/50 rounded px-2 py-1.5 mt-auto">
-                                    <FileText className="inline h-3 w-3 mr-1" />
-                                    {assignee.taskDescription}
-                                  </div>
-                                  {assignee.pageRange && (
-                                    <Badge variant="outline" className="text-xs mt-2 w-fit">
-                                      第 {assignee.pageRange} 页
-                                    </Badge>
-                                  )}
-                                </div>
-                              ))
-                              }
-                            </div>
-                            )}
-                          </div>
-
-                        </div>
-                      </CardContent>
-                    </CollapsibleContent>
-                  </Card>
-                </Collapsible>
-              );
-            })}
-
-            {filteredTasks.length === 0 && (
-              <div className="flex flex-col items-center justify-center py-16 text-center">
-                <div className="h-16 w-16 rounded-full bg-muted flex items-center justify-center mb-4">
-                  <FileText className="h-8 w-8 text-muted-foreground" />
-                </div>
-                <h3 className="font-medium text-foreground">暂无任务</h3>
-                <p className="text-sm text-muted-foreground mt-1">
-                    {activeTaskType === "all" ? "点击\"创建任务\"开始分派工作" : `点击\"新建${activeTaskType}\"创建此类任务`}
-                  </p>
-                  <Button className="mt-4 gradient-primary" onClick={() => navigate(createUrl)}>
-                    <Plus className="h-4 w-4 mr-2" />
-                    {activeTaskType === "all" ? "创建任务" : `新建${activeTaskType}`}
-                  </Button>
+            {/* Dynamic Views */}
+            {viewMode === "list" && ["标杆机组评价", "培训交流", "例会反馈", "调研反馈", "对标找差", "体系能力评价"].includes(activeTaskType) && (
+              <div className="space-y-4">
+                <TaskSpecialTableView type={activeTaskType} />
               </div>
             )}
-          </div>
-        )}
 
-        {viewMode === "kanban" && (
-          <TaskKanbanView tasks={filteredTasks} />
-        )}
+            {viewMode === "list" && !["标杆机组评价", "培训交流", "例会反馈", "调研反馈", "对标找差", "体系能力评价"].includes(activeTaskType) && (
+              <div className="space-y-4">
+                {filteredTasks.map((task, index) => {
+                  const isExpanded = expandedTasks.includes(task.id);
+                  const canViewMergedPpt = canViewMergedFile && (task.assignees.some(a => a.status === "approved" || a.status === "submitted") ||
+                    !!task.pptWorkflow?.deptAssignments.some(d =>
+                      d.status === "final_approved" ||
+                      d.userAssignments.some(ua =>
+                        ua.status === "submitted" || ua.status === "dept_approved" || ua.status === "final_approved"
+                      )
+                    ));
 
-        {viewMode === "calendar" && (
-          <TaskCalendarView tasks={filteredTasks} />
+                  return (
+                    <Collapsible
+                      key={task.id}
+                      open={isExpanded}
+                      onOpenChange={() => toggleExpand(task.id)}
+                    >
+                      <Card
+                        className="shadow-card animate-slide-up overflow-hidden"
+                        style={{ animationDelay: `${index * 50}ms` }}
+                      >
+                        <CollapsibleTrigger asChild>
+                          <CardHeader className="cursor-pointer hover:bg-secondary/30 transition-colors py-4">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-4">
+                                {isExpanded ? (
+                                  <ChevronDown className="h-5 w-5 text-muted-foreground" />
+                                ) : (
+                                  <ChevronRight className="h-5 w-5 text-muted-foreground" />
+                                )}
+                                <div>
+                                  <CardTitle className="text-base">{task.title}</CardTitle>
+                                  <div className="flex items-center gap-2 mt-1">
+                                    <Badge variant="outline" className="text-xs">
+                                      {task.type}
+                                    </Badge>
+                                    <Badge variant="secondary" className="text-xs">
+                                      {task.department}
+                                    </Badge>
+                                    {task.templatePageCount && (
+                                      <Badge variant="outline" className="text-xs text-primary border-primary/30">
+                                        {task.templatePageCount}页
+                                      </Badge>
+                                    )}
+                                    {canViewMergedPpt && task.type === "例会资料" && (
+                                      <Badge variant="outline" className="text-xs text-emerald-700 border-emerald-200 bg-emerald-50">
+                                        可查看合并稿
+                                      </Badge>
+                                    )}
+                                    <span className="text-xs text-muted-foreground">
+                                      截止：{task.deadline}
+                                    </span>
+                                  </div>
+                                </div>
+                              </div>
+
+                              <div className="flex items-center gap-6">
+                                {/* Assignee Avatars */}
+                                <div className="hidden md:flex -space-x-2">
+                                  {task.assignees.slice(0, 4).map((assignee) => (
+                                    <Avatar
+                                      key={assignee.id}
+                                      className="h-8 w-8 border-2 border-card"
+                                    >
+                                      <AvatarFallback className={`text-xs ${statusStyles[assignee.status].bg}`}>
+                                        {assignee.avatar}
+                                      </AvatarFallback>
+                                    </Avatar>
+                                  ))}
+                                  {task.assignees.length > 4 && (
+                                    <div className="h-8 w-8 rounded-full bg-muted border-2 border-card flex items-center justify-center">
+                                      <span className="text-xs text-muted-foreground">
+                                        +{task.assignees.length - 4}
+                                      </span>
+                                    </div>
+                                  )}
+                                </div>
+
+
+                                <DropdownMenu>
+                                  <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                                    <Button variant="ghost" size="icon" className="h-8 w-8">
+                                      <MoreHorizontal className="h-4 w-4" />
+                                    </Button>
+                                  </DropdownMenuTrigger>
+                                  <DropdownMenuContent align="end">
+                                    {task.type === "例会资料" && (
+                                      <DropdownMenuItem onClick={(e) => {
+                                        e.stopPropagation();
+                                        setPptTaskId(task.id);
+                                        setPptTaskDrawerOpen(true);
+                                      }}>
+                                        进入例会资料工作台
+                                      </DropdownMenuItem>
+                                    )}
+                                    <DropdownMenuItem>编辑任务</DropdownMenuItem>
+                                    <DropdownMenuItem>催办提醒</DropdownMenuItem>
+                                    <DropdownMenuItem
+                                      className="text-destructive focus:text-destructive"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        deleteTask(task.id);
+                                      }}
+                                    >
+                                      <Trash2 className="h-4 w-4 mr-2" />
+                                      删除任务
+                                    </DropdownMenuItem>
+                                  </DropdownMenuContent>
+                                </DropdownMenu>
+                              </div>
+                            </div>
+                          </CardHeader>
+                        </CollapsibleTrigger>
+
+                        <CollapsibleContent>
+                          <CardContent className="pt-0 pb-4">
+                            <div className="border-t border-border pt-4 space-y-6">
+                              {/* Sub-task List Section */}
+                              <div className="space-y-3">
+                                {task.type !== "例会资料" && (
+                                  <div className="flex items-center justify-between">
+                                    <h4 className="text-sm font-semibold flex items-center gap-2">
+                                      <Users className="h-4 w-4 text-primary" />
+                                      子任务列表
+                                    </h4>
+                                  </div>
+                                )}
+
+                                {task.type === "例会资料" && task.pptWorkflow ? (
+                                  <div className="w-full">
+                                    <PptTaskDetail
+                                      task={task}
+                                      currentUser={currentUser}
+                                      onOpenPptDrawer={() => {
+                                        setPptTaskId(task.id);
+                                        setPptTaskDrawerOpen(true);
+                                      }}
+                                    />
+                                  </div>
+                                ) : (
+                                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                                  {task.assignees.map((assignee) => (
+                                    <div
+                                      key={assignee.id}
+                                      className="flex flex-col p-3 rounded-lg border border-border bg-card hover:border-primary/30 transition-colors"
+                                    >
+                                      <div className="flex items-center justify-between mb-2">
+                                        <div className="flex items-center gap-2">
+                                          <div className="relative">
+                                            <Avatar className="h-8 w-8">
+                                              <AvatarFallback className="bg-primary/10 text-primary text-xs">
+                                                {assignee.avatar}
+                                              </AvatarFallback>
+                                            </Avatar>
+                                            <div className={`absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-card ${statusStyles[assignee.status]?.dot ?? "bg-muted-foreground"}`} />
+                                          </div>
+                                          <div>
+                                            <p className="text-sm font-medium">{assignee.name}</p>
+                                            <Badge
+                                              variant="outline"
+                                              className={cn(
+                                                "text-xs px-2 py-0 h-5 mt-1 border shadow-none font-bold rounded",
+                                                assignee.status === "pending" && "bg-muted/50 text-muted-foreground border-muted-foreground/10",
+                                                assignee.status === "submitted" && "bg-amber-100/90 text-amber-700 border-amber-300 shadow-sm",
+                                                assignee.status === "approved" && "bg-success/10 text-success border-success/20",
+                                                assignee.status === "rejected" && "bg-destructive/10 text-destructive border-destructive/20"
+                                              )}
+                                            >
+                                              {assignee.status === "pending" && "待提交"}
+                                              {assignee.status === "submitted" && "待审核"}
+                                              {assignee.status === "approved" && "已通过"}
+                                              {assignee.status === "rejected" && "已驳回"}
+                                            </Badge>
+                                          </div>
+                                        </div>
+                                        {(assignee.status === "submitted" || assignee.status === "approved" || assignee.status === "rejected") && (
+                                          <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            className="h-7 px-2"
+                                            onClick={() => handleReview(task, assignee)}
+                                          >
+                                            <Eye className="h-3.5 w-3.5 mr-1" />
+                                            查看
+                                          </Button>
+                                        )}
+                                      </div>
+                                      <div className="text-xs text-muted-foreground bg-secondary/50 rounded px-2 py-1.5 mt-auto">
+                                        <FileText className="inline h-3 w-3 mr-1" />
+                                        {assignee.taskDescription}
+                                      </div>
+                                      {assignee.pageRange && (
+                                        <Badge variant="outline" className="text-xs mt-2 w-fit">
+                                          第 {assignee.pageRange} 页
+                                        </Badge>
+                                      )}
+                                    </div>
+                                  ))
+                                  }
+                                </div>
+                                )}
+                              </div>
+
+                            </div>
+                          </CardContent>
+                        </CollapsibleContent>
+                      </Card>
+                    </Collapsible>
+                  );
+                })}
+
+                {filteredTasks.length === 0 && (
+                  <div className="flex flex-col items-center justify-center py-16 text-center">
+                    <div className="h-16 w-16 rounded-full bg-muted flex items-center justify-center mb-4">
+                      <FileText className="h-8 w-8 text-muted-foreground" />
+                    </div>
+                    <h3 className="font-medium text-foreground">暂无管理任务</h3>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      {canCreateTask
+                        ? (activeTaskType === "all" ? "点击\"创建任务\"开始分派工作" : `点击\"新建${activeTaskType}\"创建此类任务`)
+                        : "当前岗位暂无需要处理的分配或审核动作"}
+                    </p>
+                    {canCreateTask && (
+                      <Button className="mt-4 gradient-primary" onClick={() => navigate(createUrl)}>
+                        <Plus className="h-4 w-4 mr-2" />
+                        {activeTaskType === "all" ? "创建任务" : `新建${activeTaskType}`}
+                      </Button>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {viewMode === "kanban" && (
+              <TaskKanbanView tasks={filteredTasks} />
+            )}
+
+            {viewMode === "calendar" && (
+              <TaskCalendarView tasks={filteredTasks} />
+            )}
+          </>
         )}
       </div>
 

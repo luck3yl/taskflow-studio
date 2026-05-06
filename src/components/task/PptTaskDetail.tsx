@@ -4,7 +4,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Users, Eye, FileText } from "lucide-react";
 import { cn, formatPageRange } from "@/lib/utils";
 import type { Task, PptDeptAssignment, PptUserAssignment } from "@/contexts/TaskContext";
-import type { User } from "@/contexts/UserContext";
+import { hasCapability, type User } from "@/contexts/UserContext";
 
 // 用户状态标签
 function userStatusBadge(status: string) {
@@ -29,20 +29,19 @@ interface PptTaskDetailProps {
 export function PptTaskDetail({ task, currentUser, onOpenPptDrawer, onReviewUser }: PptTaskDetailProps) {
   if (!task.pptWorkflow) return null;
 
-  const roles = (currentUser as any).roles ?? [currentUser.role];
-  const isRoomHead = roles.includes("室主任") || roles.includes("设备组长");
-  const isAdmin = roles.includes("设备部长") || roles.includes("设备厂长");
+  const canDirectorReview = hasCapability(currentUser, "task.review.director");
+  const canMinisterReview = hasCapability(currentUser, "task.review.minister") || hasCapability(currentUser, "task.view.all");
 
   // 室主任：只看自己负责的部门的员工详情
   // 部长：看所有部门的员工详情
   const myDepts = task.pptWorkflow.deptAssignments.filter(dept =>
-    isAdmin || dept.headUserId === currentUser.id
+    canMinisterReview || dept.headUserId === currentUser.id
   );
   const roomHeadAssignments = myDepts.flatMap(dept =>
     dept.userAssignments.map(ua => ({ dept, ua }))
   );
 
-  if (isRoomHead && myDepts.length > 0) {
+  if (!canMinisterReview && canDirectorReview && myDepts.length > 0) {
     const submittedCount = roomHeadAssignments.filter(({ ua }) => ua.status === "submitted").length;
     const waitingFinalCount = roomHeadAssignments.filter(({ ua }) => ua.status === "dept_approved").length;
     const finalApprovedCount = roomHeadAssignments.filter(({ ua }) => ua.status === "final_approved").length;

@@ -55,7 +55,7 @@ import {
 } from "lucide-react";
 import { cn, formatPageRange } from "@/lib/utils";
 import { useTaskContext, PptDeptAssignment, PptUserAssignment, PptPageSubmission, PptStage } from "@/contexts/TaskContext";
-import { useUserContext } from "@/contexts/UserContext";
+import { hasCapability, isManagementUser, useUserContext } from "@/contexts/UserContext";
 import { useToast } from "@/hooks/use-toast";
 import { FilePreviewDialog } from "@/components/ppt/FilePreviewDialog";
 
@@ -154,7 +154,7 @@ export function PptTaskDrawer({
 }) {
   const navigate = useNavigate();
   const { tasks, reviewPptWork, finalApprovePptWork, assignPptPagesToUser, submitPptWork, advancePptStage } = useTaskContext();
-  const { currentUser, users } = useUserContext();
+  const { currentUser, users, departments } = useUserContext();
   const { toast } = useToast();
 
   const task = tasks.find(t => t.id === taskId);
@@ -201,7 +201,9 @@ export function PptTaskDrawer({
     ppt.reviewerId === currentUser.id ||
     ppt.approverId === currentUser.id;
   // 当前用户是否为部长（可做最终审批）
-  const isDeptManager = currentUser.roles.includes("设备部长") || currentUser.roles.includes("分管副部长");
+  const isDeptManager = hasCapability(currentUser, "task.review.minister") ||
+    hasCapability(currentUser, "task.merge") ||
+    hasCapability(currentUser, "task.view.all");
 
   // 当前用户是否为某部门负责人  // 当前用户是否为某部门负责人
   const myDeptHead = ppt.deptAssignments.find(d => d.headUserId === currentUser.id);
@@ -233,10 +235,24 @@ export function PptTaskDrawer({
       .filter(ua => ua.userId !== excludeUserId)
       .flatMap(ua => ua.pages);
   };
+
+  const getAssignableDepartmentNames = (departmentName?: string): string[] => {
+    if (!departmentName) return [];
+
+    const currentDepartment = departments.find((department) => department.name === departmentName);
+    if (!currentDepartment) return [departmentName];
+
+    const childDepartments = departments
+      .filter((department) => department.parentId === currentDepartment.id)
+      .flatMap((department) => getAssignableDepartmentNames(department.name));
+
+    return [departmentName, ...childDepartments];
+  };
+
   const assignableUsers = currentAssignDept
     ? users.filter(user =>
-        user.department === currentAssignDept.department &&
-        !user.roles.some(role => ["室主任", "设备组长", "分管副部长", "设备部长", "设备厂长"].includes(role))
+        getAssignableDepartmentNames(currentAssignDept.department).includes(user.department) &&
+        !isManagementUser(user)
       )
     : [];
   const stagedOccupiedPages = assignDrafts
