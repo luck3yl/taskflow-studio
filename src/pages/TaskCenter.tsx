@@ -1,4 +1,4 @@
-﻿import { useState } from "react";
+import { useState, useMemo } from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -38,16 +38,16 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import { useNavigate, useParams } from "react-router-dom";
-import { ReviewDrawer } from "@/components/drawers/ReviewDrawer";
-import { PptTaskDrawer } from "@/components/drawers/PptTaskDrawer";
+import { ReviewDrawer } from "@/features/task/components/drawers/ReviewDrawer";
+import { PptTaskDrawer } from "@/features/task/components/drawers/PptTaskDrawer";
 import { useTaskContext, Task, Assignee, TaskType } from "@/contexts/TaskContext";
 import { hasCapability, isManagementUser, useUserContext } from "@/contexts/UserContext";
 import { cn } from "@/lib/utils";
-import { TaskKanbanView } from "@/components/task/TaskKanbanView";
-import { TaskCalendarView } from "@/components/task/TaskCalendarView";
-import { TaskProgressList } from "@/components/task/TaskProgressList";
-import { PptTaskDetail } from "@/components/task/PptTaskDetail";
-import { TaskSpecialTableView } from "@/components/task/TaskSpecialTableView";
+import { TaskKanbanView } from "@/features/task/components/TaskKanbanView";
+import { TaskCalendarView } from "@/features/task/components/TaskCalendarView";
+import { TaskProgressList } from "@/features/task/components/TaskProgressList";
+import { PptTaskDetail } from "@/features/task/components/PptTaskDetail";
+import { TaskSpecialTableView } from "@/features/task/components/TaskSpecialTableView";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 const statusStyles = {
@@ -71,13 +71,13 @@ function applyPermissionFilter(
   if (canMinisterReview) {
     return tasks.filter(t =>
       t.department === currentUser.department ||
-      t.department === "全公司" ||
+      // t.department === "全公司" ||
       t.createdBy === currentUser.name
     );
   }
   if (canDirectorReview || canAssignMembers) return tasks.filter(t =>
     t.department === currentUser.department ||
-    t.department === "全公司" ||
+    // t.department === "全公司" ||
     t.assignees.some(a => a.name === currentUser.name) ||
     t.createdBy === currentUser.name ||
     (t.type === "例会资料" && t.pptWorkflow?.deptAssignments.some(da =>
@@ -178,15 +178,14 @@ export default function TaskCenter() {
     setReviewDrawerOpen(false);
   };
 
-  // 权限过滤后的可见任务
-  const permissionFilteredTasks = applyPermissionFilter(tasks, currentUser);
+  const permissionFilteredTasks = useMemo(() => applyPermissionFilter(tasks, currentUser), [tasks, currentUser]);
 
-  const filteredTasks = permissionFilteredTasks.filter((task) => {
+  const filteredTasks = useMemo(() => permissionFilteredTasks.filter((task) => {
     const matchesSearch = task.title.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesType = activeTaskType === "all" || task.type === activeTaskType;
     const matchesDepartment = departmentFilter === "all" || task.department === departmentFilter;
     return matchesSearch && matchesType && matchesDepartment;
-  });
+  }), [permissionFilteredTasks, searchQuery, activeTaskType, departmentFilter]);
 
   const createUrl = activeTaskType === "all"
     ? "/tasks/create"
@@ -211,7 +210,7 @@ export default function TaskCenter() {
           </div>
 
           <div className="flex flex-wrap gap-3 w-full sm:w-auto items-center">
-            <Tabs value={viewMode} onValueChange={(v) => setViewMode(v as any)} className="mr-2">
+            <Tabs value={viewMode} onValueChange={(v) => setViewMode(v as "list" | "kanban" | "calendar")} className="mr-2">
               <TabsList className="bg-secondary/50 border border-border/50">
                 <TabsTrigger value="list" className="data-[state=active]:bg-background">
                   <LayoutGrid className="h-3.5 w-3.5 mr-1" />
@@ -424,66 +423,66 @@ export default function TaskCenter() {
                                     />
                                   </div>
                                 ) : (
-                                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                                  {task.assignees.map((assignee) => (
-                                    <div
-                                      key={assignee.id}
-                                      className="flex flex-col p-3 rounded-lg border border-border bg-card hover:border-primary/30 transition-colors"
-                                    >
-                                      <div className="flex items-center justify-between mb-2">
-                                        <div className="flex items-center gap-2">
-                                          <div className="relative">
-                                            <Avatar className="h-8 w-8">
-                                              <AvatarFallback className="bg-primary/10 text-primary text-xs">
-                                                {assignee.avatar}
-                                              </AvatarFallback>
-                                            </Avatar>
-                                            <div className={`absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-card ${statusStyles[assignee.status]?.dot ?? "bg-muted-foreground"}`} />
+                                  <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                                    {task.assignees.map((assignee) => (
+                                      <div
+                                        key={assignee.id}
+                                        className="flex flex-col p-3 rounded-lg border border-border bg-card hover:border-primary/30 transition-colors"
+                                      >
+                                        <div className="flex items-center justify-between mb-2">
+                                          <div className="flex items-center gap-2">
+                                            <div className="relative">
+                                              <Avatar className="h-8 w-8">
+                                                <AvatarFallback className="bg-primary/10 text-primary text-xs">
+                                                  {assignee.avatar}
+                                                </AvatarFallback>
+                                              </Avatar>
+                                              <div className={`absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-card ${statusStyles[assignee.status]?.dot ?? "bg-muted-foreground"}`} />
+                                            </div>
+                                            <div>
+                                              <p className="text-sm font-medium">{assignee.name}</p>
+                                              <Badge
+                                                variant="outline"
+                                                className={cn(
+                                                  "text-xs px-2 py-0 h-5 mt-1 border shadow-none font-bold rounded",
+                                                  assignee.status === "pending" && "bg-muted/50 text-muted-foreground border-muted-foreground/10",
+                                                  assignee.status === "submitted" && "bg-amber-100/90 text-amber-700 border-amber-300 shadow-sm",
+                                                  assignee.status === "approved" && "bg-success/10 text-success border-success/20",
+                                                  assignee.status === "rejected" && "bg-destructive/10 text-destructive border-destructive/20"
+                                                )}
+                                              >
+                                                {assignee.status === "pending" && "待提交"}
+                                                {assignee.status === "submitted" && "待审核"}
+                                                {assignee.status === "approved" && "已通过"}
+                                                {assignee.status === "rejected" && "已驳回"}
+                                              </Badge>
+                                            </div>
                                           </div>
-                                          <div>
-                                            <p className="text-sm font-medium">{assignee.name}</p>
-                                            <Badge
-                                              variant="outline"
-                                              className={cn(
-                                                "text-xs px-2 py-0 h-5 mt-1 border shadow-none font-bold rounded",
-                                                assignee.status === "pending" && "bg-muted/50 text-muted-foreground border-muted-foreground/10",
-                                                assignee.status === "submitted" && "bg-amber-100/90 text-amber-700 border-amber-300 shadow-sm",
-                                                assignee.status === "approved" && "bg-success/10 text-success border-success/20",
-                                                assignee.status === "rejected" && "bg-destructive/10 text-destructive border-destructive/20"
-                                              )}
+                                          {(assignee.status === "submitted" || assignee.status === "approved" || assignee.status === "rejected") && (
+                                            <Button
+                                              variant="ghost"
+                                              size="sm"
+                                              className="h-7 px-2"
+                                              onClick={() => handleReview(task, assignee)}
                                             >
-                                              {assignee.status === "pending" && "待提交"}
-                                              {assignee.status === "submitted" && "待审核"}
-                                              {assignee.status === "approved" && "已通过"}
-                                              {assignee.status === "rejected" && "已驳回"}
-                                            </Badge>
-                                          </div>
+                                              <Eye className="h-3.5 w-3.5 mr-1" />
+                                              查看
+                                            </Button>
+                                          )}
                                         </div>
-                                        {(assignee.status === "submitted" || assignee.status === "approved" || assignee.status === "rejected") && (
-                                          <Button
-                                            variant="ghost"
-                                            size="sm"
-                                            className="h-7 px-2"
-                                            onClick={() => handleReview(task, assignee)}
-                                          >
-                                            <Eye className="h-3.5 w-3.5 mr-1" />
-                                            查看
-                                          </Button>
+                                        <div className="text-xs text-muted-foreground bg-secondary/50 rounded px-2 py-1.5 mt-auto">
+                                          <FileText className="inline h-3 w-3 mr-1" />
+                                          {assignee.taskDescription}
+                                        </div>
+                                        {assignee.pageRange && (
+                                          <Badge variant="outline" className="text-xs mt-2 w-fit">
+                                            第 {assignee.pageRange} 页
+                                          </Badge>
                                         )}
                                       </div>
-                                      <div className="text-xs text-muted-foreground bg-secondary/50 rounded px-2 py-1.5 mt-auto">
-                                        <FileText className="inline h-3 w-3 mr-1" />
-                                        {assignee.taskDescription}
-                                      </div>
-                                      {assignee.pageRange && (
-                                        <Badge variant="outline" className="text-xs mt-2 w-fit">
-                                          第 {assignee.pageRange} 页
-                                        </Badge>
-                                      )}
-                                    </div>
-                                  ))
-                                  }
-                                </div>
+                                    ))
+                                    }
+                                  </div>
                                 )}
                               </div>
 

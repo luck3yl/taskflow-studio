@@ -20,8 +20,8 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import { Task } from "@/contexts/TaskContext";
-import { FilePreviewDialog } from "@/components/ppt/FilePreviewDialog";
-import { PPTistViewer } from "@/components/ppt/PPTistViewer";
+import { FilePreviewDialog } from "@/features/ppt/components/FilePreviewDialog";
+import { PPTistViewer } from "@/features/ppt/components/PPTistViewer";
 
 interface MergedPPTDrawerProps {
   open: boolean;

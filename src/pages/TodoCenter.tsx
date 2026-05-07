@@ -26,8 +26,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { TaskProcessDrawer } from "@/components/drawers/TaskProcessDrawer";
-import { PptTaskDrawer } from "@/components/drawers/PptTaskDrawer";
+import { TaskProcessDrawer } from "@/features/task/components/drawers/TaskProcessDrawer";
+import { PptTaskDrawer } from "@/features/task/components/drawers/PptTaskDrawer";
 import { useTaskContext, Task, Assignee } from "@/contexts/TaskContext";
 import { useUserContext } from "@/contexts/UserContext";
 

@@ -57,7 +57,7 @@ import { cn, formatPageRange } from "@/lib/utils";
 import { useTaskContext, PptDeptAssignment, PptUserAssignment, PptPageSubmission, PptStage } from "@/contexts/TaskContext";
 import { hasCapability, isManagementUser, useUserContext } from "@/contexts/UserContext";
 import { useToast } from "@/hooks/use-toast";
-import { FilePreviewDialog } from "@/components/ppt/FilePreviewDialog";
+import { FilePreviewDialog } from "@/features/ppt/components/FilePreviewDialog";
 
 // ---- helpers ----
 const stageLabel: Record<PptStage, string> = {

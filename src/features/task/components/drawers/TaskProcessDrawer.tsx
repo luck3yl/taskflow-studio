@@ -24,9 +24,9 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import { Task, Assignee } from "@/contexts/TaskContext";
-import { FilePreviewDialog } from "@/components/ppt/FilePreviewDialog";
+import { FilePreviewDialog } from "@/features/ppt/components/FilePreviewDialog";
 import { cn } from "@/lib/utils";
-import { TaskTimelineView } from "@/components/task/TaskTimelineView";
+import { TaskTimelineView } from "@/features/task/components/TaskTimelineView";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 
 interface TaskProcessDrawerProps {
@@ -271,9 +271,9 @@ export function TaskProcessDrawer({
                             <p className="text-sm text-muted-foreground">
                               点击上传 PPT 文件
                             </p>
-                            <p className="text-xs text-muted-foreground mt-1">
+                            {/* <p className="text-xs text-muted-foreground mt-1">
                               支持 .ppt, .pptx, .pdf 格式
-                            </p>
+                            </p> */}
                           </>
                         )}
                       </label>

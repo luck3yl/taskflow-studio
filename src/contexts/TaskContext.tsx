@@ -1,5 +1,6 @@
 import { formatPageRange } from "@/lib/utils";
-import React, { createContext, useContext, useState, ReactNode } from "react";
+import { createContext, useContext, ReactNode } from "react";
+import { createStore } from "@/lib/store";
 
 // ===================== PPT 拆分合并工作流类型 =====================
 
@@ -200,17 +201,18 @@ const TaskContext = createContext<TaskContextType | undefined>(undefined);
 
 // Initial demo data
 // 模板文件URL（本地服务可访问）
-const DEMO_PPT_URL = "http://host.docker.internal:8080/data/集团战略发展规划演示文稿模板.pptx";
-const DEMO_Q1_PPT_URL = "http://host.docker.internal:8080/data/集团Q1季度总结演示文稿模板.pptx";
-const DEMO_WORD_URL = "http://host.docker.internal:8080/data/业务流程数字化转型实施指南模板.docx";
-const DEMO_EXCEL_URL = "http://host.docker.internal:8080/data/预算汇总模板.xlsx";
+const BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://host.docker.internal:8080";
+const DEMO_PPT_URL = `${BASE_URL}/data/集团战略发展规划演示文稿模板.pptx`;
+const DEMO_Q1_PPT_URL = `${BASE_URL}/data/集团Q1季度总结演示文稿模板.pptx`;
+const DEMO_WORD_URL = `${BASE_URL}/data/业务流程数字化转型实施指南模板.docx`;
+const DEMO_EXCEL_URL = `${BASE_URL}/data/预算汇总模板.xlsx`;
 
 const initialTasks: Task[] = [
   {
     id: "task-1",
     title: "2026年度集团战略发展规划演示文稿",
     type: "例会资料",
-    department: "全公司",
+    department: "",
     createdAt: "2026-03-01",
     deadline: "2026-03-30 18:00",
     createdBy: "王总",
@@ -313,17 +315,17 @@ const initialTasks: Task[] = [
       totalPages: 30,
       // 当前各页最新版本（0=未提交）
       pageVersions: {
-        1:1, 2:1, 3:1, 4:1, 5:1, 6:1, 7:1, 8:1, 9:1, 10:1,  // 张明+李华已提交
-        11:1, 12:1, 13:1, 14:1,                                 // 陈静已提交
-        15:1,                                                    // 李华提交了v1（冲突中心）
-        16:1, 17:1, 18:1, 19:1, 20:1,                          // 刘洋已提交
+        1: 1, 2: 1, 3: 1, 4: 1, 5: 1, 6: 1, 7: 1, 8: 1, 9: 1, 10: 1,  // 张明+李华已提交
+        11: 1, 12: 1, 13: 1, 14: 1,                                 // 陈静已提交
+        15: 1,                                                    // 李华提交了v1（冲突中心）
+        16: 1, 17: 1, 18: 1, 19: 1, 20: 1,                          // 刘洋已提交
       },
       deptAssignments: [
         {
           id: "da-1",
           department: "设备室",
           // 注意：页面15在两个部门都有分配（冲突场景）
-          pages: [1,2,3,4,5,6,7,8,9,10,15],
+          pages: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 15],
           headUserId: "user-3",
           headUserName: "王芳",
           status: "in_progress",
@@ -334,7 +336,7 @@ const initialTasks: Task[] = [
               userName: "张明",
               userAvatar: "张",
               department: "设备室",
-              pages: [1,3,5,7,9],  // 跳跃式分配：第1、3、5、7、9页
+              pages: [1, 3, 5, 7, 9],  // 跳跃式分配：第1、3、5、7、9页
               taskDescription: "负责设备管理系统架构设计",
               status: "dept_approved",
               submissions: [{
@@ -359,7 +361,7 @@ const initialTasks: Task[] = [
               userName: "李华",
               userAvatar: "李",
               department: "设备室",
-              pages: [2,4,6,8,10,15],
+              pages: [2, 4, 6, 8, 10, 15],
               taskDescription: "负责设备维护流程优化方案",
               status: "submitted",
               submissions: [
@@ -397,7 +399,7 @@ const initialTasks: Task[] = [
           id: "da-2",
           department: "生产厂",
           // 页面15也在这里：制造冲突场景
-          pages: [11,12,13,14,15,16,17,18,19,20],
+          pages: [11, 12, 13, 14, 15, 16, 17, 18, 19, 20],
           headUserId: "user-6",
           headUserName: "刘洋",
           status: "in_progress",
@@ -408,7 +410,7 @@ const initialTasks: Task[] = [
               userName: "陈静",
               userAvatar: "陈",
               department: "生产厂",
-              pages: [11,12,13,14],
+              pages: [11, 12, 13, 14],
               status: "submitted",
               submissions: [{
                 id: "ps-4",
@@ -430,7 +432,7 @@ const initialTasks: Task[] = [
               userName: "刘洋",
               userAvatar: "刘",
               department: "生产厂",
-              pages: [15,16,17,18,19,20],
+              pages: [15, 16, 17, 18, 19, 20],
               status: "submitted",
               submissions: [
                 {
@@ -467,7 +469,7 @@ const initialTasks: Task[] = [
         {
           id: "da-3",
           department: "综合管理组",
-          pages: [21,22,23,24,25,26,27,28,29,30],
+          pages: [21, 22, 23, 24, 25, 26, 27, 28, 29, 30],
           headUserId: "user-4",
           headUserName: "赵强",
           status: "pending",
@@ -480,7 +482,7 @@ const initialTasks: Task[] = [
     id: "task-2",
     title: "2026年度业务流程数字化转型实施指南",
     type: "对标找差",
-    department: "全公司",
+    department: "",
     createdAt: "2026-03-02",
     deadline: "2026-04-10 12:00",
     createdBy: "李经理",
@@ -544,18 +546,33 @@ const initialTasks: Task[] = [
   }
 ];
 
+export const taskStore = createStore<{ tasks: Task[] }>({
+  tasks: initialTasks.map(syncPptTask)
+});
+
 export function TaskProvider({ children }: { children: ReactNode }) {
-  const [tasks, setTasks] = useState<Task[]>(() => initialTasks.map(syncPptTask));
+  return <>{children}</>;
+}
+
+export function useTaskContext() {
+  const tasks = taskStore.useStore(s => s.tasks);
+
+  const setTasks = (updater: React.SetStateAction<Task[]>) => {
+    taskStore.setState(prev => {
+      const nextTasks = typeof updater === 'function' ? (updater as any)(prev.tasks) : updater;
+      return { tasks: nextTasks };
+    });
+  };
 
   const addTask = (taskData: Omit<Task, "id" | "createdAt" | "completedCount" | "status">): string => {
     const newId = `task-${Date.now()}`;
     const autoWorkflow: PptWorkflow | undefined = taskData.type === "例会资料"
       ? {
-          stage: "dept_assignment",
-          totalPages: taskData.templatePageCount ?? 10,
-          deptAssignments: (taskData.pptWorkflow?.deptAssignments ?? []),
-          pageVersions: {},
-        }
+        stage: "dept_assignment",
+        totalPages: taskData.templatePageCount ?? 10,
+        deptAssignments: (taskData.pptWorkflow?.deptAssignments ?? []),
+        pageVersions: {},
+      }
       : undefined;
     const newTask: Task = {
       ...taskData,
@@ -861,10 +878,10 @@ export function TaskProvider({ children }: { children: ReactNode }) {
           status: "in_progress" as const,
           userAssignments: exists
             ? dept.userAssignments.map(ua => ua.userId === assignment.userId ? {
-                ...ua,
-                pages: assignment.pages,
-                taskDescription: assignment.taskDescription,
-              } : ua)
+              ...ua,
+              pages: assignment.pages,
+              taskDescription: assignment.taskDescription,
+            } : ua)
             : [...dept.userAssignments, newAssignment],
         };
       });
@@ -878,12 +895,12 @@ export function TaskProvider({ children }: { children: ReactNode }) {
 
       const mergedPreviewUrl = toStage === "merged"
         ? task.pptWorkflow.deptAssignments
-            .flatMap(dept => dept.userAssignments)
-            .filter(ua => ua.status === "final_approved")
-            .flatMap(ua => ua.submissions)
-            .map(sub => sub.fileUrl)
-            .filter((fileUrl): fileUrl is string => !!fileUrl)
-            .slice(-1)[0] || task.pptWorkflow.templateFileUrl || task.pptWorkflow.mergedFileUrl
+          .flatMap(dept => dept.userAssignments)
+          .filter(ua => ua.status === "final_approved")
+          .flatMap(ua => ua.submissions)
+          .map(sub => sub.fileUrl)
+          .filter((fileUrl): fileUrl is string => !!fileUrl)
+          .slice(-1)[0] || task.pptWorkflow.templateFileUrl || task.pptWorkflow.mergedFileUrl
         : task.pptWorkflow.mergedFileUrl;
 
       return syncPptTask({
@@ -897,30 +914,18 @@ export function TaskProvider({ children }: { children: ReactNode }) {
     }));
   };
 
-  return (
-    <TaskContext.Provider value={{
-      tasks,
-      addTask,
-      getTaskById,
-      getTasksForEmployee,
-      submitWork,
-      reviewSubmission,
-      deleteTask,
-      submitPptWork,
-      reviewPptWork,
-      finalApprovePptWork,
-      assignPptPagesToUser,
-      advancePptStage,
-    }}>
-      {children}
-    </TaskContext.Provider>
-  );
-}
-
-export function useTaskContext() {
-  const context = useContext(TaskContext);
-  if (!context) {
-    throw new Error("useTaskContext must be used within a TaskProvider");
-  }
-  return context;
+  return {
+    tasks,
+    addTask,
+    getTaskById,
+    getTasksForEmployee,
+    submitWork,
+    reviewSubmission,
+    deleteTask,
+    submitPptWork,
+    reviewPptWork,
+    finalApprovePptWork,
+    assignPptPagesToUser,
+    advancePptStage,
+  };
 }
