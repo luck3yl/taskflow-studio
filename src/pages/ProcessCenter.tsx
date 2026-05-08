@@ -22,7 +22,7 @@ import {
 } from "@/components/ui/table";
 import { useProcess } from "@/contexts/ProcessContext";
 import { useToast } from "@/components/ui/use-toast";
-import { ProcessViewerDrawer } from "@/features/task/components/drawers/ProcessViewerDrawer";
+import { ProcessViewerDrawer } from "@/pages/task/components/drawers/ProcessViewerDrawer";
 
 const statusFilters = [
     { value: "all", label: "全部状态" },

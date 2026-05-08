@@ -28,9 +28,9 @@ export function Step3TimeConfig() {
     templateFile, setTemplateFile,
     templatePageCount, setTemplatePageCount,
     assignments, setAssignments,
-    pptDeptRows, setPptDeptRows,
-    pptReviewerId, setPptReviewerId,
-    pptApproverId, setPptApproverId,
+    meetingMaterialDeptRows, setMeetingMaterialDeptRows,
+    meetingMaterialReviewerId, setMeetingMaterialReviewerId,
+    meetingMaterialApproverId, setMeetingMaterialApproverId,
     deptHeadPickerIdx, setDeptHeadPickerIdx,
     pagePickerRowIdx, setPagePickerRowIdx,
     deptHeadSearch, setDeptHeadSearch,
@@ -128,9 +128,9 @@ export function Step3TimeConfig() {
                       <div>
                         <Label>审核人 <span className="text-xs text-muted-foreground font-normal ml-1">— 各部门完成后进行阶段性汇总审核</span></Label>
                       </div>
-                      {pptReviewerId ? (
+                      {meetingMaterialReviewerId ? (
                         (() => {
-                          const u = users.find(x => x.id === pptReviewerId)!;
+                          const u = users.find(x => x.id === meetingMaterialReviewerId)!;
                           return (
                             <div className="flex items-center gap-3 px-4 py-3 rounded-xl border border-primary/20 bg-primary/5">
                               <Avatar className="h-9 w-9 shrink-0">
@@ -140,7 +140,7 @@ export function Step3TimeConfig() {
                                 <p className="font-semibold">{u.name}</p>
                                 <p className="text-xs text-muted-foreground">{u.role} · {u.department}</p>
                               </div>
-                              <Button variant="ghost" size="sm" className="text-xs" onClick={() => setPptReviewerId("")}>更换</Button>
+                              <Button variant="ghost" size="sm" className="text-xs" onClick={() => setMeetingMaterialReviewerId("")}>更换</Button>
                             </div>
                           );
                         })()
@@ -158,9 +158,9 @@ export function Step3TimeConfig() {
                       <div>
                         <Label>审批人 <span className="text-xs text-muted-foreground font-normal ml-1">— 最终合并前的终审批准人</span></Label>
                       </div>
-                      {pptApproverId ? (
+                      {meetingMaterialApproverId ? (
                         (() => {
-                          const u = users.find(x => x.id === pptApproverId)!;
+                          const u = users.find(x => x.id === meetingMaterialApproverId)!;
                           return (
                             <div className="flex items-center gap-3 px-4 py-3 rounded-xl border border-primary/20 bg-primary/5">
                               <Avatar className="h-9 w-9 shrink-0">
@@ -170,7 +170,7 @@ export function Step3TimeConfig() {
                                 <p className="font-semibold">{u.name}</p>
                                 <p className="text-xs text-muted-foreground">{u.role} · {u.department}</p>
                               </div>
-                              <Button variant="ghost" size="sm" className="text-xs" onClick={() => setPptApproverId("")}>更换</Button>
+                              <Button variant="ghost" size="sm" className="text-xs" onClick={() => setMeetingMaterialApproverId("")}>更换</Button>
                             </div>
                           );
                         })()
@@ -216,11 +216,11 @@ export function Step3TimeConfig() {
                                   </h4>
                                   <div className="grid grid-cols-2 gap-2">
                                     {deptMembers.map(u => {
-                                      const isSelected = reviewerPickerOpen === "reviewer" ? pptReviewerId === u.id : pptApproverId === u.id;
+                                      const isSelected = reviewerPickerOpen === "reviewer" ? meetingMaterialReviewerId === u.id : meetingMaterialApproverId === u.id;
                                       return (
                                         <div key={u.id} onClick={() => {
-                                          if (reviewerPickerOpen === "reviewer") setPptReviewerId(u.id);
-                                          else setPptApproverId(u.id);
+                                          if (reviewerPickerOpen === "reviewer") setMeetingMaterialReviewerId(u.id);
+                                          else setMeetingMaterialApproverId(u.id);
                                           setReviewerPickerOpen(null);
                                         }} className={cn("flex items-center gap-3 p-2.5 rounded-xl border cursor-pointer transition-all", isSelected ? "bg-primary/5 border-primary/30 ring-1 ring-primary/20" : "border-border/40 bg-muted/10 hover:bg-primary/5 hover:border-primary/30")}>
                                           <Avatar className="h-9 w-9 shrink-0">

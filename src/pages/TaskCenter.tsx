@@ -38,17 +38,18 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import { useNavigate, useParams } from "react-router-dom";
-import { ReviewDrawer } from "@/features/task/components/drawers/ReviewDrawer";
-import { PptTaskDrawer } from "@/features/task/components/drawers/PptTaskDrawer";
+import { ReviewDrawer } from "@/pages/task/components/drawers/ReviewDrawer";
 import { useTaskContext, Task, Assignee, TaskType } from "@/contexts/TaskContext";
 import { hasCapability, isManagementUser, useUserContext } from "@/contexts/UserContext";
 import { cn } from "@/lib/utils";
-import { TaskKanbanView } from "@/features/task/components/TaskKanbanView";
-import { TaskCalendarView } from "@/features/task/components/TaskCalendarView";
-import { TaskProgressList } from "@/features/task/components/TaskProgressList";
-import { PptTaskDetail } from "@/features/task/components/PptTaskDetail";
-import { TaskSpecialTableView } from "@/features/task/components/TaskSpecialTableView";
+import { TaskKanbanView } from "@/pages/task/components/TaskKanbanView";
+import { TaskCalendarView } from "@/pages/task/components/TaskCalendarView";
+import { TaskProgressList } from "@/pages/task/components/TaskProgressList";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { MeetingMaterialTaskDetail } from "@/pages/task/meeting-materials/MeetingMaterialTaskDetail";
+import { MeetingMaterialTaskDrawer } from "@/pages/task/meeting-materials/MeetingMaterialTaskDrawer";
+import { TaskSpecialTableView } from "@/pages/task/TaskSpecialTableView";
+import { isSpecialTaskType } from "@/pages/task/specialTaskTypes";
 
 const statusStyles = {
   pending: { bg: "bg-muted", dot: "bg-muted-foreground" },
@@ -80,7 +81,7 @@ function applyPermissionFilter(
     // t.department === "全公司" ||
     t.assignees.some(a => a.name === currentUser.name) ||
     t.createdBy === currentUser.name ||
-    (t.type === "例会资料" && t.pptWorkflow?.deptAssignments.some(da =>
+    (t.type === "例会资料" && t.meetingMaterialWorkflow?.deptAssignments.some(da =>
       da.headUserId === currentUser.id || da.userAssignments.some(ua => ua.userId === currentUser.id)
     ))
   );
@@ -119,8 +120,8 @@ export default function TaskCenter() {
   const [departmentFilter, setDepartmentFilter] = useState("all");
   const [expandedTasks, setExpandedTasks] = useState<string[]>([]);
   const [reviewDrawerOpen, setReviewDrawerOpen] = useState(false);
-  const [pptTaskDrawerOpen, setPptTaskDrawerOpen] = useState(false);
-  const [pptTaskId, setPptTaskId] = useState<string>("");
+  const [meetingMaterialTaskDrawerOpen, setMeetingMaterialTaskDrawerOpen] = useState(false);
+  const [meetingMaterialTaskId, setMeetingMaterialTaskId] = useState<string>("");
   const [selectedReview, setSelectedReview] = useState<{
     task: Task;
     assignee: Assignee;
@@ -186,6 +187,7 @@ export default function TaskCenter() {
     const matchesDepartment = departmentFilter === "all" || task.department === departmentFilter;
     return matchesSearch && matchesType && matchesDepartment;
   }), [permissionFilteredTasks, searchQuery, activeTaskType, departmentFilter]);
+  const specialTaskType = isSpecialTaskType(activeTaskType) ? activeTaskType : null;
 
   const createUrl = activeTaskType === "all"
     ? "/tasks/create"
@@ -276,18 +278,18 @@ export default function TaskCenter() {
             </div>
 
             {/* Dynamic Views */}
-            {viewMode === "list" && ["标杆机组评价", "培训交流", "例会反馈", "调研反馈", "对标找差", "体系能力评价"].includes(activeTaskType) && (
+            {viewMode === "list" && specialTaskType !== null && (
               <div className="space-y-4">
-                <TaskSpecialTableView type={activeTaskType} />
+                <TaskSpecialTableView type={specialTaskType} />
               </div>
             )}
 
-            {viewMode === "list" && !["标杆机组评价", "培训交流", "例会反馈", "调研反馈", "对标找差", "体系能力评价"].includes(activeTaskType) && (
+            {viewMode === "list" && specialTaskType === null && (
               <div className="space-y-4">
                 {filteredTasks.map((task, index) => {
                   const isExpanded = expandedTasks.includes(task.id);
-                  const canViewMergedPpt = canViewMergedFile && (task.assignees.some(a => a.status === "approved" || a.status === "submitted") ||
-                    !!task.pptWorkflow?.deptAssignments.some(d =>
+                  const canViewMergedMeetingMaterial = canViewMergedFile && (task.assignees.some(a => a.status === "approved" || a.status === "submitted") ||
+                    !!task.meetingMaterialWorkflow?.deptAssignments.some(d =>
                       d.status === "final_approved" ||
                       d.userAssignments.some(ua =>
                         ua.status === "submitted" || ua.status === "dept_approved" || ua.status === "final_approved"
@@ -327,7 +329,7 @@ export default function TaskCenter() {
                                         {task.templatePageCount}页
                                       </Badge>
                                     )}
-                                    {canViewMergedPpt && task.type === "例会资料" && (
+                                    {canViewMergedMeetingMaterial && task.type === "例会资料" && (
                                       <Badge variant="outline" className="text-xs text-emerald-700 border-emerald-200 bg-emerald-50">
                                         可查看合并稿
                                       </Badge>
@@ -372,8 +374,8 @@ export default function TaskCenter() {
                                     {task.type === "例会资料" && (
                                       <DropdownMenuItem onClick={(e) => {
                                         e.stopPropagation();
-                                        setPptTaskId(task.id);
-                                        setPptTaskDrawerOpen(true);
+                                        setMeetingMaterialTaskId(task.id);
+                                        setMeetingMaterialTaskDrawerOpen(true);
                                       }}>
                                         进入例会资料工作台
                                       </DropdownMenuItem>
@@ -411,14 +413,14 @@ export default function TaskCenter() {
                                   </div>
                                 )}
 
-                                {task.type === "例会资料" && task.pptWorkflow ? (
+                                {task.type === "例会资料" && task.meetingMaterialWorkflow ? (
                                   <div className="w-full">
-                                    <PptTaskDetail
+                                    <MeetingMaterialTaskDetail
                                       task={task}
                                       currentUser={currentUser}
-                                      onOpenPptDrawer={() => {
-                                        setPptTaskId(task.id);
-                                        setPptTaskDrawerOpen(true);
+                                      onOpenMeetingMaterialDrawer={() => {
+                                        setMeetingMaterialTaskId(task.id);
+                                        setMeetingMaterialTaskDrawerOpen(true);
                                       }}
                                     />
                                   </div>
@@ -502,7 +504,7 @@ export default function TaskCenter() {
                     <h3 className="font-medium text-foreground">暂无管理任务</h3>
                     <p className="text-sm text-muted-foreground mt-1">
                       {canCreateTask
-                        ? (activeTaskType === "all" ? "点击\"创建任务\"开始分派工作" : `点击\"新建${activeTaskType}\"创建此类任务`)
+                        ? (activeTaskType === "all" ? '点击"创建任务"开始分派工作' : `点击"新建${activeTaskType}"创建此类任务`)
                         : "当前岗位暂无需要处理的分配或审核动作"}
                     </p>
                     {canCreateTask && (
@@ -544,10 +546,10 @@ export default function TaskCenter() {
         tasks={tasks}
       />
 
-      <PptTaskDrawer
-        open={pptTaskDrawerOpen}
-        onOpenChange={setPptTaskDrawerOpen}
-        taskId={pptTaskId}
+      <MeetingMaterialTaskDrawer
+        open={meetingMaterialTaskDrawerOpen}
+        onOpenChange={setMeetingMaterialTaskDrawerOpen}
+        taskId={meetingMaterialTaskId}
       />
     </AppLayout>
   );

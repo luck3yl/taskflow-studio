@@ -2,9 +2,9 @@ import { formatPageRange } from "@/lib/utils";
 import { createContext, useContext, ReactNode } from "react";
 import { createStore } from "@/lib/store";
 
-// ===================== PPT 拆分合并工作流类型 =====================
+// ===================== 例会资料拆分合并工作流类型 =====================
 
-export interface PptPageSubmission {
+export interface MeetingMaterialPageSubmission {
   id: string;
   submittedBy: string;
   submittedById: string;
@@ -25,7 +25,7 @@ export interface PptPageSubmission {
   conflictDescription?: string;
 }
 
-export interface PptUserAssignment {
+export interface MeetingMaterialUserAssignment {
   id: string;
   userId: string;
   userName: string;
@@ -36,10 +36,10 @@ export interface PptUserAssignment {
   /** 任务描述 */
   taskDescription?: string;
   status: "pending" | "in_progress" | "submitted" | "dept_approved" | "final_approved" | "rejected";
-  submissions: PptPageSubmission[];
+  submissions: MeetingMaterialPageSubmission[];
 }
 
-export interface PptDeptAssignment {
+export interface MeetingMaterialDeptAssignment {
   id: string;
   department: string;
   /** 该部门负责的页面 */
@@ -48,10 +48,10 @@ export interface PptDeptAssignment {
   headUserId?: string;
   headUserName?: string;
   status: "pending" | "in_progress" | "dept_approved" | "final_approved";
-  userAssignments: PptUserAssignment[];
+  userAssignments: MeetingMaterialUserAssignment[];
 }
 
-export type PptStage =
+export type MeetingMaterialStage =
   | "dept_assignment"   // 创建者分配页面给部门
   | "user_assignment"   // 部门负责人分配给员工
   | "in_progress"       // 员工编辑中
@@ -60,10 +60,10 @@ export type PptStage =
   | "approved"          // 全部通过
   | "merged";           // 已合并
 
-export interface PptWorkflow {
-  stage: PptStage;
+export interface MeetingMaterialWorkflow {
+  stage: MeetingMaterialStage;
   totalPages: number;
-  deptAssignments: PptDeptAssignment[];
+  deptAssignments: MeetingMaterialDeptAssignment[];
   /** pageNumber -> 当前最新版本号（0=未提交过） */
   pageVersions: Record<number, number>;
   /** 审核人（各部门负责人审核完成后，由此人做阶段性汇总审核） */
@@ -121,20 +121,20 @@ export interface Task {
   completedCount: number;
   status: "in_progress" | "completed";
   assignees: Assignee[];
-  /** 例会资料工作流（仅type="例会资料"时使用） */
-  pptWorkflow?: PptWorkflow;
+  /** 例会资料工作流（仅 type="例会资料" 时使用） */
+  meetingMaterialWorkflow?: MeetingMaterialWorkflow;
 }
 
-function derivePptStage(ppt: PptWorkflow): PptStage {
-  if (ppt.stage === "merged") {
+function deriveMeetingMaterialStage(meetingMaterialWorkflow: MeetingMaterialWorkflow): MeetingMaterialStage {
+  if (meetingMaterialWorkflow.stage === "merged") {
     return "merged";
   }
 
-  const userAssignments = ppt.deptAssignments.flatMap(dept => dept.userAssignments);
-  const allAssigned = ppt.deptAssignments.every(dept => dept.userAssignments.length > 0);
+  const userAssignments = meetingMaterialWorkflow.deptAssignments.flatMap(dept => dept.userAssignments);
+  const allAssigned = meetingMaterialWorkflow.deptAssignments.every(dept => dept.userAssignments.length > 0);
 
   if (userAssignments.length === 0) {
-    return ppt.deptAssignments.length > 0 ? "user_assignment" : "dept_assignment";
+    return meetingMaterialWorkflow.deptAssignments.length > 0 ? "user_assignment" : "dept_assignment";
   }
 
   if (userAssignments.every(ua => ua.status === "final_approved")) {
@@ -156,24 +156,24 @@ function derivePptStage(ppt: PptWorkflow): PptStage {
   return "user_assignment";
 }
 
-function syncPptTask(task: Task): Task {
-  if (!task.pptWorkflow) {
+function syncMeetingMaterialTask(task: Task): Task {
+  if (!task.meetingMaterialWorkflow) {
     return task;
   }
 
-  const totalUserAssignments = task.pptWorkflow.deptAssignments.flatMap(dept => dept.userAssignments).length;
-  const finalApprovedCount = task.pptWorkflow.deptAssignments
+  const totalUserAssignments = task.meetingMaterialWorkflow.deptAssignments.flatMap(dept => dept.userAssignments).length;
+  const finalApprovedCount = task.meetingMaterialWorkflow.deptAssignments
     .flatMap(dept => dept.userAssignments)
     .filter(ua => ua.status === "final_approved").length;
-  const nextStage = derivePptStage(task.pptWorkflow);
+  const nextStage = deriveMeetingMaterialStage(task.meetingMaterialWorkflow);
 
   return {
     ...task,
     totalAssignees: totalUserAssignments || task.totalAssignees,
     completedCount: finalApprovedCount,
     status: totalUserAssignments > 0 && finalApprovedCount === totalUserAssignments ? "completed" : "in_progress",
-    pptWorkflow: {
-      ...task.pptWorkflow,
+    meetingMaterialWorkflow: {
+      ...task.meetingMaterialWorkflow,
       stage: nextStage,
     },
   };
@@ -187,14 +187,14 @@ interface TaskContextType {
   submitWork: (taskId: string, assigneeId: string, submission: Omit<Submission, "id" | "status">) => void;
   reviewSubmission: (taskId: string, assigneeId: string, submissionId: string, approved: boolean, feedback?: string) => void;
   deleteTask: (taskId: string) => void;
-  // PPT 工作流操作
-  submitPptWork: (taskId: string, deptId: string, userAssignmentId: string, data: {
+  // 例会资料工作流操作
+  submitMeetingMaterialWork: (taskId: string, deptId: string, userAssignmentId: string, data: {
     fileName: string; fileSize: number; fileUrl?: string; note?: string; baseVersion: number;
   }) => { hasConflict: boolean; conflictDescription?: string };
-  reviewPptWork: (taskId: string, deptId: string, userAssignmentId: string, submissionId: string, approved: boolean, feedback?: string) => void;
-  finalApprovePptWork: (taskId: string, deptId: string, userAssignmentId: string, approved: boolean, feedback?: string) => void;
-  assignPptPagesToUser: (taskId: string, deptId: string, assignment: Omit<PptUserAssignment, "id" | "status" | "submissions">) => void;
-  advancePptStage: (taskId: string, toStage: PptStage) => void;
+  reviewMeetingMaterialWork: (taskId: string, deptId: string, userAssignmentId: string, submissionId: string, approved: boolean, feedback?: string) => void;
+  finalApproveMeetingMaterialWork: (taskId: string, deptId: string, userAssignmentId: string, approved: boolean, feedback?: string) => void;
+  assignMeetingMaterialPagesToUser: (taskId: string, deptId: string, assignment: Omit<MeetingMaterialUserAssignment, "id" | "status" | "submissions">) => void;
+  advanceMeetingMaterialStage: (taskId: string, toStage: MeetingMaterialStage) => void;
 }
 
 const TaskContext = createContext<TaskContextType | undefined>(undefined);
@@ -309,8 +309,8 @@ const initialTasks: Task[] = [
         submissions: []
       }
     ],
-    // PPT 拆分合并工作流数据
-    pptWorkflow: {
+    // 例会资料拆分合并工作流数据
+    meetingMaterialWorkflow: {
       stage: "in_progress",
       totalPages: 30,
       // 当前各页最新版本（0=未提交）
@@ -547,7 +547,7 @@ const initialTasks: Task[] = [
 ];
 
 export const taskStore = createStore<{ tasks: Task[] }>({
-  tasks: initialTasks.map(syncPptTask)
+  tasks: initialTasks.map(syncMeetingMaterialTask)
 });
 
 export function TaskProvider({ children }: { children: ReactNode }) {
@@ -559,18 +559,20 @@ export function useTaskContext() {
 
   const setTasks = (updater: React.SetStateAction<Task[]>) => {
     taskStore.setState(prev => {
-      const nextTasks = typeof updater === 'function' ? (updater as any)(prev.tasks) : updater;
+      const nextTasks = typeof updater === "function"
+        ? (updater as (tasks: Task[]) => Task[])(prev.tasks)
+        : updater;
       return { tasks: nextTasks };
     });
   };
 
   const addTask = (taskData: Omit<Task, "id" | "createdAt" | "completedCount" | "status">): string => {
     const newId = `task-${Date.now()}`;
-    const autoWorkflow: PptWorkflow | undefined = taskData.type === "例会资料"
+    const autoWorkflow: MeetingMaterialWorkflow | undefined = taskData.type === "例会资料"
       ? {
         stage: "dept_assignment",
         totalPages: taskData.templatePageCount ?? 10,
-        deptAssignments: (taskData.pptWorkflow?.deptAssignments ?? []),
+        deptAssignments: taskData.meetingMaterialWorkflow?.deptAssignments ?? [],
         pageVersions: {},
       }
       : undefined;
@@ -580,9 +582,9 @@ export function useTaskContext() {
       createdAt: new Date().toISOString().split('T')[0],
       completedCount: 0,
       status: "in_progress",
-      pptWorkflow: autoWorkflow ?? taskData.pptWorkflow,
+      meetingMaterialWorkflow: autoWorkflow ?? taskData.meetingMaterialWorkflow,
     };
-    setTasks(prev => [syncPptTask(newTask), ...prev]);
+    setTasks(prev => [syncMeetingMaterialTask(newTask), ...prev]);
     return newId;
   };
 
@@ -678,9 +680,9 @@ export function useTaskContext() {
     setTasks(prev => prev.filter(task => task.id !== taskId));
   };
 
-  // ===================== PPT 工作流操作 =====================
+  // ===================== 例会资料工作流操作 =====================
 
-  const submitPptWork = (
+  const submitMeetingMaterialWork = (
     taskId: string,
     deptId: string,
     userAssignmentId: string,
@@ -690,10 +692,10 @@ export function useTaskContext() {
     let conflictDescription: string | undefined;
 
     setTasks(prev => prev.map(task => {
-      if (task.id !== taskId || !task.pptWorkflow) return task;
-      const ppt = task.pptWorkflow;
+      if (task.id !== taskId || !task.meetingMaterialWorkflow) return task;
+      const meetingMaterialWorkflow = task.meetingMaterialWorkflow;
 
-      const updatedDepts = ppt.deptAssignments.map(dept => {
+      const updatedDepts = meetingMaterialWorkflow.deptAssignments.map(dept => {
         if (dept.id !== deptId) return dept;
         const updatedUsers = dept.userAssignments.map(ua => {
           if (ua.id !== userAssignmentId) return ua;
@@ -701,10 +703,10 @@ export function useTaskContext() {
           // 冲突检测：检查当前用户的任意页面是否已被他人提交更高版本
           const conflictPages: number[] = [];
           for (const page of ua.pages) {
-            const currentVer = ppt.pageVersions[page] || 0;
+            const currentVer = meetingMaterialWorkflow.pageVersions[page] || 0;
             if (currentVer > data.baseVersion) {
               // 找出谁提交了这一页的当前版本
-              const conflictUser = findPageSubmitter(ppt, page, ua.userId);
+              const conflictUser = findPageSubmitter(meetingMaterialWorkflow, page, ua.userId);
               conflictPages.push(page);
               if (!hasConflict) {
                 hasConflict = true;
@@ -713,8 +715,8 @@ export function useTaskContext() {
             }
           }
 
-          const newVersion = Math.max(...ua.pages.map(p => ppt.pageVersions[p] || 0)) + 1;
-          const newSubmission: PptPageSubmission = {
+          const newVersion = Math.max(...ua.pages.map(p => meetingMaterialWorkflow.pageVersions[p] || 0)) + 1;
+          const newSubmission: MeetingMaterialPageSubmission = {
             id: `ps-${Date.now()}`,
             submittedBy: ua.userName,
             submittedById: ua.userId,
@@ -742,27 +744,31 @@ export function useTaskContext() {
       });
 
       // 更新 pageVersions（提交的用户的页面版本+1）
-      const submitter = ppt.deptAssignments
+      const submitter = meetingMaterialWorkflow.deptAssignments
         .find(d => d.id === deptId)?.userAssignments
         .find(ua => ua.id === userAssignmentId);
-      const newVersions = { ...ppt.pageVersions };
+      const newVersions = { ...meetingMaterialWorkflow.pageVersions };
       if (submitter) {
         for (const page of submitter.pages) {
           newVersions[page] = (newVersions[page] || 0) + 1;
         }
       }
 
-      return syncPptTask({
+      return syncMeetingMaterialTask({
         ...task,
-        pptWorkflow: { ...ppt, deptAssignments: updatedDepts, pageVersions: newVersions },
+        meetingMaterialWorkflow: {
+          ...meetingMaterialWorkflow,
+          deptAssignments: updatedDepts,
+          pageVersions: newVersions,
+        },
       });
     }));
 
     return { hasConflict, conflictDescription };
   };
 
-  function findPageSubmitter(ppt: PptWorkflow, page: number, excludeUserId: string): string {
-    for (const dept of ppt.deptAssignments) {
+  function findPageSubmitter(meetingMaterialWorkflow: MeetingMaterialWorkflow, page: number, excludeUserId: string): string {
+    for (const dept of meetingMaterialWorkflow.deptAssignments) {
       for (const ua of dept.userAssignments) {
         if (ua.userId === excludeUserId) continue;
         for (const sub of ua.submissions) {
@@ -775,7 +781,7 @@ export function useTaskContext() {
     return "其他人员";
   }
 
-  const reviewPptWork = (
+  const reviewMeetingMaterialWork = (
     taskId: string,
     deptId: string,
     userAssignmentId: string,
@@ -784,9 +790,9 @@ export function useTaskContext() {
     feedback?: string
   ) => {
     setTasks(prev => prev.map(task => {
-      if (task.id !== taskId || !task.pptWorkflow) return task;
-      const ppt = task.pptWorkflow;
-      const updatedDepts = ppt.deptAssignments.map(dept => {
+      if (task.id !== taskId || !task.meetingMaterialWorkflow) return task;
+      const meetingMaterialWorkflow = task.meetingMaterialWorkflow;
+      const updatedDepts = meetingMaterialWorkflow.deptAssignments.map(dept => {
         if (dept.id !== deptId) return dept;
         const updatedUsers = dept.userAssignments.map(ua => {
           if (ua.id !== userAssignmentId) return ua;
@@ -812,11 +818,17 @@ export function useTaskContext() {
           userAssignments: updatedUsers,
         };
       });
-      return syncPptTask({ ...task, pptWorkflow: { ...ppt, deptAssignments: updatedDepts } });
+      return syncMeetingMaterialTask({
+        ...task,
+        meetingMaterialWorkflow: {
+          ...meetingMaterialWorkflow,
+          deptAssignments: updatedDepts,
+        },
+      });
     }));
   };
 
-  const finalApprovePptWork = (
+  const finalApproveMeetingMaterialWork = (
     taskId: string,
     deptId: string,
     userAssignmentId: string,
@@ -824,9 +836,9 @@ export function useTaskContext() {
     feedback?: string
   ) => {
     setTasks(prev => prev.map(task => {
-      if (task.id !== taskId || !task.pptWorkflow) return task;
-      const ppt = task.pptWorkflow;
-      const updatedDepts = ppt.deptAssignments.map(dept => {
+      if (task.id !== taskId || !task.meetingMaterialWorkflow) return task;
+      const meetingMaterialWorkflow = task.meetingMaterialWorkflow;
+      const updatedDepts = meetingMaterialWorkflow.deptAssignments.map(dept => {
         if (dept.id !== deptId) return dept;
         const updatedUsers = dept.userAssignments.map(ua => {
           if (ua.id !== userAssignmentId) return ua;
@@ -851,23 +863,29 @@ export function useTaskContext() {
           userAssignments: updatedUsers,
         };
       });
-      return syncPptTask({ ...task, pptWorkflow: { ...ppt, deptAssignments: updatedDepts } });
+      return syncMeetingMaterialTask({
+        ...task,
+        meetingMaterialWorkflow: {
+          ...meetingMaterialWorkflow,
+          deptAssignments: updatedDepts,
+        },
+      });
     }));
   };
 
-  const assignPptPagesToUser = (
+  const assignMeetingMaterialPagesToUser = (
     taskId: string,
     deptId: string,
-    assignment: Omit<PptUserAssignment, "id" | "status" | "submissions">
+    assignment: Omit<MeetingMaterialUserAssignment, "id" | "status" | "submissions">
   ) => {
     setTasks(prev => prev.map(task => {
-      if (task.id !== taskId || !task.pptWorkflow) return task;
-      const ppt = task.pptWorkflow;
-      const updatedDepts = ppt.deptAssignments.map(dept => {
+      if (task.id !== taskId || !task.meetingMaterialWorkflow) return task;
+      const meetingMaterialWorkflow = task.meetingMaterialWorkflow;
+      const updatedDepts = meetingMaterialWorkflow.deptAssignments.map(dept => {
         if (dept.id !== deptId) return dept;
         // 检查是否已有该用户的分配
         const exists = dept.userAssignments.find(ua => ua.userId === assignment.userId);
-        const newAssignment: PptUserAssignment = {
+        const newAssignment: MeetingMaterialUserAssignment = {
           ...assignment,
           id: `ua-${Date.now()}`,
           status: "pending",
@@ -885,28 +903,34 @@ export function useTaskContext() {
             : [...dept.userAssignments, newAssignment],
         };
       });
-      return syncPptTask({ ...task, pptWorkflow: { ...ppt, deptAssignments: updatedDepts } });
+      return syncMeetingMaterialTask({
+        ...task,
+        meetingMaterialWorkflow: {
+          ...meetingMaterialWorkflow,
+          deptAssignments: updatedDepts,
+        },
+      });
     }));
   };
 
-  const advancePptStage = (taskId: string, toStage: PptStage) => {
+  const advanceMeetingMaterialStage = (taskId: string, toStage: MeetingMaterialStage) => {
     setTasks(prev => prev.map(task => {
-      if (task.id !== taskId || !task.pptWorkflow) return task;
+      if (task.id !== taskId || !task.meetingMaterialWorkflow) return task;
 
       const mergedPreviewUrl = toStage === "merged"
-        ? task.pptWorkflow.deptAssignments
+        ? task.meetingMaterialWorkflow.deptAssignments
           .flatMap(dept => dept.userAssignments)
           .filter(ua => ua.status === "final_approved")
           .flatMap(ua => ua.submissions)
           .map(sub => sub.fileUrl)
           .filter((fileUrl): fileUrl is string => !!fileUrl)
-          .slice(-1)[0] || task.pptWorkflow.templateFileUrl || task.pptWorkflow.mergedFileUrl
-        : task.pptWorkflow.mergedFileUrl;
+          .slice(-1)[0] || task.templateFileUrl || task.meetingMaterialWorkflow.mergedFileUrl
+        : task.meetingMaterialWorkflow.mergedFileUrl;
 
-      return syncPptTask({
+      return syncMeetingMaterialTask({
         ...task,
-        pptWorkflow: {
-          ...task.pptWorkflow,
+        meetingMaterialWorkflow: {
+          ...task.meetingMaterialWorkflow,
           stage: toStage,
           mergedFileUrl: mergedPreviewUrl,
         },
@@ -922,10 +946,10 @@ export function useTaskContext() {
     submitWork,
     reviewSubmission,
     deleteTask,
-    submitPptWork,
-    reviewPptWork,
-    finalApprovePptWork,
-    assignPptPagesToUser,
-    advancePptStage,
+    submitMeetingMaterialWork,
+    reviewMeetingMaterialWork,
+    finalApproveMeetingMaterialWork,
+    assignMeetingMaterialPagesToUser,
+    advanceMeetingMaterialStage,
   };
 }

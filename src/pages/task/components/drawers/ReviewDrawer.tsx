@@ -21,8 +21,8 @@ import {
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { Task, Assignee } from "@/contexts/TaskContext";
-import { FilePreviewDialog } from "@/features/ppt/components/FilePreviewDialog";
-import { TaskTimelineView } from "@/features/task/components/TaskTimelineView";
+import { FilePreviewDialog } from "@/pages/ppt/components/FilePreviewDialog";
+import { TaskTimelineView } from "@/pages/task/components/TaskTimelineView";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 
 interface ReviewDrawerProps {

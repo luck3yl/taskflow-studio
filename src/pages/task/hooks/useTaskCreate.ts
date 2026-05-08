@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
-import { useTaskContext, Assignee } from "@/contexts/TaskContext";
+import { useTaskContext, Assignee, TaskType } from "@/contexts/TaskContext";
 import { useUserContext } from "@/contexts/UserContext";
 import { format } from "date-fns";
 import { parsePageInput } from "@/lib/ppt-calculator";
@@ -13,7 +13,7 @@ export interface Assignment {
   endPage?: number;
 }
 
-export interface PptDeptRow {
+export interface MeetingMaterialDeptRow {
   deptName: string;
   pageSelection: string;
   requirement: string;
@@ -33,9 +33,9 @@ export function useTaskCreate() {
   const [templateFile, setTemplateFile] = useState<File | null>(null);
   const [templatePageCount, setTemplatePageCount] = useState<number>(0);
   const [assignments, setAssignments] = useState<Assignment[]>([]);
-  const [pptDeptRows, setPptDeptRows] = useState<PptDeptRow[]>([{ deptName: "", pageSelection: "", requirement: "", headUserId: "", headUserName: "", headUserAvatar: "" }]);
-  const [pptReviewerId, setPptReviewerId] = useState("");
-  const [pptApproverId, setPptApproverId] = useState("");
+  const [meetingMaterialDeptRows, setMeetingMaterialDeptRows] = useState<MeetingMaterialDeptRow[]>([{ deptName: "", pageSelection: "", requirement: "", headUserId: "", headUserName: "", headUserAvatar: "" }]);
+  const [meetingMaterialReviewerId, setMeetingMaterialReviewerId] = useState("");
+  const [meetingMaterialApproverId, setMeetingMaterialApproverId] = useState("");
   const [deptHeadPickerIdx, setDeptHeadPickerIdx] = useState<number | null>(null);
   const [pagePickerRowIdx, setPagePickerRowIdx] = useState<number | null>(null);
   const [deptHeadSearch, setDeptHeadSearch] = useState("");
@@ -96,7 +96,7 @@ export function useTaskCreate() {
       return;
     }
     if (currentStep === 2 && taskType === "例会资料") {
-      const valid = pptDeptRows.some(r => r.deptName && r.headUserId && parsePageInput(r.pageSelection, templatePageCount).length > 0);
+      const valid = meetingMaterialDeptRows.some(r => r.deptName && r.headUserId && parsePageInput(r.pageSelection, templatePageCount).length > 0);
       if (!valid) {
         toast({
           title: "请完善部门分配",
@@ -158,13 +158,13 @@ export function useTaskCreate() {
 
     toast({
       title: "模板上传成功",
-      description: `已识别到 PPT 共 ${pageCount} 页`,
+      description: `已识别到模板共 ${pageCount} 页`,
     });
   };
 
   const handlePublish = () => {
     if (taskType === "例会资料") {
-      const deptAssignments = pptDeptRows
+      const deptAssignments = meetingMaterialDeptRows
         .filter(r => r.deptName && parsePageInput(r.pageSelection, templatePageCount).length > 0)
         .map((r, i) => {
           const pages = parsePageInput(r.pageSelection, templatePageCount);
@@ -179,15 +179,15 @@ export function useTaskCreate() {
             userAssignments: [],
           };
         });
-      const reviewerUser = users.find(u => u.id === pptReviewerId);
-      const approverUser = users.find(u => u.id === pptApproverId);
+      const reviewerUser = users.find(u => u.id === meetingMaterialReviewerId);
+      const approverUser = users.find(u => u.id === meetingMaterialApproverId);
       const formattedDeadline = deadlineDate
         ? `${format(deadlineDate, "yyyy-MM-dd")} ${deadlineTime}`
         : new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 16).replace('T', ' ');
       const newId = addTask({
         title: taskTitle,
         description: taskDescription,
-        type: "例会资料" as any,
+        type: "例会资料" as TaskType,
         department: taskDepartment,
         deadline: formattedDeadline,
         createdBy: currentUser.name,
@@ -197,7 +197,7 @@ export function useTaskCreate() {
         templatePageCount: templatePageCount || 10,
         totalAssignees: deptAssignments.length,
         assignees: [],
-        pptWorkflow: {
+        meetingMaterialWorkflow: {
           stage: "dept_assignment",
           totalPages: templatePageCount || 10,
           deptAssignments,
@@ -208,7 +208,7 @@ export function useTaskCreate() {
           approverName: approverUser?.name,
         },
       });
-      toast({ title: "PPT任务已创建", description: `已分配 ${deptAssignments.length} 个部门。` });
+      toast({ title: "例会资料任务已创建", description: `已分配 ${deptAssignments.length} 个部门。` });
       navigate(taskType ? `/tasks/${encodeURIComponent(taskType)}` : '/tasks');
       return;
     }
@@ -241,7 +241,7 @@ export function useTaskCreate() {
     const newId = addTask({
       title: taskTitle,
       description: taskDescription,
-      type: taskType as any,
+      type: taskType as TaskType,
       department: taskDepartment,
       deadline: formattedDeadline,
       createdBy: publisherName,
@@ -263,21 +263,21 @@ export function useTaskCreate() {
   const getMemberById = (id: string) => users.find(m => m.id === id);
 
   const setDeptRowPageSelection = (rowIndex: number, pageSelection: string) => {
-    setPptDeptRows(prev => prev.map((row, idx) => (
+    setMeetingMaterialDeptRows(prev => prev.map((row, idx) => (
       idx === rowIndex ? { ...row, pageSelection } : row
     )));
   };
 
   const activePagePickerIdx = pagePickerRowIdx !== null
-    ? Math.min(pagePickerRowIdx, Math.max(pptDeptRows.length - 1, 0))
-    : (pptDeptRows.length > 0 ? 0 : null);
-  const activePagePickerRow = activePagePickerIdx !== null ? pptDeptRows[activePagePickerIdx] : undefined;
+    ? Math.min(pagePickerRowIdx, Math.max(meetingMaterialDeptRows.length - 1, 0))
+    : (meetingMaterialDeptRows.length > 0 ? 0 : null);
+  const activePagePickerRow = activePagePickerIdx !== null ? meetingMaterialDeptRows[activePagePickerIdx] : undefined;
   const activePagePickerSelection = activePagePickerRow
     ? parsePageInput(activePagePickerRow.pageSelection, templatePageCount)
     : [];
   const pageAssignmentCounts = new Map<number, number>();
 
-  pptDeptRows.forEach(row => {
+  meetingMaterialDeptRows.forEach(row => {
     parsePageInput(row.pageSelection, templatePageCount).forEach(page => {
       pageAssignmentCounts.set(page, (pageAssignmentCounts.get(page) ?? 0) + 1);
     });
@@ -290,7 +290,7 @@ export function useTaskCreate() {
   const activePagesAssignedElsewhere = new Set<number>();
 
   if (activePagePickerIdx !== null) {
-    pptDeptRows.forEach((row, idx) => {
+    meetingMaterialDeptRows.forEach((row, idx) => {
       if (idx === activePagePickerIdx) return;
       parsePageInput(row.pageSelection, templatePageCount).forEach(page => {
         activePagesAssignedElsewhere.add(page);
@@ -314,9 +314,9 @@ export function useTaskCreate() {
     templateFile, setTemplateFile,
     templatePageCount, setTemplatePageCount,
     assignments, setAssignments,
-    pptDeptRows, setPptDeptRows,
-    pptReviewerId, setPptReviewerId,
-    pptApproverId, setPptApproverId,
+    meetingMaterialDeptRows, setMeetingMaterialDeptRows,
+    meetingMaterialReviewerId, setMeetingMaterialReviewerId,
+    meetingMaterialApproverId, setMeetingMaterialApproverId,
     deptHeadPickerIdx, setDeptHeadPickerIdx,
     pagePickerRowIdx, setPagePickerRowIdx,
     deptHeadSearch, setDeptHeadSearch,

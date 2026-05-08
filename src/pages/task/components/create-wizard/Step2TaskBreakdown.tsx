@@ -28,9 +28,9 @@ export function Step2TaskBreakdown() {
     templateFile, setTemplateFile,
     templatePageCount, setTemplatePageCount,
     assignments, setAssignments,
-    pptDeptRows, setPptDeptRows,
-    pptReviewerId, setPptReviewerId,
-    pptApproverId, setPptApproverId,
+    meetingMaterialDeptRows, setMeetingMaterialDeptRows,
+    meetingMaterialReviewerId, setMeetingMaterialReviewerId,
+    meetingMaterialApproverId, setMeetingMaterialApproverId,
     deptHeadPickerIdx, setDeptHeadPickerIdx,
     pagePickerRowIdx, setPagePickerRowIdx,
     deptHeadSearch, setDeptHeadSearch,
@@ -81,31 +81,31 @@ export function Step2TaskBreakdown() {
                 <CardTitle>任务拆解</CardTitle>
                 <CardDescription>
                   {taskType === "例会资料"
-                    ? "将PPT页面分配给各部门，部门负责人后续再分配给员工"
+                    ? "将模板页面分配给各部门，部门负责人后续再分配给员工"
                     : "为每位执行人分配具体的工作包"}
                   {templatePageCount > 0 && (
                     <span className="ml-2 text-primary">
-                      （PPT共 {templatePageCount} 页）
+                      （模板共 {templatePageCount} 页）
                     </span>
                   )}
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
-                {/* PPT 部门分配 UI */}
+                {/* 例会资料部门分配 UI */}
                 {taskType === "例会资料" ? (
                   <div className="space-y-4">
                     <div className="grid gap-4 xl:grid-cols-[320px_minmax(0,1fr)] xl:items-start">
                       <div className="space-y-3">
                         <div className="flex items-center justify-between">
                           <Label>部门</Label>
-                          <span className="text-xs text-muted-foreground">共 {pptDeptRows.length} 个部门</span>
+                          <span className="text-xs text-muted-foreground">共 {meetingMaterialDeptRows.length} 个部门</span>
                         </div>
 
-                        {pptDeptRows.map((row, idx) => {
+                        {meetingMaterialDeptRows.map((row, idx) => {
                           const selectedPages = parsePageInput(row.pageSelection, templatePageCount);
                           const pagesAssignedElsewhere = new Set<number>();
 
-                          pptDeptRows.forEach((otherRow, otherIdx) => {
+                          meetingMaterialDeptRows.forEach((otherRow, otherIdx) => {
                             if (otherIdx === idx) return;
                             parsePageInput(otherRow.pageSelection, templatePageCount).forEach(page => {
                               pagesAssignedElsewhere.add(page);
@@ -167,7 +167,7 @@ export function Step2TaskBreakdown() {
                                     className="rounded p-1 text-muted-foreground transition-colors hover:text-destructive"
                                     onClick={(event) => {
                                       event.stopPropagation();
-                                      setPptDeptRows(prev => prev.filter((_, itemIdx) => itemIdx !== idx));
+                                      setMeetingMaterialDeptRows(prev => prev.filter((_, itemIdx) => itemIdx !== idx));
                                       setPagePickerRowIdx(prev => (
                                         prev === null ? null : prev === idx ? null : prev > idx ? prev - 1 : prev
                                       ));
@@ -187,8 +187,8 @@ export function Step2TaskBreakdown() {
                           size="sm"
                           className="w-full border-dashed border-primary/40 text-primary hover:bg-primary/5"
                           onClick={() => {
-                            const nextIndex = pptDeptRows.length;
-                            setPptDeptRows(prev => [...prev, { deptName: "", pageSelection: "", requirement: "", headUserId: "", headUserName: "", headUserAvatar: "" }]);
+                            const nextIndex = meetingMaterialDeptRows.length;
+                            setMeetingMaterialDeptRows(prev => [...prev, { deptName: "", pageSelection: "", requirement: "", headUserId: "", headUserName: "", headUserAvatar: "" }]);
                             setPagePickerRowIdx(nextIndex);
                           }}
                         >
@@ -215,7 +215,7 @@ export function Step2TaskBreakdown() {
                               {activePagePickerRow ? (
                                 <>
                                   <div className="grid gap-3 lg:grid-cols-[160px_minmax(0,1fr)_auto]">
-                                    <Select value={activePagePickerRow.deptName} onValueChange={(value) => activePagePickerIdx !== null && setPptDeptRows(prev => prev.map((item, itemIdx) => itemIdx === activePagePickerIdx ? { ...item, deptName: value, headUserId: "", headUserName: "", headUserAvatar: "" } : item))}>
+                                    <Select value={activePagePickerRow.deptName} onValueChange={(value) => activePagePickerIdx !== null && setMeetingMaterialDeptRows(prev => prev.map((item, itemIdx) => itemIdx === activePagePickerIdx ? { ...item, deptName: value, headUserId: "", headUserName: "", headUserAvatar: "" } : item))}>
                                       <SelectTrigger className="h-9 w-full font-medium">
                                         <SelectValue placeholder="选择部门" />
                                       </SelectTrigger>
@@ -345,7 +345,7 @@ export function Step2TaskBreakdown() {
                                       rows={5}
                                       placeholder="补充该部门要处理的内容说明、数据要求或输出要求..."
                                       value={activePagePickerRow.requirement}
-                                      onChange={(e) => activePagePickerIdx !== null && setPptDeptRows(prev => prev.map((item, itemIdx) => itemIdx === activePagePickerIdx ? { ...item, requirement: e.target.value } : item))}
+                                      onChange={(e) => activePagePickerIdx !== null && setMeetingMaterialDeptRows(prev => prev.map((item, itemIdx) => itemIdx === activePagePickerIdx ? { ...item, requirement: e.target.value } : item))}
                                     />
                                   </div>
 
@@ -377,8 +377,8 @@ export function Step2TaskBreakdown() {
                           <DialogTitle className="flex items-center gap-2">
                             <Users className="h-5 w-5 text-primary" />
                             选择部门负责人
-                            {deptHeadPickerIdx !== null && pptDeptRows[deptHeadPickerIdx]?.deptName && (
-                              <Badge variant="secondary" className="ml-2">{pptDeptRows[deptHeadPickerIdx].deptName}</Badge>
+                            {deptHeadPickerIdx !== null && meetingMaterialDeptRows[deptHeadPickerIdx]?.deptName && (
+                              <Badge variant="secondary" className="ml-2">{meetingMaterialDeptRows[deptHeadPickerIdx].deptName}</Badge>
                             )}
                           </DialogTitle>
                           <DialogDescription>搜索并选择该部门的负责人，负责后续向员工分配任务</DialogDescription>
@@ -390,7 +390,7 @@ export function Step2TaskBreakdown() {
                         <ScrollArea className="flex-1 -mx-2 px-2">
                           <div className="space-y-4 pb-4">
                             {departments.map(dept => {
-                              const selectedDeptName = deptHeadPickerIdx !== null ? pptDeptRows[deptHeadPickerIdx]?.deptName : "";
+                              const selectedDeptName = deptHeadPickerIdx !== null ? meetingMaterialDeptRows[deptHeadPickerIdx]?.deptName : "";
                               const deptMembers = users.filter(u =>
                                 (!selectedDeptName || u.department === selectedDeptName) &&
                                 (u.name.includes(deptHeadSearch) || u.staffId.includes(deptHeadSearch) || u.role.includes(deptHeadSearch))
@@ -407,7 +407,7 @@ export function Step2TaskBreakdown() {
                                     {show.map(u => (
                                       <div key={u.id} onClick={() => {
                                         if (deptHeadPickerIdx !== null) {
-                                          setPptDeptRows(prev => prev.map((r, i) => i === deptHeadPickerIdx ? { ...r, headUserId: u.id, headUserName: u.name, headUserAvatar: u.avatar } : r));
+                                          setMeetingMaterialDeptRows(prev => prev.map((r, i) => i === deptHeadPickerIdx ? { ...r, headUserId: u.id, headUserName: u.name, headUserAvatar: u.avatar } : r));
                                           setDeptHeadPickerIdx(null);
                                         }
                                       }} className="flex items-center gap-3 p-2.5 rounded-xl border border-border/40 bg-muted/10 hover:bg-primary/5 hover:border-primary/30 cursor-pointer transition-all">

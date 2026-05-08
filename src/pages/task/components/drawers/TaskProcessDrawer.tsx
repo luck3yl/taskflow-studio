@@ -24,9 +24,9 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import { Task, Assignee } from "@/contexts/TaskContext";
-import { FilePreviewDialog } from "@/features/ppt/components/FilePreviewDialog";
+import { FilePreviewDialog } from "@/pages/ppt/components/FilePreviewDialog";
 import { cn } from "@/lib/utils";
-import { TaskTimelineView } from "@/features/task/components/TaskTimelineView";
+import { TaskTimelineView } from "@/pages/task/components/TaskTimelineView";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 
 interface TaskProcessDrawerProps {

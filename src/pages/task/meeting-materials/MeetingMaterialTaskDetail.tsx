@@ -3,7 +3,11 @@ import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Users, Eye, FileText } from "lucide-react";
 import { cn, formatPageRange } from "@/lib/utils";
-import type { Task, PptDeptAssignment, PptUserAssignment } from "@/contexts/TaskContext";
+import type {
+  MeetingMaterialDeptAssignment,
+  MeetingMaterialUserAssignment,
+  Task,
+} from "@/contexts/TaskContext";
 import { hasCapability, type User } from "@/contexts/UserContext";
 
 // 用户状态标签
@@ -19,22 +23,27 @@ function userStatusBadge(status: string) {
   }
 }
 
-interface PptTaskDetailProps {
+interface MeetingMaterialTaskDetailProps {
   task: Task;
   currentUser: User;
-  onOpenPptDrawer: () => void;
-  onReviewUser?: (dept: PptDeptAssignment, user: PptUserAssignment) => void;
+  onOpenMeetingMaterialDrawer: () => void;
+  onReviewUser?: (dept: MeetingMaterialDeptAssignment, user: MeetingMaterialUserAssignment) => void;
 }
 
-export function PptTaskDetail({ task, currentUser, onOpenPptDrawer, onReviewUser }: PptTaskDetailProps) {
-  if (!task.pptWorkflow) return null;
+export function MeetingMaterialTaskDetail({
+  task,
+  currentUser,
+  onOpenMeetingMaterialDrawer,
+  onReviewUser,
+}: MeetingMaterialTaskDetailProps) {
+  if (!task.meetingMaterialWorkflow) return null;
 
   const canDirectorReview = hasCapability(currentUser, "task.review.director");
   const canMinisterReview = hasCapability(currentUser, "task.review.minister") || hasCapability(currentUser, "task.view.all");
 
   // 室主任：只看自己负责的部门的员工详情
   // 部长：看所有部门的员工详情
-  const myDepts = task.pptWorkflow.deptAssignments.filter(dept =>
+  const myDepts = task.meetingMaterialWorkflow.deptAssignments.filter(dept =>
     canMinisterReview || dept.headUserId === currentUser.id
   );
   const roomHeadAssignments = myDepts.flatMap(dept =>
@@ -68,7 +77,7 @@ export function PptTaskDetail({ task, currentUser, onOpenPptDrawer, onReviewUser
               className="h-7 text-xs shadow-sm bg-background border-border/80 hover:bg-secondary/40"
               onClick={(e) => {
                 e.stopPropagation();
-                onOpenPptDrawer();
+                onOpenMeetingMaterialDrawer();
               }}
             >
               <Eye className="h-3.5 w-3.5 mr-1" />
@@ -130,7 +139,7 @@ export function PptTaskDetail({ task, currentUser, onOpenPptDrawer, onReviewUser
           className="h-7 text-xs shadow-sm"
           onClick={(e) => {
             e.stopPropagation();
-            onOpenPptDrawer();
+            onOpenMeetingMaterialDrawer();
           }}
         >
           <Eye className="h-3.5 w-3.5 mr-1" />
@@ -138,7 +147,7 @@ export function PptTaskDetail({ task, currentUser, onOpenPptDrawer, onReviewUser
         </Button>
       </div>
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-      {task.pptWorkflow.deptAssignments.map((dept) => {
+      {task.meetingMaterialWorkflow.deptAssignments.map((dept) => {
         const submittedCount = dept.userAssignments.filter(ua => ua.status === "submitted").length;
         const waitingFinalCount = dept.userAssignments.filter(ua => ua.status === "dept_approved").length;
         const completedCount = dept.userAssignments.filter(ua => ua.status === "final_approved").length;
@@ -150,7 +159,7 @@ export function PptTaskDetail({ task, currentUser, onOpenPptDrawer, onReviewUser
             className="text-left flex flex-col h-full rounded-2xl border border-border/70 bg-card shadow-sm hover:border-primary/30 hover:shadow-md transition-all overflow-hidden"
             onClick={(e) => {
               e.stopPropagation();
-              onOpenPptDrawer();
+              onOpenMeetingMaterialDrawer();
             }}
           >
             <div className="px-4 py-4 bg-gradient-to-r from-secondary/40 to-background border-b border-border/50">

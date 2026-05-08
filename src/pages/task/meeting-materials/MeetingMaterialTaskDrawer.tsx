@@ -54,13 +54,19 @@ import {
   RefreshCcw,
 } from "lucide-react";
 import { cn, formatPageRange } from "@/lib/utils";
-import { useTaskContext, PptDeptAssignment, PptUserAssignment, PptPageSubmission, PptStage } from "@/contexts/TaskContext";
+import {
+  MeetingMaterialDeptAssignment,
+  MeetingMaterialPageSubmission,
+  MeetingMaterialStage,
+  MeetingMaterialUserAssignment,
+  useTaskContext,
+} from "@/contexts/TaskContext";
 import { hasCapability, isManagementUser, useUserContext } from "@/contexts/UserContext";
 import { useToast } from "@/hooks/use-toast";
-import { FilePreviewDialog } from "@/features/ppt/components/FilePreviewDialog";
+import { FilePreviewDialog } from "@/pages/ppt/components/FilePreviewDialog";
 
 // ---- helpers ----
-const stageLabel: Record<PptStage, string> = {
+const stageLabel: Record<MeetingMaterialStage, string> = {
   dept_assignment: "待分配部门",
   user_assignment: "待分配员工",
   in_progress: "编辑中",
@@ -69,7 +75,7 @@ const stageLabel: Record<PptStage, string> = {
   approved: "已通过",
   merged: "已合并",
 };
-const stageColor: Record<PptStage, string> = {
+const stageColor: Record<MeetingMaterialStage, string> = {
   dept_assignment: "bg-gray-200 text-gray-700",
   user_assignment: "bg-blue-100 text-blue-700",
   in_progress: "bg-amber-100 text-amber-700",
@@ -79,7 +85,7 @@ const stageColor: Record<PptStage, string> = {
   merged: "bg-emerald-100 text-emerald-700",
 };
 
-function userStatusBadge(status: PptUserAssignment["status"]) {
+function userStatusBadge(status: MeetingMaterialUserAssignment["status"]) {
   switch (status) {
     case "pending": return <Badge variant="outline" className="text-muted-foreground text-xs">待提交</Badge>;
     case "in_progress": return <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200 text-xs">编辑中</Badge>;
@@ -143,7 +149,7 @@ const quickFeedbacks = [
   "请补充更多细节",
 ];
 
-export function PptTaskDrawer({
+export function MeetingMaterialTaskDrawer({
   open,
   onOpenChange,
   taskId
@@ -153,24 +159,31 @@ export function PptTaskDrawer({
   taskId?: string;
 }) {
   const navigate = useNavigate();
-  const { tasks, reviewPptWork, finalApprovePptWork, assignPptPagesToUser, submitPptWork, advancePptStage } = useTaskContext();
+  const {
+    tasks,
+    reviewMeetingMaterialWork,
+    finalApproveMeetingMaterialWork,
+    assignMeetingMaterialPagesToUser,
+    submitMeetingMaterialWork,
+    advanceMeetingMaterialStage,
+  } = useTaskContext();
   const { currentUser, users, departments } = useUserContext();
   const { toast } = useToast();
 
   const task = tasks.find(t => t.id === taskId);
-  const ppt = task?.pptWorkflow;
+  const meetingMaterialWorkflow = task?.meetingMaterialWorkflow;
 
   // UI state
   const [expandedDepts, setExpandedDepts] = useState<string[]>(["da-1", "da-2", "da-3"]);
   const [reviewSheet, setReviewSheet] = useState<{
     deptId: string;
-    ua: PptUserAssignment;
-    sub: PptPageSubmission;
+    ua: MeetingMaterialUserAssignment;
+    sub: MeetingMaterialPageSubmission;
     isFinalApprove?: boolean;
   } | null>(null);
   const [reviewFeedback, setReviewFeedback] = useState("");
   const [selectedFilePreview, setSelectedFilePreview] = useState<{ fileName: string; fileUrl?: string } | null>(null);
-  const [submitDialog, setSubmitDialog] = useState<{ deptId: string; ua: PptUserAssignment } | null>(null);
+  const [submitDialog, setSubmitDialog] = useState<{ deptId: string; ua: MeetingMaterialUserAssignment } | null>(null);
   const [submitNote, setSubmitNote] = useState("");
   const [assignDialog, setAssignDialog] = useState<{ deptId: string } | null>(null);
   const [assignUserId, setAssignUserId] = useState("");
@@ -185,7 +198,7 @@ export function PptTaskDrawer({
     taskDescription?: string;
   }>>([]);
 
-  if (!task || !ppt) {
+  if (!task || !meetingMaterialWorkflow) {
     return (
       <Sheet open={open} onOpenChange={onOpenChange}>
         <SheetContent side="right" className="w-[100vw] sm:w-[500px] md:w-[620px] lg:w-[760px] xl:w-[860px] sm:max-w-none flex flex-col items-center justify-center py-24">
@@ -198,20 +211,20 @@ export function PptTaskDrawer({
   // 当前用户是否为创建者
   // 当前用户是否为创建者
   const isCreator = currentUser.name === task.createdBy ||
-    ppt.reviewerId === currentUser.id ||
-    ppt.approverId === currentUser.id;
+    meetingMaterialWorkflow.reviewerId === currentUser.id ||
+    meetingMaterialWorkflow.approverId === currentUser.id;
   // 当前用户是否为部长（可做最终审批）
   const isDeptManager = hasCapability(currentUser, "task.review.minister") ||
     hasCapability(currentUser, "task.merge") ||
     hasCapability(currentUser, "task.view.all");
 
   // 当前用户是否为某部门负责人  // 当前用户是否为某部门负责人
-  const myDeptHead = ppt.deptAssignments.find(d => d.headUserId === currentUser.id);
+  const myDeptHead = meetingMaterialWorkflow.deptAssignments.find(d => d.headUserId === currentUser.id);
   const isDeptHeadOnly = !!myDeptHead && !isCreator && !isDeptManager;
 
   // 当前用户在哪些 userAssignment 中
-  const myAssignments: { dept: PptDeptAssignment; ua: PptUserAssignment }[] = [];
-  for (const dept of ppt.deptAssignments) {
+  const myAssignments: { dept: MeetingMaterialDeptAssignment; ua: MeetingMaterialUserAssignment }[] = [];
+  for (const dept of meetingMaterialWorkflow.deptAssignments) {
     for (const ua of dept.userAssignments) {
       if (ua.userId === currentUser.id) {
         myAssignments.push({ dept, ua });
@@ -220,7 +233,7 @@ export function PptTaskDrawer({
   }
 
   const currentAssignDept = assignDialog
-    ? ppt.deptAssignments.find(dept => dept.id === assignDialog.deptId)
+    ? meetingMaterialWorkflow.deptAssignments.find(dept => dept.id === assignDialog.deptId)
     : undefined;
   const assignableDeptPages = currentAssignDept
     ? [...new Set(currentAssignDept.pages)].sort((left, right) => left - right)
@@ -228,7 +241,7 @@ export function PptTaskDrawer({
   const getDeptOccupiedPages = (deptId?: string, excludeUserId?: string): number[] => {
     if (!deptId) return [];
 
-    const dept = ppt.deptAssignments.find(item => item.id === deptId);
+    const dept = meetingMaterialWorkflow.deptAssignments.find(item => item.id === deptId);
     if (!dept) return [];
 
     return dept.userAssignments
@@ -258,7 +271,7 @@ export function PptTaskDrawer({
   const stagedOccupiedPages = assignDrafts
     .filter(item => item.userId !== assignUserId)
     .flatMap(item => item.pages);
-  const visibleDepts = ppt.deptAssignments.filter(
+  const visibleDepts = meetingMaterialWorkflow.deptAssignments.filter(
     dept => isCreator || dept.headUserId === currentUser.id || dept.department === currentUser.department
   );
   const visibleAssignments = visibleDepts.flatMap(dept => dept.userAssignments);
@@ -269,7 +282,7 @@ export function PptTaskDrawer({
           if (!sub.hasConflict) {
             return [] as number[];
           }
-          return ua.pages.filter(page => (ppt.pageVersions[page] || 0) > sub.baseVersion);
+          return ua.pages.filter(page => (meetingMaterialWorkflow.pageVersions[page] || 0) > sub.baseVersion);
         })
       )
     )
@@ -293,7 +306,7 @@ export function PptTaskDrawer({
     }
     if (reviewSheet.isFinalApprove) {
       // 部长最终审批
-      finalApprovePptWork(
+      finalApproveMeetingMaterialWork(
         task.id,
         reviewSheet.deptId,
         reviewSheet.ua.id,
@@ -308,7 +321,7 @@ export function PptTaskDrawer({
       });
     } else {
       // 室主任审核（通过后状态变为 dept_approved，等待部长审批）
-      reviewPptWork(
+      reviewMeetingMaterialWork(
         task.id,
         reviewSheet.deptId,
         reviewSheet.ua.id,
@@ -329,7 +342,7 @@ export function PptTaskDrawer({
 
     const handleSubmit = () => {
     if (!submitDialog) return;
-    const { hasConflict, conflictDescription } = submitPptWork(
+    const { hasConflict, conflictDescription } = submitMeetingMaterialWork(
       task.id,
       submitDialog.deptId,
       submitDialog.ua.id,
@@ -337,7 +350,7 @@ export function PptTaskDrawer({
         fileName: `${currentUser.name}_第${formatPageRange(submitDialog.ua.pages)}页.pptx`,
         fileSize: Math.round(Math.random() * 1.5 * 10) / 10 + 0.5,
         note: submitNote,
-        baseVersion: Math.max(...submitDialog.ua.pages.map(p => ppt.pageVersions[p] || 0)),
+        baseVersion: Math.max(...submitDialog.ua.pages.map(p => meetingMaterialWorkflow.pageVersions[p] || 0)),
       }
     );
     if (hasConflict) {
@@ -382,7 +395,7 @@ export function PptTaskDrawer({
     }
 
     pendingAssignments.forEach(assignment => {
-      assignPptPagesToUser(task.id, assignDialog.deptId, assignment);
+      assignMeetingMaterialPagesToUser(task.id, assignDialog.deptId, assignment);
     });
 
     toast({ title: "分配成功", description: `已完成 ${pendingAssignments.length} 条人员分配` });
@@ -392,19 +405,19 @@ export function PptTaskDrawer({
   };
 
   // 统计进度
-  const totalUserAssignments = ppt.deptAssignments.flatMap(d => d.userAssignments);
+  const totalUserAssignments = meetingMaterialWorkflow.deptAssignments.flatMap(d => d.userAssignments);
   const approvedCount = totalUserAssignments.filter(ua => ua.status === "final_approved").length;
   const submittedCount = totalUserAssignments.filter(ua => ua.status === "submitted").length;
   const totalCount = totalUserAssignments.length;
 
   // 冲突页面
   const conflictPages: number[] = [];
-  for (const dept of ppt.deptAssignments) {
+  for (const dept of meetingMaterialWorkflow.deptAssignments) {
     for (const ua of dept.userAssignments) {
       for (const sub of ua.submissions) {
         if (sub.hasConflict) {
           conflictPages.push(...ua.pages.filter(p => {
-            const ver = ppt.pageVersions[p] || 0;
+            const ver = meetingMaterialWorkflow.pageVersions[p] || 0;
             return ver > sub.baseVersion;
           }));
         }
@@ -412,7 +425,7 @@ export function PptTaskDrawer({
     }
   }
   const uniqueConflictPages = [...new Set(conflictPages)];
-  const canViewMergedFile = !isDeptHeadOnly && (ppt.stage === "merged" || !!ppt.mergedFileUrl || (totalCount > 0 && approvedCount === totalCount));
+  const canViewMergedFile = !isDeptHeadOnly && (meetingMaterialWorkflow.stage === "merged" || !!meetingMaterialWorkflow.mergedFileUrl || (totalCount > 0 && approvedCount === totalCount));
   const mergedFileName = `${task.title}_合并版.pptx`;
 
   const resetAssignInputs = () => {
@@ -465,8 +478,8 @@ export function PptTaskDrawer({
             <SheetDescription className="text-xs mt-1">创建者：{task.createdBy} · 截止：{task.deadline}</SheetDescription>
           </div>
           <div className="ml-auto flex items-center justify-end gap-2 pr-8 shrink-0">
-            <span className={cn("text-xs font-semibold px-2.5 py-1 rounded-full", stageColor[ppt.stage])}>
-              {stageLabel[ppt.stage]}
+            <span className={cn("text-xs font-semibold px-2.5 py-1 rounded-full", stageColor[meetingMaterialWorkflow.stage])}>
+              {stageLabel[meetingMaterialWorkflow.stage]}
             </span>
             {(isDeptHeadOnly ? visibleConflictCount : uniqueConflictPages.length) > 0 && (
               <Badge variant="destructive" className="text-xs gap-1">
@@ -523,7 +536,7 @@ export function PptTaskDrawer({
               <div className="rounded-2xl border border-border/60 bg-card p-4 sm:p-5 shadow-sm transition-all hover:shadow-md flex flex-col justify-center group overflow-hidden relative">
                   <div className="flex items-center justify-between z-10 relative">
                     <div className="space-y-1.5">
-                      <p className="text-2xl sm:text-3xl font-black tracking-tight text-foreground">{ppt.totalPages}</p>
+                      <p className="text-2xl sm:text-3xl font-black tracking-tight text-foreground">{meetingMaterialWorkflow.totalPages}</p>
                       <p className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
                         总页数
                       </p>
@@ -536,7 +549,7 @@ export function PptTaskDrawer({
               <div className="rounded-2xl border border-border/60 bg-card p-4 sm:p-5 shadow-sm transition-all hover:shadow-md flex flex-col justify-center group overflow-hidden relative">
                   <div className="flex items-center justify-between z-10 relative">
                     <div className="space-y-1.5">
-                      <p className="text-2xl sm:text-3xl font-black tracking-tight text-foreground">{ppt.deptAssignments.length}</p>
+                      <p className="text-2xl sm:text-3xl font-black tracking-tight text-foreground">{meetingMaterialWorkflow.deptAssignments.length}</p>
                       <p className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
                         参与部门
                       </p>
@@ -606,7 +619,7 @@ export function PptTaskDrawer({
                       合并后文件
                     </p>
                     <p className="text-xs text-muted-foreground mt-1">
-                      {ppt.stage === "merged" ? "已完成合并，可直接预览最终文件。" : "全部审批通过后，最终合并文件会显示在这里。"}
+                      {meetingMaterialWorkflow.stage === "merged" ? "已完成合并，可直接预览最终文件。" : "全部审批通过后，最终合并文件会显示在这里。"}
                     </p>
                   </div>
                   <div className="flex items-center gap-2">
@@ -614,8 +627,8 @@ export function PptTaskDrawer({
                       size="sm"
                       variant="outline"
                       className="h-8 text-xs"
-                      disabled={!ppt.mergedFileUrl}
-                      onClick={() => setSelectedFilePreview({ fileName: mergedFileName, fileUrl: ppt.mergedFileUrl })}
+                      disabled={!meetingMaterialWorkflow.mergedFileUrl}
+                      onClick={() => setSelectedFilePreview({ fileName: mergedFileName, fileUrl: meetingMaterialWorkflow.mergedFileUrl })}
                     >
                       <Eye className="h-3.5 w-3.5 mr-1.5" />预览
                     </Button>
@@ -623,15 +636,15 @@ export function PptTaskDrawer({
                       size="sm"
                       variant="outline"
                       className="h-8 text-xs"
-                      disabled={!ppt.mergedFileUrl}
-                      onClick={() => ppt.mergedFileUrl && window.open(ppt.mergedFileUrl, "_blank", "noopener,noreferrer")}
+                      disabled={!meetingMaterialWorkflow.mergedFileUrl}
+                      onClick={() => meetingMaterialWorkflow.mergedFileUrl && window.open(meetingMaterialWorkflow.mergedFileUrl, "_blank", "noopener,noreferrer")}
                     >
                       <Download className="h-3.5 w-3.5 mr-1.5" />下载
                     </Button>
                   </div>
                 </div>
                 <div className="rounded-xl border border-border/50 bg-secondary/20 px-3 py-2 text-xs text-muted-foreground">
-                  文件名：{mergedFileName}{!ppt.mergedFileUrl ? "，合并文件生成后可预览/下载" : ""}
+                  文件名：{mergedFileName}{!meetingMaterialWorkflow.mergedFileUrl ? "，合并文件生成后可预览/下载" : ""}
                 </div>
               </div>
             )}
@@ -752,8 +765,8 @@ export function PptTaskDrawer({
               <Users className="h-5 w-5 text-blue-500" />
               {isSingleDeptHeadView ? "员工任务详情" : "部门分配详情"}
             </h2>
-            {isCreator && ppt.stage !== "merged" && (
-              <Button size="sm" className="h-8 text-xs font-semibold gap-1.5 rounded-full px-4 shadow-sm" onClick={() => advancePptStage(task.id, "merged")}>
+            {isCreator && meetingMaterialWorkflow.stage !== "merged" && (
+              <Button size="sm" className="h-8 text-xs font-semibold gap-1.5 rounded-full px-4 shadow-sm" onClick={() => advanceMeetingMaterialStage(task.id, "merged")}>
                 <GitMerge className="h-3.5 w-3.5" />
                 标记合并完成
               </Button>
@@ -1075,7 +1088,7 @@ export function PptTaskDrawer({
             </DialogTitle>
             <DialogDescription>
               您负责第 <strong>{formatPageRange(submitDialog?.ua.pages)}</strong> 页
-              {submitDialog && submitDialog.ua.pages.some(p => (ppt.pageVersions[p] || 0) > 0) && (
+              {submitDialog && submitDialog.ua.pages.some(p => (meetingMaterialWorkflow.pageVersions[p] || 0) > 0) && (
                 <span className="block mt-1 text-amber-600 text-xs">
                   ⚠️ 这些页面已有其他版本，系统将自动进行版本冲突检测
                 </span>

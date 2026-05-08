@@ -28,9 +28,9 @@ export function Step4PreviewPublish() {
     templateFile, setTemplateFile,
     templatePageCount, setTemplatePageCount,
     assignments, setAssignments,
-    pptDeptRows, setPptDeptRows,
-    pptReviewerId, setPptReviewerId,
-    pptApproverId, setPptApproverId,
+    meetingMaterialDeptRows, setMeetingMaterialDeptRows,
+    meetingMaterialReviewerId, setMeetingMaterialReviewerId,
+    meetingMaterialApproverId, setMeetingMaterialApproverId,
     deptHeadPickerIdx, setDeptHeadPickerIdx,
     pagePickerRowIdx, setPagePickerRowIdx,
     deptHeadSearch, setDeptHeadSearch,
@@ -115,7 +115,7 @@ export function Step4PreviewPublish() {
                     <span className="text-muted-foreground">审核人</span>
                     <span>
                       {taskType === "例会资料"
-                        ? (users.find(u => u.id === pptReviewerId)?.name || <span className="text-muted-foreground text-sm">未设置</span>)
+                        ? (users.find(u => u.id === meetingMaterialReviewerId)?.name || <span className="text-muted-foreground text-sm">未设置</span>)
                         : (reviewerOptions.find(r => r.id === reviewer)?.name || "")}
                       {taskType !== "例会资料" && (
                         <span className="text-muted-foreground ml-1">
@@ -127,7 +127,7 @@ export function Step4PreviewPublish() {
                   {taskType === "例会资料" && (
                     <div className="flex items-center justify-between py-2 border-b border-border">
                       <span className="text-muted-foreground">审批人</span>
-                      <span>{users.find(u => u.id === pptApproverId)?.name || <span className="text-muted-foreground text-sm">未设置</span>}</span>
+                      <span>{users.find(u => u.id === meetingMaterialApproverId)?.name || <span className="text-muted-foreground text-sm">未设置</span>}</span>
                     </div>
                   )}
                 </div>
@@ -146,7 +146,7 @@ export function Step4PreviewPublish() {
                           </tr>
                         </thead>
                         <tbody>
-                          {pptDeptRows.filter(r => r.deptName && parsePageInput(r.pageSelection, templatePageCount).length > 0).map((row, i) => (
+                          {meetingMaterialDeptRows.filter(r => r.deptName && parsePageInput(r.pageSelection, templatePageCount).length > 0).map((row, i) => (
                             <tr key={i} className="border-t border-border">
                               <td className="px-4 py-3">
                                 <div className="font-medium mb-1">{row.deptName}</div>

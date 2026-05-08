@@ -1,10 +1,10 @@
 import { useUserContext } from "@/contexts/UserContext";
 import { useTaskContext } from "@/contexts/TaskContext";
 import { AppLayout } from "@/components/layout/AppLayout";
-import { StatCard } from "@/features/dashboard/components/StatCard";
-import { TaskProgressChart } from "@/features/dashboard/components/TaskProgressChart";
-import { UrgentTaskReminder } from "@/features/dashboard/components/UrgentTaskReminder";
-import { MessageCenter } from "@/features/dashboard/components/MessageCenter";
+import { StatCard } from "@/pages/dashboard/components/StatCard";
+import { TaskProgressChart } from "@/pages/dashboard/components/TaskProgressChart";
+import { UrgentTaskReminder } from "@/pages/dashboard/components/UrgentTaskReminder";
+import { MessageCenter } from "@/pages/dashboard/components/MessageCenter";
 import { ClipboardList, Clock, CheckCircle2, AlertCircle } from "lucide-react";
 
 const Index = () => {

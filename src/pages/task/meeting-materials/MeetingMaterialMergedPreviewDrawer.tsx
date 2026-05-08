@@ -20,20 +20,20 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import { Task } from "@/contexts/TaskContext";
-import { FilePreviewDialog } from "@/features/ppt/components/FilePreviewDialog";
-import { PPTistViewer } from "@/features/ppt/components/PPTistViewer";
+import { FilePreviewDialog } from "@/pages/ppt/components/FilePreviewDialog";
+import { PPTistViewer } from "@/pages/ppt/components/PPTistViewer";
 
-interface MergedPPTDrawerProps {
+interface MeetingMaterialMergedPreviewDrawerProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   task?: Task;
 }
 
-export function MergedPPTDrawer({
+export function MeetingMaterialMergedPreviewDrawer({
   open,
   onOpenChange,
   task
-}: MergedPPTDrawerProps) {
+}: MeetingMaterialMergedPreviewDrawerProps) {
   const [selectedFilePreview, setSelectedFilePreview] = useState<{
     fileName: string;
     fileUrl?: string;

@@ -1,5 +1,5 @@
 import { formatPageRange } from "@/lib/utils";
-﻿import { useState } from "react";
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Card, CardContent } from "@/components/ui/card";
@@ -26,10 +26,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { TaskProcessDrawer } from "@/features/task/components/drawers/TaskProcessDrawer";
-import { PptTaskDrawer } from "@/features/task/components/drawers/PptTaskDrawer";
+import { TaskProcessDrawer } from "@/pages/task/components/drawers/TaskProcessDrawer";
 import { useTaskContext, Task, Assignee } from "@/contexts/TaskContext";
 import { useUserContext } from "@/contexts/UserContext";
+import { MeetingMaterialTaskDrawer } from "@/pages/task/meeting-materials/MeetingMaterialTaskDrawer";
 
 const statusStyles = {
   pending: "bg-warning/10 text-warning border-warning/20",
@@ -68,10 +68,10 @@ export default function TodoCenter() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [selectedItem, setSelectedItem] = useState<{ task: Task; assignee: Assignee } | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const [pptDrawerOpen, setPptDrawerOpen] = useState(false);
-  const [pptTaskId, setPptTaskId] = useState<string>("");
+  const [meetingMaterialDrawerOpen, setMeetingMaterialDrawerOpen] = useState(false);
+  const [meetingMaterialTaskId, setMeetingMaterialTaskId] = useState<string>("");
 
-  const { tasks, submitWork, submitPptWork } = useTaskContext();
+  const { tasks, submitWork, submitMeetingMaterialWork } = useTaskContext();
   const { currentUser } = useUserContext();
   const navigate = useNavigate();
 
@@ -83,14 +83,14 @@ export default function TodoCenter() {
       return [{ task, assignee }];
     }
 
-    // 处理例会资料任务的分配（在 task.pptWorkflow 中）
-    if (task.type === "例会资料" && task.pptWorkflow) {
-      const myPptAssignments: { task: Task, assignee: Assignee & { isDeptHeadDistribution?: boolean } }[] = [];
+    // 处理例会资料任务的分配（在 task.meetingMaterialWorkflow 中）
+    if (task.type === "例会资料" && task.meetingMaterialWorkflow) {
+      const myMeetingMaterialAssignments: { task: Task, assignee: Assignee & { isDeptHeadDistribution?: boolean } }[] = [];
 
-      task.pptWorkflow.deptAssignments.forEach(deptAssignment => {
+      task.meetingMaterialWorkflow.deptAssignments.forEach(deptAssignment => {
         deptAssignment.userAssignments.forEach(ua => {
           if (ua.userId === currentUser.id) {
-            myPptAssignments.push({
+            myMeetingMaterialAssignments.push({
               task,
               assignee: {
                 ...ua,
@@ -110,8 +110,8 @@ export default function TodoCenter() {
         });
       });
 
-      if (myPptAssignments.length > 0) {
-        return myPptAssignments;
+      if (myMeetingMaterialAssignments.length > 0) {
+        return myMeetingMaterialAssignments;
       }
     }
 
@@ -127,8 +127,8 @@ export default function TodoCenter() {
 
   const handleProcessTask = (task: Task, assignee: Assignee & { isDeptHeadDistribution?: boolean }) => {
     if (task.type === "例会资料" && assignee.isDeptHeadDistribution) {
-      setPptTaskId(task.id);
-      setPptDrawerOpen(true);
+      setMeetingMaterialTaskId(task.id);
+      setMeetingMaterialDrawerOpen(true);
       return;
     }
     setSelectedItem({ task, assignee });
@@ -138,21 +138,21 @@ export default function TodoCenter() {
   const handleSubmit = (file: File, note: string) => {
     if (!selectedItem) return;
 
-    if (selectedItem.task.type === "例会资料" && selectedItem.task.pptWorkflow) {
+    if (selectedItem.task.type === "例会资料" && selectedItem.task.meetingMaterialWorkflow) {
       // Find deptId
       let submitDeptId = "";
       let baseVersion = 0;
-      selectedItem.task.pptWorkflow.deptAssignments.forEach(da => {
+      selectedItem.task.meetingMaterialWorkflow.deptAssignments.forEach(da => {
         if (da.userAssignments.some(ua => ua.id === selectedItem.assignee.id)) {
           submitDeptId = da.id;
           da.userAssignments.find(ua => ua.id === selectedItem.assignee.id)?.pages.forEach(p => {
-             baseVersion = Math.max(baseVersion, selectedItem.task.pptWorkflow!.pageVersions[p] || 0);
+             baseVersion = Math.max(baseVersion, selectedItem.task.meetingMaterialWorkflow!.pageVersions[p] || 0);
           });
         }
       });
 
       if (submitDeptId) {
-        submitPptWork(selectedItem.task.id, submitDeptId, selectedItem.assignee.id, {
+        submitMeetingMaterialWork(selectedItem.task.id, submitDeptId, selectedItem.assignee.id, {
           fileName: file.name,
           fileSize: Math.round(file.size / 1024 / 1024 * 10) / 10 || 0.1,
           note,
@@ -326,11 +326,11 @@ export default function TodoCenter() {
         onSubmit={handleSubmit}
       />
 
-      {/* PPT Task Drawer */}
-      <PptTaskDrawer
-        open={pptDrawerOpen}
-        onOpenChange={setPptDrawerOpen}
-        taskId={pptTaskId}
+      {/* Meeting Material Task Drawer */}
+      <MeetingMaterialTaskDrawer
+        open={meetingMaterialDrawerOpen}
+        onOpenChange={setMeetingMaterialDrawerOpen}
+        taskId={meetingMaterialTaskId}
       />
     </AppLayout>
   );

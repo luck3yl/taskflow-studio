@@ -2,11 +2,11 @@ import { AppLayout } from "@/components/layout/AppLayout";
 import { Card } from "@/components/ui/card";
 import { ChevronLeft, ChevronRight, Rocket, FileText, Users, CalendarIcon, CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { TaskCreateProvider, useTaskCreateContext } from "@/features/task/components/create-wizard/TaskCreateContext";
-import { Step1BasicDef } from "@/features/task/components/create-wizard/Step1BasicDef";
-import { Step2TaskBreakdown } from "@/features/task/components/create-wizard/Step2TaskBreakdown";
-import { Step3TimeConfig } from "@/features/task/components/create-wizard/Step3TimeConfig";
-import { Step4PreviewPublish } from "@/features/task/components/create-wizard/Step4PreviewPublish";
+import { TaskCreateProvider, useTaskCreateContext } from "@/pages/task/components/create-wizard/TaskCreateContext";
+import { Step1BasicDef } from "@/pages/task/components/create-wizard/Step1BasicDef";
+import { Step2TaskBreakdown } from "@/pages/task/components/create-wizard/Step2TaskBreakdown";
+import { Step3TimeConfig } from "@/pages/task/components/create-wizard/Step3TimeConfig";
+import { Step4PreviewPublish } from "@/pages/task/components/create-wizard/Step4PreviewPublish";
 
 const steps = [
   { id: 1, title: "基础定义", icon: FileText },
