@@ -1,5 +1,6 @@
 ﻿import { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
+import { useEffect } from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -70,9 +71,9 @@ const stageLabel: Record<MeetingMaterialStage, string> = {
   dept_assignment: "待分配部门",
   user_assignment: "待分配员工",
   in_progress: "编辑中",
-  dept_reviewing: "部门审核中",
-  final_reviewing: "最终审批中",
-  approved: "已通过",
+  dept_reviewing: "审核中",
+  final_reviewing: "待合并",
+  approved: "审核完成",
   merged: "已合并",
 };
 const stageColor: Record<MeetingMaterialStage, string> = {
@@ -90,8 +91,8 @@ function userStatusBadge(status: MeetingMaterialUserAssignment["status"]) {
     case "pending": return <Badge variant="outline" className="text-muted-foreground text-xs">待提交</Badge>;
     case "in_progress": return <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200 text-xs">编辑中</Badge>;
     case "submitted": return <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200 text-xs">待审核</Badge>;
-    case "dept_approved": return <Badge variant="outline" className="bg-purple-50 text-purple-700 border-purple-200 text-xs">主任已审核</Badge>;
-    case "final_approved": return <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 text-xs">部长已审批</Badge>;
+    case "dept_approved": return <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 text-xs">已通过</Badge>;
+    case "final_approved": return <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 text-xs">已通过</Badge>;
     case "rejected": return <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200 text-xs">已驳回</Badge>;
   }
 }
@@ -141,8 +142,15 @@ function PageSelector({
   );
 }
 
-const quickFeedbacks = [
-  "准予通过",
+const approveQuickFeedbacks = [
+  "准允通过",
+  "数据有误，请核实",
+  "格式需要调整",
+  "内容不够完整",
+  "请补充更多细节",
+];
+
+const rejectQuickFeedbacks = [
   "数据有误，请核实",
   "格式需要调整",
   "内容不够完整",
@@ -152,26 +160,33 @@ const quickFeedbacks = [
 export function MeetingMaterialTaskDrawer({
   open,
   onOpenChange,
+  initialAssignDeptId,
   taskId
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  initialAssignDeptId?: string;
   taskId?: string;
 }) {
   const navigate = useNavigate();
   const {
     tasks,
     reviewMeetingMaterialWork,
-    finalApproveMeetingMaterialWork,
     assignMeetingMaterialPagesToUser,
     submitMeetingMaterialWork,
-    advanceMeetingMaterialStage,
+    markMeetingMaterialMerged,
   } = useTaskContext();
   const { currentUser, users, departments } = useUserContext();
   const { toast } = useToast();
 
   const task = tasks.find(t => t.id === taskId);
   const meetingMaterialWorkflow = task?.meetingMaterialWorkflow;
+  const myDeptHead = task?.meetingMaterialWorkflow?.deptAssignments.find(
+    dept => dept.headUserId === currentUser.id
+  );
+  const canAssignPages =
+    (task?.allowedActions?.includes("assign_pages") ?? false) ||
+    (!!myDeptHead && hasCapability(currentUser, "task.assign.member"));
 
   // UI state
   const [expandedDepts, setExpandedDepts] = useState<string[]>(["da-1", "da-2", "da-3"]);
@@ -179,16 +194,19 @@ export function MeetingMaterialTaskDrawer({
     deptId: string;
     ua: MeetingMaterialUserAssignment;
     sub: MeetingMaterialPageSubmission;
-    isFinalApprove?: boolean;
+    canApprove: boolean;
+    canReject: boolean;
   } | null>(null);
   const [reviewFeedback, setReviewFeedback] = useState("");
   const [selectedFilePreview, setSelectedFilePreview] = useState<{ fileName: string; fileUrl?: string } | null>(null);
   const [submitDialog, setSubmitDialog] = useState<{ deptId: string; ua: MeetingMaterialUserAssignment } | null>(null);
+  const [submitFile, setSubmitFile] = useState<File | null>(null);
   const [submitNote, setSubmitNote] = useState("");
   const [assignDialog, setAssignDialog] = useState<{ deptId: string } | null>(null);
   const [assignUserId, setAssignUserId] = useState("");
   const [assignTaskDescription, setAssignTaskDescription] = useState("");
   const [assignPages, setAssignPages] = useState<number[]>([]);
+  const [mergeDialogOpen, setMergeDialogOpen] = useState(false);
   const [assignDrafts, setAssignDrafts] = useState<Array<{
     userId: string;
     userName: string;
@@ -197,6 +215,22 @@ export function MeetingMaterialTaskDrawer({
     pages: number[];
     taskDescription?: string;
   }>>([]);
+
+  function resetAssignInputs() {
+    setAssignUserId("");
+    setAssignTaskDescription("");
+    setAssignPages([]);
+  }
+
+  useEffect(() => {
+    if (!open || !initialAssignDeptId || !canAssignPages) {
+      return;
+    }
+
+    setAssignDialog({ deptId: initialAssignDeptId });
+    setAssignDrafts([]);
+    resetAssignInputs();
+  }, [open, initialAssignDeptId, canAssignPages]);
 
   if (!task || !meetingMaterialWorkflow) {
     return (
@@ -210,17 +244,21 @@ export function MeetingMaterialTaskDrawer({
 
   // 当前用户是否为创建者
   // 当前用户是否为创建者
-  const isCreator = currentUser.name === task.createdBy ||
-    meetingMaterialWorkflow.reviewerId === currentUser.id ||
-    meetingMaterialWorkflow.approverId === currentUser.id;
-  // 当前用户是否为部长（可做最终审批）
-  const isDeptManager = hasCapability(currentUser, "task.review.minister") ||
-    hasCapability(currentUser, "task.merge") ||
-    hasCapability(currentUser, "task.view.all");
+  const isCreator = currentUser.name === task.createdBy;
+  const isTaskReviewer = meetingMaterialWorkflow.reviewerId === currentUser.id;
+  const canViewAllTasks = hasCapability(currentUser, "task.view.all");
+  const canMergeByRole = hasCapability(currentUser, "task.merge");
+  const canDirectorReviewByRole = hasCapability(currentUser, "task.review.director");
+  const canCoordinateTask =
+    isCreator ||
+    isTaskReviewer ||
+    canViewAllTasks ||
+    canMergeByRole ||
+    (task.allowedActions?.includes("mark_merged") ?? false);
 
   // 当前用户是否为某部门负责人  // 当前用户是否为某部门负责人
-  const myDeptHead = meetingMaterialWorkflow.deptAssignments.find(d => d.headUserId === currentUser.id);
-  const isDeptHeadOnly = !!myDeptHead && !isCreator && !isDeptManager;
+  const isDeptHeadOnly = !!myDeptHead && !canCoordinateTask;
+  const canReviewTask = (task.allowedActions?.includes("review") ?? false) || canDirectorReviewByRole;
 
   // 当前用户在哪些 userAssignment 中
   const myAssignments: { dept: MeetingMaterialDeptAssignment; ua: MeetingMaterialUserAssignment }[] = [];
@@ -268,11 +306,15 @@ export function MeetingMaterialTaskDrawer({
         !isManagementUser(user)
       )
     : [];
+
   const stagedOccupiedPages = assignDrafts
     .filter(item => item.userId !== assignUserId)
     .flatMap(item => item.pages);
   const visibleDepts = meetingMaterialWorkflow.deptAssignments.filter(
-    dept => isCreator || dept.headUserId === currentUser.id || dept.department === currentUser.department
+    dept =>
+      canCoordinateTask ||
+      dept.headUserId === currentUser.id ||
+      dept.department === currentUser.department
   );
   const visibleAssignments = visibleDepts.flatMap(dept => dept.userAssignments);
   const visibleConflictCount = [...new Set(
@@ -288,8 +330,10 @@ export function MeetingMaterialTaskDrawer({
     )
   )].length;
   const deptHeadSubmittedCount = visibleAssignments.filter(ua => ua.status === "submitted").length;
-  const deptHeadWaitingFinalCount = visibleAssignments.filter(ua => ua.status === "dept_approved").length;
-  const deptHeadFinalApprovedCount = visibleAssignments.filter(ua => ua.status === "final_approved").length;
+  const deptHeadCompletedCount = visibleAssignments.filter(
+    ua => ua.status === "dept_approved" || ua.status === "final_approved"
+  ).length;
+  const deptHeadRejectedCount = visibleAssignments.filter(ua => ua.status === "rejected").length;
   const isSingleDeptHeadView = isDeptHeadOnly && visibleDepts.length === 1;
 
   const toggleDept = (deptId: string) => {
@@ -298,75 +342,83 @@ export function MeetingMaterialTaskDrawer({
     );
   };
 
-  const handleReview = (approve: boolean) => {
+  const handleReview = async (approve: boolean) => {
     if (!reviewSheet) return;
+    if (approve && !reviewSheet.canApprove) return;
+    if (!approve && !reviewSheet.canReject) return;
     if (!approve && !reviewFeedback.trim()) {
       toast({ title: "请填写驳回原因", variant: "destructive" });
       return;
     }
-    if (reviewSheet.isFinalApprove) {
-      // 部长最终审批
-      finalApproveMeetingMaterialWork(
-        task.id,
-        reviewSheet.deptId,
-        reviewSheet.ua.id,
-        approve,
-        approve ? (reviewFeedback || "部长审批通过") : reviewFeedback
-      );
-      toast({
-        title: approve ? "审批通过" : "已驳回",
-        description: approve
-          ? `${reviewSheet.ua.userName} 的工作已通过部长审批`
-          : `已驳回并退回至`,
-      });
-    } else {
-      // 室主任审核（通过后状态变为 dept_approved，等待部长审批）
-      reviewMeetingMaterialWork(
+    try {
+      await reviewMeetingMaterialWork(
         task.id,
         reviewSheet.deptId,
         reviewSheet.ua.id,
         reviewSheet.sub.id,
         approve,
-        approve ? (reviewFeedback || "室主任审核通过，等待部长审批") : reviewFeedback
+        approve ? (reviewFeedback || "室主任审核通过") : reviewFeedback
       );
       toast({
         title: approve ? "审核通过" : "已驳回",
         description: approve
-            ? `${reviewSheet.ua.userName} 的提交已通过室主任审核，等待部长审批`
-            : `已驳回并退回至`,
+          ? `${reviewSheet.ua.userName} 的提交已通过审核`
+          : "已驳回并退回至执行人",
       });
-    }
-    setReviewSheet(null);
-    setReviewFeedback("");
-  };
 
-    const handleSubmit = () => {
-    if (!submitDialog) return;
-    const { hasConflict, conflictDescription } = submitMeetingMaterialWork(
-      task.id,
-      submitDialog.deptId,
-      submitDialog.ua.id,
-      {
-        fileName: `${currentUser.name}_第${formatPageRange(submitDialog.ua.pages)}页.pptx`,
-        fileSize: Math.round(Math.random() * 1.5 * 10) / 10 + 0.5,
-        note: submitNote,
-        baseVersion: Math.max(...submitDialog.ua.pages.map(p => meetingMaterialWorkflow.pageVersions[p] || 0)),
-      }
-    );
-    if (hasConflict) {
+      setReviewSheet(null);
+      setReviewFeedback("");
+    } catch (error) {
       toast({
-        title: "⚠️ 版本冲突警告",
-        description: conflictDescription,
+        title: approve ? "处理失败" : "驳回失败",
+        description: error instanceof Error ? error.message : "请稍后重试",
         variant: "destructive",
       });
-    } else {
-      toast({ title: "提交成功", description: "已成功提交，等待部门负责人审核" });
     }
-    setSubmitDialog(null);
-    setSubmitNote("");
   };
 
-  const handleAssign = () => {
+  const handleSubmit = async () => {
+    if (!submitDialog) return;
+    if (!submitFile) {
+      toast({ title: "请先选择要提交的 PPT 文件", variant: "destructive" });
+      return;
+    }
+
+    try {
+      const { hasConflict, conflictDescription } = await submitMeetingMaterialWork(
+        task.id,
+        submitDialog.deptId,
+        submitDialog.ua.id,
+        {
+          file: submitFile,
+          note: submitNote,
+          baseVersion: Math.max(...submitDialog.ua.pages.map(p => meetingMaterialWorkflow.pageVersions[p] || 0)),
+        }
+      );
+
+      if (hasConflict) {
+        toast({
+          title: "版本冲突",
+          description: conflictDescription,
+          variant: "destructive",
+        });
+      } else {
+        toast({ title: "提交成功", description: "已成功提交，等待部门负责人审核" });
+      }
+
+      setSubmitDialog(null);
+      setSubmitFile(null);
+      setSubmitNote("");
+    } catch (error) {
+      toast({
+        title: "提交失败",
+        description: error instanceof Error ? error.message : "请稍后重试",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleAssign = async () => {
     if (!assignDialog) {
       return;
     }
@@ -394,19 +446,40 @@ export function MeetingMaterialTaskDrawer({
       return;
     }
 
-    pendingAssignments.forEach(assignment => {
-      assignMeetingMaterialPagesToUser(task.id, assignDialog.deptId, assignment);
-    });
+    try {
+      await assignMeetingMaterialPagesToUser(task.id, assignDialog.deptId, pendingAssignments);
+      toast({ title: "分配成功", description: `已完成 ${pendingAssignments.length} 条人员分配` });
+      setAssignDialog(null);
+      setAssignDrafts([]);
+      resetAssignInputs();
+    } catch (error) {
+      toast({
+        title: "分配失败",
+        description: error instanceof Error ? error.message : "请稍后重试",
+        variant: "destructive",
+      });
+    }
+  };
 
-    toast({ title: "分配成功", description: `已完成 ${pendingAssignments.length} 条人员分配` });
-    setAssignDialog(null);
-    setAssignDrafts([]);
-    resetAssignInputs();
+  const handleMerge = async () => {
+    try {
+      await markMeetingMaterialMerged(task.id);
+      toast({ title: "已发起合并", description: "系统将按已审核通过的员工稿件执行合并" });
+      setMergeDialogOpen(false);
+    } catch (error) {
+      toast({
+        title: "合并结果提交失败",
+        description: error instanceof Error ? error.message : "请稍后重试",
+        variant: "destructive",
+      });
+    }
   };
 
   // 统计进度
   const totalUserAssignments = meetingMaterialWorkflow.deptAssignments.flatMap(d => d.userAssignments);
-  const approvedCount = totalUserAssignments.filter(ua => ua.status === "final_approved").length;
+  const reviewedCount = totalUserAssignments.filter(
+    ua => ua.status === "dept_approved" || ua.status === "final_approved"
+  ).length;
   const submittedCount = totalUserAssignments.filter(ua => ua.status === "submitted").length;
   const totalCount = totalUserAssignments.length;
 
@@ -425,14 +498,17 @@ export function MeetingMaterialTaskDrawer({
     }
   }
   const uniqueConflictPages = [...new Set(conflictPages)];
-  const canViewMergedFile = !isDeptHeadOnly && (meetingMaterialWorkflow.stage === "merged" || !!meetingMaterialWorkflow.mergedFileUrl || (totalCount > 0 && approvedCount === totalCount));
-  const mergedFileName = `${task.title}_合并版.pptx`;
-
-  const resetAssignInputs = () => {
-    setAssignUserId("");
-    setAssignTaskDescription("");
-    setAssignPages([]);
-  };
+  const canMarkMerged =
+    (((task.allowedActions?.includes("mark_merged") ?? false) || isCreator || isTaskReviewer || canMergeByRole) &&
+      totalCount > 0 &&
+      reviewedCount === totalCount &&
+      meetingMaterialWorkflow.stage !== "merged");
+  const canViewMergedFile =
+    !isDeptHeadOnly &&
+    (meetingMaterialWorkflow.stage === "merged" ||
+      !!meetingMaterialWorkflow.mergedFileUrl ||
+      (canCoordinateTask && totalCount > 0 && reviewedCount === totalCount));
+  const mergedFileName = meetingMaterialWorkflow.mergedFileName || `${task.title}_合并版.pptx`;
 
   const addAssignDraft = () => {
     if (!assignUserId || assignPages.length === 0) {
@@ -476,6 +552,11 @@ export function MeetingMaterialTaskDrawer({
           <div>
             <SheetTitle className="text-xl">{task.title}</SheetTitle>
             <SheetDescription className="text-xs mt-1">创建者：{task.createdBy} · 截止：{task.deadline}</SheetDescription>
+            {task.description && (
+              <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground line-clamp-2">
+                {task.description}
+              </p>
+            )}
           </div>
           <div className="ml-auto flex items-center justify-end gap-2 pr-8 shrink-0">
             <span className={cn("text-xs font-semibold px-2.5 py-1 rounded-full", stageColor[meetingMaterialWorkflow.stage])}>
@@ -498,7 +579,7 @@ export function MeetingMaterialTaskDrawer({
               <div className="rounded-2xl border border-border/60 bg-card p-4 sm:p-5 shadow-sm transition-all hover:shadow-md flex items-center justify-between group">
                 <div className="space-y-1">
                   <p className="text-[13px] font-medium text-muted-foreground flex items-center gap-2">
-                    待主任审核
+                    待审核
                   </p>
                   <p className="text-3xl font-black tracking-tight text-foreground">{deptHeadSubmittedCount}</p>
                 </div>
@@ -509,23 +590,23 @@ export function MeetingMaterialTaskDrawer({
               <div className="rounded-2xl border border-border/60 bg-card p-4 sm:p-5 shadow-sm transition-all hover:shadow-md flex items-center justify-between group">
                 <div className="space-y-1">
                   <p className="text-[13px] font-medium text-muted-foreground flex items-center gap-2">
-                    待部长审批
+                    已审核通过
                   </p>
-                  <p className="text-3xl font-black tracking-tight text-foreground">{deptHeadWaitingFinalCount}</p>
+                  <p className="text-3xl font-black tracking-tight text-foreground">{deptHeadCompletedCount}</p>
                 </div>
-                <div className="h-12 w-12 rounded-xl bg-orange-50 group-hover:bg-orange-100 transition-colors flex items-center justify-center border border-orange-100/50">
-                  <Clock className="h-6 w-6 text-orange-600" />
+                <div className="h-12 w-12 rounded-xl bg-green-50 group-hover:bg-green-100 transition-colors flex items-center justify-center border border-green-100/50">
+                  <CheckCircle2 className="h-6 w-6 text-green-600" />
                 </div>
               </div>
               <div className="rounded-2xl border border-border/60 bg-card p-4 sm:p-5 shadow-sm transition-all hover:shadow-md flex items-center justify-between group">
                 <div className="space-y-1">
                   <p className="text-[13px] font-medium text-muted-foreground flex items-center gap-2">
-                    已终审
+                    已驳回
                   </p>
-                  <p className="text-3xl font-black tracking-tight text-foreground">{deptHeadFinalApprovedCount}</p>
+                  <p className="text-3xl font-black tracking-tight text-foreground">{deptHeadRejectedCount}</p>
                 </div>
-                <div className="h-12 w-12 rounded-xl bg-green-50 group-hover:bg-green-100 transition-colors flex items-center justify-center border border-green-100/50">
-                  <CheckCircle2 className="h-6 w-6 text-green-600" />
+                <div className="h-12 w-12 rounded-xl bg-red-50 group-hover:bg-red-100 transition-colors flex items-center justify-center border border-red-100/50">
+                  <XCircle className="h-6 w-6 text-red-600" />
                 </div>
               </div>
           </div>
@@ -562,9 +643,9 @@ export function MeetingMaterialTaskDrawer({
               <div className="rounded-2xl border border-border/60 bg-card p-4 sm:p-5 shadow-sm transition-all hover:shadow-md flex flex-col justify-center group overflow-hidden relative">
                   <div className="flex items-center justify-between z-10 relative mb-3">
                     <div className="space-y-1">
-                      <p className="text-2xl sm:text-3xl font-black tracking-tight text-foreground">{approvedCount}</p>
+                      <p className="text-2xl sm:text-3xl font-black tracking-tight text-foreground">{reviewedCount}</p>
                       <p className="text-xs font-medium text-muted-foreground flex items-center gap-1.5 whitespace-nowrap">
-                        审批通过
+                        审核通过
                       </p>
                     </div>
                     <div className="h-10 w-10 rounded-xl bg-emerald-50 group-hover:bg-emerald-100 transition-colors shrink-0 flex items-center justify-center border border-emerald-100/50">
@@ -573,10 +654,10 @@ export function MeetingMaterialTaskDrawer({
                   </div>
                   <div className="w-full relative z-10">
                     <div className="flex justify-between items-center text-[10px] font-semibold text-emerald-600/80 mb-1.5">
-                      <span>进度 {totalCount > 0 ? Math.round((approvedCount / totalCount) * 100) : 0}%</span>
-                      <span>{approvedCount} / {totalCount}</span>
+                      <span>进度 {totalCount > 0 ? Math.round((reviewedCount / totalCount) * 100) : 0}%</span>
+                      <span>{reviewedCount} / {totalCount}</span>
                     </div>
-                    <Progress value={totalCount > 0 ? (approvedCount / totalCount) * 100 : 0} className="h-1.5 bg-emerald-100/50 w-full [&>div]:bg-emerald-500" />
+                    <Progress value={totalCount > 0 ? (reviewedCount / totalCount) * 100 : 0} className="h-1.5 bg-emerald-100/50 w-full [&>div]:bg-emerald-500" />
                   </div>
               </div>
               <div className={cn(
@@ -619,7 +700,9 @@ export function MeetingMaterialTaskDrawer({
                       合并后文件
                     </p>
                     <p className="text-xs text-muted-foreground mt-1">
-                      {meetingMaterialWorkflow.stage === "merged" ? "已完成合并，可直接预览最终文件。" : "全部审批通过后，最终合并文件会显示在这里。"}
+                      {meetingMaterialWorkflow.stage === "merged"
+                        ? "已完成合并，可直接预览最终文件。"
+                        : "全部页面审核通过后，发起人可在这里发起合并，并在生成后预览最终文件。"}
                     </p>
                   </div>
                   <div className="flex items-center gap-2">
@@ -684,7 +767,16 @@ export function MeetingMaterialTaskDrawer({
                         </div>
                         <span className="text-sm text-foreground/80 truncate font-medium">{task.templateFileName}</span>
                       </div>
-                      <Button size="sm" variant="outline" className="h-9 font-medium gap-2 shrink-0 border-border/60 hover:bg-background">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-9 font-medium gap-2 shrink-0 border-border/60 hover:bg-background"
+                        disabled={!task.templateFileUrl}
+                        onClick={() =>
+                          task.templateFileUrl &&
+                          window.open(`${task.templateFileUrl}?ua_id=${ua.id}`, "_blank", "noopener,noreferrer")
+                        }
+                      >
                         <Download className="h-4 w-4 text-muted-foreground" />仅下载我的页面
                       </Button>
                     </div>
@@ -760,24 +852,39 @@ export function MeetingMaterialTaskDrawer({
 
         {/* 部门分配列表 */}
         <div className="space-y-4 pt-4">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between gap-3">
             <h2 className="text-base font-bold flex items-center gap-2 text-foreground/90">
               <Users className="h-5 w-5 text-blue-500" />
               {isSingleDeptHeadView ? "员工任务详情" : "部门分配详情"}
             </h2>
-            {isCreator && meetingMaterialWorkflow.stage !== "merged" && (
-              <Button size="sm" className="h-8 text-xs font-semibold gap-1.5 rounded-full px-4 shadow-sm" onClick={() => advanceMeetingMaterialStage(task.id, "merged")}>
-                <GitMerge className="h-3.5 w-3.5" />
-                标记合并完成
-              </Button>
-            )}
+            <div className="flex items-center gap-2">
+              {myDeptHead && canAssignPages && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-8 text-xs font-semibold gap-1.5 rounded-full px-4 shadow-sm"
+                  onClick={() => setAssignDialog({ deptId: myDeptHead.id })}
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  分配员工
+                </Button>
+              )}
+              {canMarkMerged && meetingMaterialWorkflow.stage !== "merged" && (
+                <Button size="sm" className="h-8 text-xs font-semibold gap-1.5 rounded-full px-4 shadow-sm" onClick={() => setMergeDialogOpen(true)}>
+                  <GitMerge className="h-3.5 w-3.5" />
+                  开始合并
+                </Button>
+              )}
+            </div>
           </div>
 
           <div className="space-y-3">
             {visibleDepts.map(dept => {
               const isExpanded = expandedDepts.includes(dept.id);
               const isDeptHead = dept.headUserId === currentUser.id;
-              const deptApproved = dept.userAssignments.filter(ua => ua.status === "final_approved").length;
+              const deptApproved = dept.userAssignments.filter(
+                ua => ua.status === "dept_approved" || ua.status === "final_approved"
+              ).length;
               const showDeptHeader = !(isSingleDeptHeadView && isDeptHead);
               const showDeptBody = showDeptHeader ? isExpanded : true;
 
@@ -814,7 +921,7 @@ export function MeetingMaterialTaskDrawer({
                       </div>
                       <div className="flex items-center gap-4">
                         <div className="flex flex-col items-end gap-1">
-                          <span className="text-xs font-medium text-foreground/70 text-right">{deptApproved} / {dept.userAssignments.length} 终审</span>
+                          <span className="text-xs font-medium text-foreground/70 text-right">{deptApproved} / {dept.userAssignments.length} 已完成</span>
                           {dept.userAssignments.length > 0 && (
                              <div className="w-16 h-1.5 bg-secondary rounded-full overflow-hidden">
                                <div className="h-full bg-green-500 rounded-full" style={{width: `${(deptApproved/dept.userAssignments.length)*100}%`}}></div>
@@ -834,19 +941,6 @@ export function MeetingMaterialTaskDrawer({
                   {showDeptBody && (
                     <div className={cn(showDeptHeader && "border-t border-border/40 bg-background")}>
                       <div className={cn(showDeptHeader ? "p-5 space-y-4" : "space-y-3")}>
-                        {/* 部门负责人操作：分配员工 */}
-                        {isDeptHead && (
-                          <Button
-                          size="sm"
-                          variant="outline"
-                          className="h-9 font-medium gap-2 w-fit bg-background rounded-lg shadow-sm hover:border-blue-300 hover:text-blue-600 transition-colors"
-                          onClick={() => setAssignDialog({ deptId: dept.id })}
-                        >
-                          <Plus className="h-4 w-4" />
-                          分配员工
-                        </Button>
-                      )}
-
                       {dept.userAssignments.length === 0 && (
                         <div className="flex flex-col items-center justify-center p-8 bg-background/50 rounded-2xl border border-dashed border-border/40 text-center min-h-[160px]">
                           <div className="h-12 w-12 rounded-full bg-secondary/60 flex items-center justify-center mb-3">
@@ -857,7 +951,7 @@ export function MeetingMaterialTaskDrawer({
                           </p>
                           {isDeptHead ? (
                               <p className="text-xs text-muted-foreground/70 max-w-[200px] leading-relaxed">
-                                您可以点击上方「分配员工」开始调度工作
+                                您可以点击右上方「分配员工」开始调度工作
                               </p>
                           ) : (
                               <p className="text-xs text-muted-foreground/70 max-w-[200px] leading-relaxed">
@@ -867,12 +961,23 @@ export function MeetingMaterialTaskDrawer({
                         </div>
                       )}
 
-                      {dept.userAssignments.map((ua, index) => {
+                      {dept.userAssignments.map((ua) => {
                         const latestSub = ua.submissions[ua.submissions.length - 1];
-                        const canDeptReview = isDeptHead && ua.status === "submitted" && latestSub;
-                        const canFinalApprove = isDeptManager && ua.status === "dept_approved" && latestSub;
-                        const canReview = canDeptReview || canFinalApprove;
-                        const canInspect = !!latestSub && (isDeptHead || isDeptManager || isCreator);
+                        const canDeptReview =
+                          isDeptHead &&
+                          canReviewTask &&
+                          ua.status === "submitted" &&
+                          latestSub;
+                        const canCoordinatorReject =
+                          canCoordinateTask &&
+                          !!latestSub &&
+                          ua.status !== "pending" &&
+                          ua.status !== "in_progress" &&
+                          ua.status !== "rejected";
+                        const canApprove = Boolean(canDeptReview);
+                        const canReject = Boolean(canDeptReview || canCoordinatorReject);
+                        const canReview = canApprove || canReject;
+                        const canInspect = !!latestSub && (isDeptHead || canCoordinateTask);
                         const isReviewing = reviewSheet?.ua.id === ua.id;
                         const assignmentDescription = ua.taskDescription || dept.requirement || "暂无任务描述";
 
@@ -918,10 +1023,22 @@ export function MeetingMaterialTaskDrawer({
                                     )}
                                     onClick={() => isReviewing
                                       ? setReviewSheet(null)
-                                      : setReviewSheet({ deptId: dept.id, ua, sub: latestSub!, isFinalApprove: !!canFinalApprove })}
+                                      : setReviewSheet({
+                                          deptId: dept.id,
+                                          ua,
+                                          sub: latestSub!,
+                                          canApprove,
+                                          canReject,
+                                        })}
                                   >
                                     <Eye className="h-3.5 w-3.5 mr-1.5 opacity-70" />
-                                    {isReviewing ? "收起面板" : canReview ? (canFinalApprove ? "开始终审" : "开始审核") : "查看详情"}
+                                    {isReviewing
+                                      ? "收起面板"
+                                      : canApprove
+                                        ? "开始审核"
+                                        : canReject
+                                          ? "查看/驳回"
+                                          : "查看详情"}
                                   </Button>
                                 )}
                               </div>
@@ -1017,10 +1134,12 @@ export function MeetingMaterialTaskDrawer({
                                 {/* 审核意见 */}
                                 {canReview && (
                                   <div className="space-y-4 pt-2">
-                                    <h4 className="font-semibold text-foreground text-sm">审核意见</h4>
+                                    <h4 className="font-semibold text-foreground text-sm">
+                                      {reviewSheet?.canApprove ? "审核意见" : "驳回意见"}
+                                    </h4>
 
                                     <div className="flex flex-wrap gap-2">
-                                      {quickFeedbacks.map((text) => (
+                                      {(reviewSheet?.canApprove ? approveQuickFeedbacks : rejectQuickFeedbacks).map((text) => (
                                         <button
                                           key={text}
                                           onClick={() => setReviewFeedback(text)}
@@ -1038,28 +1157,32 @@ export function MeetingMaterialTaskDrawer({
 
                                     <Textarea
                                       rows={3}
-                                      placeholder="输入审核意见（驳回时必填）..."
+                                      placeholder={reviewSheet?.canApprove ? "输入审核意见（驳回时必填）..." : "输入驳回原因（必填）..."}
                                       value={reviewFeedback}
                                       onChange={e => setReviewFeedback(e.target.value)}
                                       className="resize-none text-sm bg-background border-border focus-visible:ring-primary/20 rounded-xl px-4 py-3"
                                     />
 
                                     <div className="flex flex-col sm:flex-row gap-4 pt-2 pb-2">
-                                      <Button
-                                        variant="outline"
-                                        className="flex-1 h-11 rounded-xl border-destructive/60 text-destructive hover:bg-destructive/5 hover:text-destructive gap-2 text-sm font-semibold transition-colors"
-                                        onClick={() => handleReview(false)}
-                                      >
-                                        <XCircle className="h-4 w-4" />
-                                        驳回
-                                      </Button>
-                                      <Button
-                                        className="flex-1 h-11 rounded-xl bg-[#10b981] hover:bg-[#059669] text-white gap-2 text-sm font-semibold shadow-sm transition-colors"
-                                        onClick={() => handleReview(true)}
-                                      >
-                                        <CheckCircle2 className="h-4 w-4" />
-                                        通过
-                                      </Button>
+                                      {reviewSheet?.canReject && (
+                                        <Button
+                                          variant="outline"
+                                          className="flex-1 h-11 rounded-xl border-destructive/60 text-destructive hover:bg-destructive/5 hover:text-destructive gap-2 text-sm font-semibold transition-colors"
+                                          onClick={() => handleReview(false)}
+                                        >
+                                          <XCircle className="h-4 w-4" />
+                                          驳回
+                                        </Button>
+                                      )}
+                                      {reviewSheet?.canApprove && (
+                                        <Button
+                                          className="flex-1 h-11 rounded-xl bg-[#10b981] hover:bg-[#059669] text-white gap-2 text-sm font-semibold shadow-sm transition-colors"
+                                          onClick={() => handleReview(true)}
+                                        >
+                                          <CheckCircle2 className="h-4 w-4" />
+                                          通过
+                                        </Button>
+                                      )}
                                     </div>
                                   </div>
                                 )}
@@ -1079,7 +1202,13 @@ export function MeetingMaterialTaskDrawer({
       </div>
 
       {/* 上传提交 Dialog */}
-      <Dialog open={!!submitDialog} onOpenChange={v => !v && setSubmitDialog(null)}>
+      <Dialog open={!!submitDialog} onOpenChange={v => {
+        if (!v) {
+          setSubmitDialog(null);
+          setSubmitFile(null);
+          setSubmitNote("");
+        }
+      }}>
         <DialogContent className="sm:max-w-md rounded-2xl">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
@@ -1098,12 +1227,24 @@ export function MeetingMaterialTaskDrawer({
           <div className="space-y-4 py-2">
             <div>
               <Label className="text-sm font-medium">上传文件</Label>
-              <div className="mt-1.5 flex items-center justify-center h-20 border-2 border-dashed border-border rounded-xl bg-muted/30 cursor-pointer hover:border-primary/50 transition-colors">
-                <div className="text-center">
+              <input
+                type="file"
+                id="meeting-material-submit-file"
+                className="hidden"
+                accept=".ppt,.pptx,.pdf"
+                onChange={event => setSubmitFile(event.target.files?.[0] || null)}
+              />
+              <label
+                htmlFor="meeting-material-submit-file"
+                className="mt-1.5 flex items-center justify-center h-20 border-2 border-dashed border-border rounded-xl bg-muted/30 cursor-pointer hover:border-primary/50 transition-colors"
+              >
+                <div className="text-center px-4">
                   <Upload className="h-5 w-5 text-muted-foreground mx-auto" />
-                  <p className="text-xs text-muted-foreground mt-1">点击上传 .pptx 文件</p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {submitFile ? submitFile.name : "点击上传 .pptx 文件"}
+                  </p>
                 </div>
-              </div>
+              </label>
             </div>
             <div>
               <Label className="text-sm font-medium">备注说明（选填）</Label>
@@ -1206,6 +1347,30 @@ export function MeetingMaterialTaskDrawer({
             <Button variant="outline" onClick={addAssignDraft}>添加到本次分配</Button>
             <Button variant="outline" onClick={() => setAssignDialog(null)}>取消</Button>
             <Button className="gradient-primary" onClick={handleAssign}>确认分配</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={mergeDialogOpen} onOpenChange={setMergeDialogOpen}>
+        <DialogContent className="sm:max-w-md rounded-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <GitMerge className="h-5 w-5 text-primary" />
+              开始合并
+            </DialogTitle>
+            <DialogDescription>系统会将员工已提交且审核通过的 PPT 自动合并，并把任务更新为已合并。</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="rounded-xl border border-border/60 bg-secondary/20 px-4 py-3">
+              <p className="text-sm font-medium text-foreground">合并范围</p>
+              <p className="mt-1 text-xs leading-6 text-muted-foreground">
+                系统将按当前任务下已审核通过的页面稿件进行合并，不需要手动上传最终文件。
+              </p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setMergeDialogOpen(false)}>取消</Button>
+            <Button className="gradient-primary" onClick={handleMerge}>确认合并</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

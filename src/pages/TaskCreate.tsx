@@ -33,9 +33,9 @@ function TaskCreateInner() {
                 <div className="flex flex-col items-center">
                   <div className={`
                     flex h-12 w-12 items-center justify-center rounded-full border-2 transition-all
-                    \${isActive ? "border-primary bg-primary text-primary-foreground" : ""}
-                    \${isCompleted ? "border-success bg-success text-success-foreground" : ""}
-                    \${!isActive && !isCompleted ? "border-border bg-muted text-muted-foreground" : ""}
+                    ${isActive ? "border-primary bg-primary text-primary-foreground" : ""}
+                    ${isCompleted ? "border-primary/30 bg-primary/10 text-primary" : ""}
+                    ${!isActive && !isCompleted ? "border-border bg-muted text-muted-foreground" : ""}
                   `}>
                     {isCompleted ? (
                       <CheckCircle2 className="h-6 w-6" />
@@ -43,12 +43,12 @@ function TaskCreateInner() {
                       <Icon className="h-5 w-5" />
                     )}
                   </div>
-                  <span className={`mt-2 text-sm font-medium \${isActive ? "text-primary" : "text-muted-foreground"}`}>
+                  <span className={`mt-2 text-sm font-medium ${isActive || isCompleted ? "text-foreground" : "text-muted-foreground"}`}>
                     {step.title}
                   </span>
                 </div>
                 {index < steps.length - 1 && (
-                  <div className={`h-0.5 w-12 sm:w-24 mx-2 \${isCompleted ? "bg-success" : "bg-border"}`} />
+                  <div className={`h-0.5 w-12 sm:w-24 mx-2 ${isCompleted ? "bg-primary/30" : "bg-border"}`} />
                 )}
               </div>
             );

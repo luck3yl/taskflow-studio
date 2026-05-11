@@ -1,4 +1,7 @@
-import React, { createContext, useContext, useState, ReactNode } from "react";
+import React, { createContext, useContext, useEffect, useState, ReactNode } from "react";
+import { getDepartmentsApi, type BackendDepartment } from "@/services/apis/departments";
+import { getUsersApi, type BackendUser } from "@/services/apis/users";
+import { setApiCurrentUser } from "@/services/http/axios";
 
 // 部门层级职级
 export type DeptLevel = "普通职员" | "室主任" | "分管副部长" | "设备部长";
@@ -46,6 +49,7 @@ export interface Department {
     name: string;
     description?: string;
     managerId?: string;
+    managerName?: string;
     parentId?: string;
 }
 
@@ -180,10 +184,196 @@ interface UserContextType {
 
 const UserContext = createContext<UserContextType | undefined>(undefined);
 
+function normalizeRemoteRole(
+    backendUser: BackendUser,
+    fallbackRole?: UserPosition
+): UserPosition {
+    const roleSource = [backendUser.role, ...(backendUser.roles || [])].filter(Boolean).join(" ");
+
+    if (roleSource.includes("副部长") || roleSource.includes("分管")) {
+        return "分管副部长";
+    }
+
+    if (roleSource.includes("部长") || roleSource.includes("厂长")) {
+        return backendUser.department?.includes("厂") ? "设备厂长" : "设备部长";
+    }
+
+    if (roleSource.includes("主任") || roleSource.includes("组长")) {
+        return backendUser.department?.includes("厂") ? "设备组长" : "室主任";
+    }
+
+    return fallbackRole || "普通职员";
+}
+
+function getRemoteUserRoles(
+    backendUser: BackendUser,
+    matchedLocalUser?: User
+): UserPosition[] {
+    const fallbackRole = matchedLocalUser?.role as UserPosition | undefined;
+    const remoteRoles = [backendUser.role, ...(backendUser.roles || [])]
+        .filter((role): role is string => Boolean(role && role.trim()));
+
+    if (remoteRoles.length === 0) {
+        if (matchedLocalUser?.roles?.length) {
+            return matchedLocalUser.roles as UserPosition[];
+        }
+
+        return [normalizeRemoteRole(backendUser, fallbackRole)];
+    }
+
+    const primaryRole = normalizeRemoteRole(backendUser, fallbackRole);
+
+    return [...new Set([
+        primaryRole,
+        ...remoteRoles.map((roleText) =>
+            normalizeRemoteRole(
+                { ...backendUser, role: roleText, roles: [roleText] },
+                fallbackRole
+            )
+        ),
+    ])];
+}
+
+function normalizeRemoteUser(
+    backendUser: BackendUser,
+    existingUsers: User[]
+): User {
+    const matchedLocalUser = existingUsers.find((user) =>
+        user.id === backendUser.id ||
+        user.staffId === backendUser.staffId ||
+        user.name === backendUser.name
+    );
+    const department = backendUser.department || matchedLocalUser?.department || "";
+    const remoteUserWithDepartment = {
+        ...backendUser,
+        department,
+    };
+    const roles = getRemoteUserRoles(remoteUserWithDepartment, matchedLocalUser);
+    const role = roles[0] || normalizeRemoteRole(remoteUserWithDepartment, matchedLocalUser?.role as UserPosition | undefined);
+    const hasRemoteRoleInfo = Boolean(backendUser.role) || Boolean(backendUser.roles?.length);
+    const roleAssignments = hasRemoteRoleInfo
+        ? roles.map((assignedRole) => ({
+            role: assignedRole,
+            department,
+        }))
+        : matchedLocalUser?.roleAssignments?.length
+            ? matchedLocalUser.roleAssignments
+            : [{
+                role,
+                department,
+            }];
+
+    return {
+        id: backendUser.id,
+        name: backendUser.name,
+        avatar: backendUser.avatar || matchedLocalUser?.avatar || backendUser.name.charAt(0),
+        department,
+        role,
+        orgSystem: department.includes("厂") ? "factory" : "department",
+        roles,
+        roleAssignments,
+        staffId: backendUser.staffId || matchedLocalUser?.staffId || "",
+        email: backendUser.email || matchedLocalUser?.email || "",
+        phone: matchedLocalUser?.phone || "",
+        lastLogin: matchedLocalUser?.lastLogin || "",
+        online: matchedLocalUser?.online ?? false,
+    };
+}
+
+function normalizeRemoteDepartment(
+    backendDepartment: BackendDepartment,
+    existingDepartments: Department[]
+): Department {
+    const matchedLocalDepartment = existingDepartments.find((department) =>
+        department.id === backendDepartment.id || department.name === backendDepartment.name
+    );
+
+    return {
+        id: backendDepartment.id,
+        name: backendDepartment.name,
+        description: backendDepartment.description || matchedLocalDepartment?.description,
+        managerId: backendDepartment.managerId || matchedLocalDepartment?.managerId,
+        managerName: backendDepartment.managerName || matchedLocalDepartment?.managerName,
+        parentId: backendDepartment.parentId ?? matchedLocalDepartment?.parentId,
+    };
+}
+
 export function UserProvider({ children }: { children: ReactNode }) {
     const [currentUser, setCurrentUser] = useState<User>(USERS[0]);
     const [users, setUsers] = useState<User[]>(USERS);
     const [departments, setDepartments] = useState<Department[]>(DEPARTMENTS);
+
+    useEffect(() => {
+        let cancelled = false;
+
+        const syncUsers = async () => {
+            try {
+                const remoteUsers = await getUsersApi();
+                if (!remoteUsers.length || cancelled) {
+                    return;
+                }
+
+                setUsers((previousUsers) => {
+                    const normalizedUsers = remoteUsers.map((backendUser) =>
+                        normalizeRemoteUser(backendUser, previousUsers)
+                    );
+
+                    setCurrentUser((previous) => {
+                        const matchedUser = normalizedUsers.find((user) =>
+                            user.id === previous.id ||
+                            user.staffId === previous.staffId ||
+                            user.name === previous.name
+                        );
+
+                        return matchedUser || previous;
+                    });
+
+                    return normalizedUsers;
+                });
+            } catch (error) {
+                console.error("Failed to load users", error);
+            }
+        };
+
+        void syncUsers();
+
+        return () => {
+            cancelled = true;
+        };
+    }, []);
+
+    useEffect(() => {
+        let cancelled = false;
+
+        const syncDepartments = async () => {
+            try {
+                const remoteDepartments = await getDepartmentsApi();
+                if (!remoteDepartments.length || cancelled) {
+                    return;
+                }
+
+                setDepartments(remoteDepartments.map((department) =>
+                    normalizeRemoteDepartment(department, DEPARTMENTS)
+                ));
+            } catch (error) {
+                console.error("Failed to load departments", error);
+            }
+        };
+
+        void syncDepartments();
+
+        return () => {
+            cancelled = true;
+        };
+    }, []);
+
+    useEffect(() => {
+        setApiCurrentUser({
+            id: currentUser.id,
+            name: currentUser.name,
+            department: currentUser.department,
+        });
+    }, [currentUser]);
 
     const switchUser = (userId: string) => {
         const user = users.find((u) => u.id === userId);

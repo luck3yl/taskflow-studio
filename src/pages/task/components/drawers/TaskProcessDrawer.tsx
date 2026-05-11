@@ -34,7 +34,7 @@ interface TaskProcessDrawerProps {
   onOpenChange: (open: boolean) => void;
   task?: Task;
   assignee?: Assignee;
-  onSubmit?: (file: File, note: string) => void;
+  onSubmit?: (file: File, note: string) => void | Promise<void>;
 }
 
 export function TaskProcessDrawer({
@@ -53,7 +53,7 @@ export function TaskProcessDrawer({
 
   if (!task || !assignee) return null;
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!file) {
       toast({
         title: "请上传文件",
@@ -64,7 +64,16 @@ export function TaskProcessDrawer({
     }
 
     if (onSubmit) {
-      onSubmit(file, note);
+      try {
+        await onSubmit(file, note);
+      } catch (error) {
+        toast({
+          title: "提交失败",
+          description: error instanceof Error ? error.message : "请稍后重试",
+          variant: "destructive",
+        });
+        return;
+      }
     }
 
     toast({
@@ -193,7 +202,10 @@ export function TaskProcessDrawer({
                       className="h-7 w-7 text-muted-foreground hover:text-primary"
                       onClick={() => {
                         if (task.templateFileUrl) {
-                          window.open(task.templateFileUrl, '_blank');
+                          const downloadUrl = task.formKey === "ppt_collab"
+                            ? `${task.templateFileUrl}?ua_id=${assignee.id}`
+                            : task.templateFileUrl;
+                          window.open(downloadUrl, '_blank');
                         } else {
                           toast({
                             title: "下载失败",

@@ -67,13 +67,19 @@ function applyPermissionFilter(
   const canMinisterReview = hasCapability(currentUser, "task.review.minister");
   const canDirectorReview = hasCapability(currentUser, "task.review.director");
   const canAssignMembers = hasCapability(currentUser, "task.assign.member");
+  const canMergeTask = hasCapability(currentUser, "task.merge");
+  const canCoordinateMeetingMaterialTask = (task: Task) =>
+    task.type === "例会资料" &&
+    (task.meetingMaterialWorkflow?.reviewerId === currentUser.id ||
+      (task.allowedActions?.includes("mark_merged") ?? false));
 
   if (canViewAll) return tasks;
   if (canMinisterReview) {
     return tasks.filter(t =>
       t.department === currentUser.department ||
       // t.department === "全公司" ||
-      t.createdBy === currentUser.name
+      t.createdBy === currentUser.name ||
+      canCoordinateMeetingMaterialTask(t)
     );
   }
   if (canDirectorReview || canAssignMembers) return tasks.filter(t =>
@@ -81,10 +87,15 @@ function applyPermissionFilter(
     // t.department === "全公司" ||
     t.assignees.some(a => a.name === currentUser.name) ||
     t.createdBy === currentUser.name ||
+    canCoordinateMeetingMaterialTask(t) ||
     (t.type === "例会资料" && t.meetingMaterialWorkflow?.deptAssignments.some(da =>
       da.headUserId === currentUser.id || da.userAssignments.some(ua => ua.userId === currentUser.id)
     ))
   );
+
+  if (canMergeTask) {
+    return tasks.filter(task => canCoordinateMeetingMaterialTask(task) || task.createdBy === currentUser.name);
+  }
 
   return [];
 }
@@ -95,21 +106,12 @@ function userStatusBadge(status: string) {
     case "pending": return <Badge variant="outline" className="text-xs px-2 py-0 h-5 bg-muted/50 text-muted-foreground">待提交</Badge>;
     case "in_progress": return <Badge variant="outline" className="text-xs px-2 py-0 h-5 bg-blue-50 text-blue-700 border-blue-200">编辑中</Badge>;
     case "submitted": return <Badge variant="outline" className="text-xs px-2 py-0 h-5 bg-amber-100/90 text-amber-700 border-amber-300">待审核</Badge>;
-    case "dept_approved": return <Badge variant="outline" className="text-xs px-2 py-0 h-5 bg-purple-50 text-purple-700 border-purple-200">室主任已审核</Badge>;
-    case "final_approved": return <Badge variant="outline" className="text-xs px-2 py-0 h-5 bg-success/10 text-success border-success/20">部长已审批</Badge>;
+    case "dept_approved": return <Badge variant="outline" className="text-xs px-2 py-0 h-5 bg-success/10 text-success border-success/20">已通过</Badge>;
+    case "final_approved": return <Badge variant="outline" className="text-xs px-2 py-0 h-5 bg-success/10 text-success border-success/20">已通过</Badge>;
     case "rejected": return <Badge variant="outline" className="text-xs px-2 py-0 h-5 bg-destructive/10 text-destructive border-destructive/20">已驳回</Badge>;
     default: return null;
   }
 }
-const departmentFilters = [
-  { value: "all", label: "全部部门" },
-  { value: "设备部", label: "设备部" },
-  { value: "技术部", label: "技术部" },
-  { value: "产品部", label: "产品部" },
-  { value: "运营部", label: "运营部" },
-  { value: "全公司", label: "全公司" },
-];
-
 export default function TaskCenter() {
   const { taskType: taskTypeParam } = useParams<{ taskType?: string }>();
   const activeTaskType: TaskType | "all" = taskTypeParam ? decodeURIComponent(taskTypeParam) as TaskType : "all";
@@ -122,6 +124,9 @@ export default function TaskCenter() {
   const [reviewDrawerOpen, setReviewDrawerOpen] = useState(false);
   const [meetingMaterialTaskDrawerOpen, setMeetingMaterialTaskDrawerOpen] = useState(false);
   const [meetingMaterialTaskId, setMeetingMaterialTaskId] = useState<string>("");
+  const [meetingMaterialTaskInitialDeptId, setMeetingMaterialTaskInitialDeptId] = useState<
+    string | undefined
+  >(undefined);
   const [selectedReview, setSelectedReview] = useState<{
     task: Task;
     assignee: Assignee;
@@ -129,12 +134,22 @@ export default function TaskCenter() {
 
   const navigate = useNavigate();
   const { tasks, reviewSubmission, deleteTask } = useTaskContext();
-  const { currentUser } = useUserContext();
+  const { currentUser, departments } = useUserContext();
   const canManageTasks = isManagementUser(currentUser);
   const canCreateTask = hasCapability(currentUser, "task.create");
   const canMinisterReview = hasCapability(currentUser, "task.review.minister");
   const canMergeTask = hasCapability(currentUser, "task.merge");
   const canViewMergedFile = canMinisterReview || canMergeTask || hasCapability(currentUser, "task.view.all");
+  const departmentFilters = useMemo(
+    () => [
+      { value: "all", label: "全部部门" },
+      ...departments.map((department) => ({
+        value: department.name,
+        label: department.name,
+      })),
+    ],
+    [departments]
+  );
 
   const toggleExpand = (taskId: string) => {
     setExpandedTasks(prev =>
@@ -147,6 +162,12 @@ export default function TaskCenter() {
   const handleReview = (task: Task, assignee: Assignee) => {
     setSelectedReview({ task, assignee });
     setReviewDrawerOpen(true);
+  };
+
+  const openMeetingMaterialDrawer = (taskId: string, initialDeptId?: string) => {
+    setMeetingMaterialTaskId(taskId);
+    setMeetingMaterialTaskInitialDeptId(initialDeptId);
+    setMeetingMaterialTaskDrawerOpen(true);
   };
 
   const handleApprove = () => {
@@ -182,7 +203,10 @@ export default function TaskCenter() {
   const permissionFilteredTasks = useMemo(() => applyPermissionFilter(tasks, currentUser), [tasks, currentUser]);
 
   const filteredTasks = useMemo(() => permissionFilteredTasks.filter((task) => {
-    const matchesSearch = task.title.toLowerCase().includes(searchQuery.toLowerCase());
+    const normalizedSearch = searchQuery.toLowerCase();
+    const matchesSearch =
+      task.title.toLowerCase().includes(normalizedSearch) ||
+      task.description?.toLowerCase().includes(normalizedSearch);
     const matchesType = activeTaskType === "all" || task.type === activeTaskType;
     const matchesDepartment = departmentFilter === "all" || task.department === departmentFilter;
     return matchesSearch && matchesType && matchesDepartment;
@@ -315,12 +339,14 @@ export default function TaskCenter() {
                                 ) : (
                                   <ChevronRight className="h-5 w-5 text-muted-foreground" />
                                 )}
-                                <div>
+                                <div className="space-y-2">
                                   <CardTitle className="text-base">{task.title}</CardTitle>
+                                  {task.description && (
+                                    <p className="max-w-2xl text-sm leading-6 text-muted-foreground line-clamp-2">
+                                      {task.description}
+                                    </p>
+                                  )}
                                   <div className="flex items-center gap-2 mt-1">
-                                    <Badge variant="outline" className="text-xs">
-                                      {task.type}
-                                    </Badge>
                                     <Badge variant="secondary" className="text-xs">
                                       {task.department}
                                     </Badge>
@@ -374,8 +400,7 @@ export default function TaskCenter() {
                                     {task.type === "例会资料" && (
                                       <DropdownMenuItem onClick={(e) => {
                                         e.stopPropagation();
-                                        setMeetingMaterialTaskId(task.id);
-                                        setMeetingMaterialTaskDrawerOpen(true);
+                                        openMeetingMaterialDrawer(task.id);
                                       }}>
                                         进入例会资料工作台
                                       </DropdownMenuItem>
@@ -418,9 +443,11 @@ export default function TaskCenter() {
                                     <MeetingMaterialTaskDetail
                                       task={task}
                                       currentUser={currentUser}
+                                      onAssignDepartment={(deptId) => {
+                                        openMeetingMaterialDrawer(task.id, deptId);
+                                      }}
                                       onOpenMeetingMaterialDrawer={() => {
-                                        setMeetingMaterialTaskId(task.id);
-                                        setMeetingMaterialTaskDrawerOpen(true);
+                                        openMeetingMaterialDrawer(task.id);
                                       }}
                                     />
                                   </div>
@@ -548,7 +575,13 @@ export default function TaskCenter() {
 
       <MeetingMaterialTaskDrawer
         open={meetingMaterialTaskDrawerOpen}
-        onOpenChange={setMeetingMaterialTaskDrawerOpen}
+        onOpenChange={(open) => {
+          setMeetingMaterialTaskDrawerOpen(open);
+          if (!open) {
+            setMeetingMaterialTaskInitialDeptId(undefined);
+          }
+        }}
+        initialAssignDeptId={meetingMaterialTaskInitialDeptId}
         taskId={meetingMaterialTaskId}
       />
     </AppLayout>
