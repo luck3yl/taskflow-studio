@@ -6,7 +6,6 @@ export type SpecialTaskType =
   | TaskTypeEnum.TrainingExchange
   | TaskTypeEnum.MeetingFeedback
   | TaskTypeEnum.ResearchFeedback
-  | TaskTypeEnum.Benchmarking
   | TaskTypeEnum.SystemCapabilityEvaluation;
 
 export const SPECIAL_TASK_TYPES: readonly SpecialTaskType[] = [
@@ -14,7 +13,6 @@ export const SPECIAL_TASK_TYPES: readonly SpecialTaskType[] = [
   TaskTypeEnum.TrainingExchange,
   TaskTypeEnum.MeetingFeedback,
   TaskTypeEnum.ResearchFeedback,
-  TaskTypeEnum.Benchmarking,
   TaskTypeEnum.SystemCapabilityEvaluation,
 ] as const;
 

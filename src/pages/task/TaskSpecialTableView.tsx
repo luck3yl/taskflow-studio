@@ -1,5 +1,4 @@
 import { BenchmarkEvaluationTable } from "@/pages/task/benchmark-evaluation/BenchmarkEvaluationTable";
-import { BenchmarkingTable } from "@/pages/task/benchmarking/BenchmarkingTable";
 import { MeetingFeedbackTable } from "@/pages/task/meeting-feedback/MeetingFeedbackTable";
 import { ResearchFeedbackTable } from "@/pages/task/research-feedback/ResearchFeedbackTable";
 import type { SpecialTaskType } from "@/pages/task/specialTaskTypes";
@@ -22,9 +21,6 @@ export function TaskSpecialTableView({ type }: TaskSpecialTableViewProps) {
   }
   if (type === "调研反馈") {
     return <ResearchFeedbackTable />;
-  }
-  if (type === "对标找差") {
-    return <BenchmarkingTable />;
   }
   if (type === "体系能力评价") {
     return <SystemCapabilityEvaluationTable />;

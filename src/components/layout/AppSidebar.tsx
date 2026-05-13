@@ -12,11 +12,13 @@
   Workflow,
   Users,
   Search,
-  BarChart3,
-  BookOpen,
   GraduationCap,
   Star,
-  Presentation
+  Presentation,
+  Bell,
+  Map,
+  Mountain,
+  Grid3X3
 } from "lucide-react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import {
@@ -53,14 +55,31 @@ interface TaskTypeNavItem {
   color: string;
 }
 
-const taskTypeItems: TaskTypeNavItem[] = [
-  { type: "调研反馈", label: "调研反馈", icon: Search, color: "text-blue-500" },
-  { type: "例会反馈", label: "例会反馈", icon: Users, color: "text-indigo-500" },
-  { type: "标杆机组评价", label: "标杆机组评价", icon: Star, color: "text-amber-500" },
-  { type: "体系能力评价", label: "体系能力评价", icon: BarChart3, color: "text-purple-500" },
-  { type: "对标找差", label: "对标找差", icon: BookOpen, color: "text-green-500" },
-  { type: "培训交流", label: "培训交流", icon: GraduationCap, color: "text-cyan-500" },
-  { type: "例会资料", label: "例会资料", icon: Presentation, color: "text-rose-500" },
+interface TaskTypeGroup {
+  groupLabel: string;
+  items: TaskTypeNavItem[];
+}
+
+const taskTypeGroups: TaskTypeGroup[] = [
+  {
+    groupLabel: "综合管理",
+    items: [
+      { type: "调研反馈", label: "调研反馈", icon: Search, color: "text-blue-500" },
+      { type: "例会反馈", label: "例会反馈", icon: Users, color: "text-indigo-500" },
+      { type: "例会资料", label: "例会资料", icon: Presentation, color: "text-rose-500" },
+      { type: "督办事务", label: "督办事务", icon: Bell, color: "text-orange-500" },
+    ],
+  },
+  {
+    groupLabel: "对标找差",
+    items: [
+      { type: "行动计划", label: "行动计划", icon: Map, color: "text-green-500" },
+      { type: "培训交流", label: "培训交流", icon: GraduationCap, color: "text-cyan-500" },
+      { type: "他山之石", label: "他山之石", icon: Mountain, color: "text-teal-500" },
+      { type: "标杆机组评价", label: "标杆机组评价", icon: Star, color: "text-amber-500" },
+      { type: "体系能力评价", label: "体系能力评价", icon: Grid3X3, color: "text-purple-500" },
+    ],
+  },
 ];
 
 const staticNavItems = [
@@ -187,26 +206,38 @@ export function AppSidebar() {
                 {/* Task type sub-menu */}
                 {!collapsed && taskMenuOpen && (
                   <div className="mt-1 space-y-0.5">
-                    {taskTypeItems.map((item) => {
-                      const Icon = item.icon;
-                      const isTypeActive = currentTaskType === item.type;
-                      return (
-                        <SidebarMenuItem key={item.type}>
-                          <NavLink
-                            to={`/tasks/${encodeURIComponent(item.type)}`}
-                            className={cn(
-                              "flex items-center gap-3 rounded-xl pl-8 pr-3 py-2.5 transition-all duration-200 text-sm font-medium",
-                              isTypeActive
-                                ? "bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-600/25"
-                                : "text-sidebar-foreground hover:bg-white/60 dark:hover:bg-white/10"
-                            )}
-                          >
-                            <Icon className={cn("h-4 w-4 shrink-0", isTypeActive ? "text-white" : item.color)} />
-                            <span className="flex-1 truncate">{item.label}</span>
-                          </NavLink>
-                        </SidebarMenuItem>
-                      );
-                    })}
+                    {taskTypeGroups.map((group) => (
+                      <div key={group.groupLabel}>
+                        {/* 分组标题 */}
+                        <div className="flex items-center gap-2 pl-8 pr-3 py-1.5 mt-1">
+                          <ChevronDown className="h-3 w-3 text-muted-foreground shrink-0" />
+                          <span className="text-xs font-semibold text-muted-foreground tracking-wide uppercase">
+                            {group.groupLabel}
+                          </span>
+                        </div>
+                        {/* 分组子项 */}
+                        {group.items.map((item) => {
+                          const Icon = item.icon;
+                          const isTypeActive = currentTaskType === item.type;
+                          return (
+                            <SidebarMenuItem key={item.type}>
+                              <NavLink
+                                to={`/tasks/${encodeURIComponent(item.type)}`}
+                                className={cn(
+                                  "flex items-center gap-3 rounded-xl pl-10 pr-3 py-2 transition-all duration-200 text-sm font-medium",
+                                  isTypeActive
+                                    ? "bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-600/25"
+                                    : "text-sidebar-foreground hover:bg-white/60 dark:hover:bg-white/10"
+                                )}
+                              >
+                                <Icon className={cn("h-4 w-4 shrink-0", isTypeActive ? "text-white" : item.color)} />
+                                <span className="flex-1 truncate">{item.label}</span>
+                              </NavLink>
+                            </SidebarMenuItem>
+                          );
+                        })}
+                      </div>
+                    ))}
                   </div>
                 )}
               </SidebarMenuItem>
