@@ -7,6 +7,7 @@ const tasksURL = `${baseURL}/api/v1/tasks`;
 export const getTasksApi = (params: {
   type?: string;
   formKey?: TaskFormKey;
+  processKey?: string;
   department?: string;
   status?: string;
   search?: string;
@@ -16,6 +17,7 @@ export const getTasksApi = (params: {
     params: {
       type: params.type,
       form_key: params.formKey,
+      process_key: params.processKey,
       department: params.department,
       status: params.status,
       search: params.search,
@@ -51,7 +53,7 @@ export const executeTaskActionApi = (
     success: boolean;
     result?: Record<string, any>;
     workflowState?: Record<string, any>;
-  }>(`${tasksURL}/${taskId}/action`, data);
+  }>(`${tasksURL}/${taskId}/complete`, data);
 };
 
 export const deleteTaskApi = (taskId: string) => {

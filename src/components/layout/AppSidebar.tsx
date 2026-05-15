@@ -18,7 +18,7 @@
   Bell,
   Map,
   Mountain,
-  Grid3X3
+  Grid3X3,
 } from "lucide-react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import {
@@ -26,7 +26,6 @@ import {
   SidebarContent,
   SidebarGroup,
   SidebarGroupContent,
-  SidebarGroupLabel,
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
@@ -45,7 +44,7 @@ import {
   DropdownMenuLabel,
 } from "@/components/ui/dropdown-menu";
 import { summarizeUserRole, useUserContext } from "@/contexts/UserContext";
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { TaskType } from "@/contexts/TaskContext";
 
 interface TaskTypeNavItem {
@@ -97,15 +96,18 @@ export function AppSidebar() {
   const navigate = useNavigate();
   const { currentUser, users, switchUser } = useUserContext();
 
-  // 判断当前是否在任务中心相关路径
   const isOnTasksPage = location.pathname.startsWith("/tasks");
   const [taskMenuOpen, setTaskMenuOpen] = useState(isOnTasksPage);
+  const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
+
+  const toggleGroup = useCallback((groupLabel: string) => {
+    setCollapsedGroups(prev => ({ ...prev, [groupLabel]: !prev[groupLabel] }));
+  }, []);
 
   const currentTaskType = (() => {
     const match = location.pathname.match(/^\/tasks\/(.+)$/);
     if (!match) return null;
     const raw = decodeURIComponent(match[1]);
-    // 不是 "create" 路径
     if (raw.startsWith("create")) return null;
     return raw;
   })();
@@ -139,8 +141,9 @@ export function AppSidebar() {
       <SidebarContent className="px-3">
         <SidebarGroup>
           <SidebarGroupContent>
-            <SidebarMenu className="space-y-1">
-              {/* 工作台 */}
+            <SidebarMenu className="space-y-0.5">
+
+              {/* 工作台 + 待办中心 */}
               {staticNavItems.slice(0, 2).map((item) => {
                 const isActive = location.pathname === item.url;
                 return (
@@ -165,7 +168,7 @@ export function AppSidebar() {
                 );
               })}
 
-              {/* 任务中心 - 可展开 */}
+              {/* 任务中心 — 可展开 */}
               <SidebarMenuItem>
                 <button
                   onClick={() => {
@@ -196,48 +199,63 @@ export function AppSidebar() {
                         isOnTasksPage && !currentTaskType ? "text-white" : isOnTasksPage ? "text-blue-700" : "group-hover:text-foreground"
                       )}>任务中心</span>
                       {taskMenuOpen
-                        ? <ChevronDown className={cn("h-4 w-4", isOnTasksPage && !currentTaskType ? "text-white/70" : "text-muted-foreground")} />
-                        : <ChevronRight className={cn("h-4 w-4", isOnTasksPage && !currentTaskType ? "text-white/70" : "text-muted-foreground")} />
+                        ? <ChevronDown className={cn("h-4 w-4 transition-transform", isOnTasksPage && !currentTaskType ? "text-white/70" : "text-muted-foreground")} />
+                        : <ChevronRight className={cn("h-4 w-4 transition-transform", isOnTasksPage && !currentTaskType ? "text-white/70" : "text-muted-foreground")} />
                       }
                     </>
                   )}
                 </button>
 
-                {/* Task type sub-menu */}
+                {/* 任务类型子菜单 */}
                 {!collapsed && taskMenuOpen && (
-                  <div className="mt-1 space-y-0.5">
-                    {taskTypeGroups.map((group) => (
-                      <div key={group.groupLabel}>
-                        {/* 分组标题 */}
-                        <div className="flex items-center gap-2 pl-8 pr-3 py-1.5 mt-1">
-                          <ChevronDown className="h-3 w-3 text-muted-foreground shrink-0" />
-                          <span className="text-xs font-semibold text-muted-foreground tracking-wide uppercase">
-                            {group.groupLabel}
-                          </span>
+                  <div className="mt-1 ml-3 pl-3 border-l border-border/50 space-y-1 py-1">
+                    {taskTypeGroups.map((group) => {
+                      const isGroupCollapsed = !!collapsedGroups[group.groupLabel];
+                      return (
+                        <div key={group.groupLabel}>
+                          <button
+                            onClick={() => toggleGroup(group.groupLabel)}
+                            className={cn(
+                              "group w-full flex items-center gap-2.5 rounded-lg px-2.5 py-1.5 transition-all duration-200 text-sm font-medium",
+                              "text-sidebar-foreground/80 hover:bg-white/50 dark:hover:bg-white/10 hover:text-foreground"
+                            )}
+                          >
+                            <span className="flex-1 text-left">{group.groupLabel}</span>
+                            {isGroupCollapsed
+                              ? <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                              : <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                            }
+                          </button>
+                          {!isGroupCollapsed && (
+                            <div className="space-y-0.5 mt-0.5">
+                              {group.items.map((item) => {
+                                const Icon = item.icon;
+                                const isTypeActive = currentTaskType === item.type;
+                                return (
+                                  <div key={item.type}>
+                                    <NavLink
+                                      to={`/tasks/${encodeURIComponent(item.type)}`}
+                                      className={cn(
+                                        "flex items-center gap-2.5 rounded-lg px-2.5 py-1.5 transition-all duration-150 text-sm",
+                                        isTypeActive
+                                          ? "bg-primary/10 text-primary font-semibold"
+                                          : "text-sidebar-foreground/80 hover:bg-white/50 dark:hover:bg-white/10 hover:text-foreground"
+                                      )}
+                                    >
+                                      <Icon className={cn("h-3.5 w-3.5 shrink-0", isTypeActive ? "text-primary" : item.color)} />
+                                      <span className="truncate">{item.label}</span>
+                                      {isTypeActive && (
+                                        <div className="ml-auto h-1.5 w-1.5 rounded-full bg-primary shrink-0" />
+                                      )}
+                                    </NavLink>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
                         </div>
-                        {/* 分组子项 */}
-                        {group.items.map((item) => {
-                          const Icon = item.icon;
-                          const isTypeActive = currentTaskType === item.type;
-                          return (
-                            <SidebarMenuItem key={item.type}>
-                              <NavLink
-                                to={`/tasks/${encodeURIComponent(item.type)}`}
-                                className={cn(
-                                  "flex items-center gap-3 rounded-xl pl-10 pr-3 py-2 transition-all duration-200 text-sm font-medium",
-                                  isTypeActive
-                                    ? "bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-600/25"
-                                    : "text-sidebar-foreground hover:bg-white/60 dark:hover:bg-white/10"
-                                )}
-                              >
-                                <Icon className={cn("h-4 w-4 shrink-0", isTypeActive ? "text-white" : item.color)} />
-                                <span className="flex-1 truncate">{item.label}</span>
-                              </NavLink>
-                            </SidebarMenuItem>
-                          );
-                        })}
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </SidebarMenuItem>
@@ -266,6 +284,7 @@ export function AppSidebar() {
                   </SidebarMenuItem>
                 );
               })}
+
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
@@ -327,9 +346,7 @@ export function AppSidebar() {
                 </DropdownMenuItem>
               ))}
             </div>
-
             <DropdownMenuSeparator />
-
             <DropdownMenuItem className="cursor-pointer">
               <UserIcon className="mr-2 h-4 w-4" />
               <span>个人信息</span>

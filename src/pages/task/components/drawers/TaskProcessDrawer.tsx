@@ -53,6 +53,20 @@ export function TaskProcessDrawer({
 
   if (!task || !assignee) return null;
 
+  // 获取员工负责的页码（用于模板预览时只显示自己的页）
+  const myVisiblePages: Set<number> | undefined = (() => {
+    if (!task.meetingMaterialWorkflow) return undefined;
+    for (const dept of task.meetingMaterialWorkflow.deptAssignments) {
+      const ua = dept.userAssignments.find(
+        (u) => u.id === assignee.id || u.userId === assignee.memberId
+      );
+      if (ua && ua.pages.length > 0) {
+        return new Set(ua.pages);
+      }
+    }
+    return undefined;
+  })();
+
   const handleSubmit = async () => {
     if (!file) {
       toast({
@@ -241,6 +255,7 @@ export function TaskProcessDrawer({
                 onOpenChange={setTemplatePreviewOpen}
                 fileName={task.templateFileName}
                 fileUrl={task.templateFileUrl}
+                visiblePages={myVisiblePages}
               />
             </div>
           )}

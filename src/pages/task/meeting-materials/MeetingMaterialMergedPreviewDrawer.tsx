@@ -15,13 +15,12 @@ import {
   CheckCircle2,
   Clock,
   Layers,
-  Eye,
-  Play
+  Eye
 } from "lucide-react";
 import { useState } from "react";
 import { Task } from "@/contexts/TaskContext";
 import { FilePreviewDialog } from "@/pages/ppt/components/FilePreviewDialog";
-import { PPTistViewer } from "@/pages/ppt/components/PPTistViewer";
+import { PdfPreviewer } from "@/pages/ppt/components/PdfPreviewer";
 
 interface MeetingMaterialMergedPreviewDrawerProps {
   open: boolean;
@@ -184,17 +183,19 @@ export function MeetingMaterialMergedPreviewDrawer({
           <div className="space-y-3">
             <h4 className="font-semibold text-foreground">合并预览</h4>
             <div className="rounded-lg border border-border overflow-hidden">
-              <PPTistViewer
-                title="合并PPT预览"
-                height="600px"
-                mode="screen"
-                defaultScreen={true}
-              />
+              {task.meetingMaterialWorkflow?.mergedFileId ? (
+                <PdfPreviewer
+                  fileId={task.meetingMaterialWorkflow.mergedFileId}
+                  fileName={task.meetingMaterialWorkflow.mergedFileName || `${task.title}_合并版.pptx`}
+                  height="600px"
+                  showToolbar={false}
+                />
+              ) : (
+                <div className="h-[600px] flex items-center justify-center bg-muted/20 text-sm text-muted-foreground">
+                  尚未生成合并文件，所有部门审核通过后会自动合并
+                </div>
+              )}
             </div>
-            <p className="text-xs text-muted-foreground text-center">
-              <Play className="h-3 w-3 inline mr-1" />
-              提示：点击 "从头开始" 或 "从当前开始" 按钮进入纯放映模式
-            </p>
           </div>
 
           {/* File Preview Dialog */}

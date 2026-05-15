@@ -530,13 +530,6 @@ export default function TodoCenter() {
                       </div>
 
                       <div className="flex flex-wrap items-center gap-4 mb-4">
-                        <div className="flex items-center gap-2">
-                          <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center text-xs font-bold text-primary border border-primary/20">
-                            {task.createdByAvatar}
-                          </div>
-                          <span className="text-sm font-medium text-foreground/80">{task.createdBy}</span>
-                        </div>
-
                         {assignee.pageRange && (
                           <div className="flex items-center gap-1.5 text-xs font-bold text-primary px-2 py-0.5 bg-primary/5 rounded border border-primary/10">
                             负责第 {assignee.pageRange} 页

@@ -65,37 +65,35 @@ import {
 import { hasCapability, isManagementUser, useUserContext } from "@/contexts/UserContext";
 import { useToast } from "@/hooks/use-toast";
 import { FilePreviewDialog } from "@/pages/ppt/components/FilePreviewDialog";
+import { TaskFormKeyEnum, MEETING_MATERIAL_STAGE_CONFIG } from "@/enums/task";
+import { DeptAssignForm } from "./ppt-collab-forms/DeptAssignForm";
+import { AssignPagesForm } from "./ppt-collab-forms/AssignPagesForm";
+import { SubmitForm } from "./ppt-collab-forms/SubmitForm";
+import { ReviewForm } from "./ppt-collab-forms/ReviewForm";
+import { FinalApproveForm } from "./ppt-collab-forms/FinalApproveForm";
+import { MergeForm } from "./ppt-collab-forms/MergeForm";
+import type { PptCollabFormProps } from "./ppt-collab-forms/types";
+import { StatusBadge } from "./components/StatusBadge";
+
+// ---- formKey → component map ----
+const FORM_KEY_COMPONENT_MAP: Record<string, React.ComponentType<PptCollabFormProps>> = {
+  [TaskFormKeyEnum.PptCollabDeptAssign]:   DeptAssignForm,
+  [TaskFormKeyEnum.PptCollabAssign]:       AssignPagesForm,
+  [TaskFormKeyEnum.PptCollabSubmit]:       SubmitForm,
+  [TaskFormKeyEnum.PptCollabReview]:       ReviewForm,
+  [TaskFormKeyEnum.PptCollabFinalApprove]: FinalApproveForm,
+  [TaskFormKeyEnum.PptCollabMerge]:        MergeForm,
+};
 
 // ---- helpers ----
-const stageLabel: Record<MeetingMaterialStage, string> = {
-  dept_assignment: "待分配部门",
-  user_assignment: "待分配员工",
-  in_progress: "编辑中",
-  dept_reviewing: "审核中",
-  final_reviewing: "待合并",
-  approved: "审核完成",
-  merged: "已合并",
-};
-const stageColor: Record<MeetingMaterialStage, string> = {
-  dept_assignment: "bg-gray-200 text-gray-700",
-  user_assignment: "bg-blue-100 text-blue-700",
-  in_progress: "bg-amber-100 text-amber-700",
-  dept_reviewing: "bg-purple-100 text-purple-700",
-  final_reviewing: "bg-orange-100 text-orange-700",
-  approved: "bg-green-100 text-green-700",
-  merged: "bg-emerald-100 text-emerald-700",
-};
+const stageLabel = Object.fromEntries(
+  Object.entries(MEETING_MATERIAL_STAGE_CONFIG).map(([k, v]) => [k, v.text])
+) as Record<MeetingMaterialStage, string>;
 
-function userStatusBadge(status: MeetingMaterialUserAssignment["status"]) {
-  switch (status) {
-    case "pending": return <Badge variant="outline" className="text-muted-foreground text-xs">待提交</Badge>;
-    case "in_progress": return <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200 text-xs">编辑中</Badge>;
-    case "submitted": return <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200 text-xs">待审核</Badge>;
-    case "dept_approved": return <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 text-xs">已通过</Badge>;
-    case "final_approved": return <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 text-xs">已通过</Badge>;
-    case "rejected": return <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200 text-xs">已驳回</Badge>;
-  }
-}
+const stageColor = Object.fromEntries(
+  Object.entries(MEETING_MATERIAL_STAGE_CONFIG).map(([k, v]) => [k, v.className])
+) as Record<MeetingMaterialStage, string>;
+
 
 // 页面选择器组件
 function PageSelector({
@@ -198,7 +196,7 @@ export function MeetingMaterialTaskDrawer({
     canReject: boolean;
   } | null>(null);
   const [reviewFeedback, setReviewFeedback] = useState("");
-  const [selectedFilePreview, setSelectedFilePreview] = useState<{ fileName: string; fileUrl?: string } | null>(null);
+  const [selectedFilePreview, setSelectedFilePreview] = useState<{ fileName: string; fileUrl?: string; visiblePages?: Set<number> } | null>(null);
   const [submitDialog, setSubmitDialog] = useState<{ deptId: string; ua: MeetingMaterialUserAssignment } | null>(null);
   const [submitFile, setSubmitFile] = useState<File | null>(null);
   const [submitNote, setSubmitNote] = useState("");
@@ -734,6 +732,20 @@ export function MeetingMaterialTaskDrawer({
           </>
         )}
 
+        {/* Dynamic PPT collab form based on formKey */}
+        {(() => {
+          const FormComponent = task.formKey ? FORM_KEY_COMPONENT_MAP[task.formKey] : null;
+          if (!FormComponent) return null;
+          return (
+            <div className="rounded-2xl border border-primary/20 bg-primary/5 p-4">
+              <FormComponent
+                task={task}
+                onSuccess={() => { /* task already updated by executePptCollabAction */ }}
+              />
+            </div>
+          );
+        })()}
+
         {/* 我的任务（员工视角） */}
         {myAssignments.length > 0 && (
           <div className="space-y-4">
@@ -755,7 +767,7 @@ export function MeetingMaterialTaskDrawer({
                         <p className="text-xs text-muted-foreground">所属部门：{dept.department}</p>
                       </div>
                       <div className="flex shrink-0 whitespace-nowrap">
-                        {userStatusBadge(ua.status)}
+                        <StatusBadge status={ua.status} type="user" />
                       </div>
                     </div>
 
@@ -777,7 +789,7 @@ export function MeetingMaterialTaskDrawer({
                           window.open(`${task.templateFileUrl}?ua_id=${ua.id}`, "_blank", "noopener,noreferrer")
                         }
                       >
-                        <Download className="h-4 w-4 text-muted-foreground" />仅下载我的页面
+                        <Download className="h-4 w-4 text-muted-foreground" />下载模板
                       </Button>
                     </div>
 
@@ -996,7 +1008,7 @@ export function MeetingMaterialTaskDrawer({
                                 <div className="min-w-0 flex-1 space-y-1.5 pt-0.5">
                                   <div className="flex items-center gap-2.5 flex-wrap">
                                     <p className="text-[15px] font-semibold text-foreground/90">{ua.userName}</p>
-                                    {userStatusBadge(ua.status)}
+                                    <StatusBadge status={ua.status} type="user" />
                                     <Badge variant="secondary" className="h-[22px] px-2 text-[11px] font-medium bg-secondary/50 text-muted-foreground shrink-0 rounded-md">
                                       第 {formatPageRange(ua.pages)} 页
                                     </Badge>
@@ -1380,6 +1392,7 @@ export function MeetingMaterialTaskDrawer({
         onOpenChange={(open) => !open && setSelectedFilePreview(null)}
         fileName={selectedFilePreview?.fileName || ""}
         fileUrl={selectedFilePreview?.fileUrl}
+        visiblePages={selectedFilePreview?.visiblePages}
       />
       </ScrollArea>
     </SheetContent>

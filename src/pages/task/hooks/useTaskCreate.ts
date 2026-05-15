@@ -7,7 +7,6 @@ import { useTaskContext, type Assignee, type TaskType } from "@/contexts/TaskCon
 import { useUserContext } from "@/contexts/UserContext";
 import { uploadFileApi } from "@/services/apis/files";
 import {
-  MeetingMaterialStageEnum,
   TASK_TYPE_TO_FORM_KEY,
   TaskFormKeyEnum,
   TaskSourceEnum,
@@ -139,31 +138,10 @@ export function useTaskCreate() {
       return;
     }
 
-    if (currentStep === 1 && taskType === TaskTypeEnum.MeetingMaterial && !templateFileId) {
-      toast({
-        title: "请先上传 PPT 模板",
-        description: "拆分协同任务需要先识别模板页数",
-        variant: "destructive",
-      });
+    // 例会资料任务：Step 1 → Step 3（跳过任务拆解，分配在工作台完成）
+    if (currentStep === 1 && taskType === TaskTypeEnum.MeetingMaterial) {
+      setCurrentStep(3);
       return;
-    }
-
-    if (currentStep === 2 && taskType === TaskTypeEnum.MeetingMaterial) {
-      const hasValidDeptAssignment = meetingMaterialDeptRows.some(
-        row =>
-          row.deptName &&
-          row.headUserId &&
-          parsePageInput(row.pageSelection, templatePageCount).length > 0
-      );
-
-      if (!hasValidDeptAssignment) {
-        toast({
-          title: "请完善部门分配",
-          description: "至少需要完成一条 部门 + 负责人 + 页面范围 配置",
-          variant: "destructive",
-        });
-        return;
-      }
     }
 
     if (currentStep === 2 && taskType !== TaskTypeEnum.MeetingMaterial && assignments.length === 0) {
@@ -175,21 +153,18 @@ export function useTaskCreate() {
       return;
     }
 
-    if (false && currentStep === 3 && taskType === TaskTypeEnum.MeetingMaterial && !meetingMaterialReviewerId) {
-      toast({
-        title: "请选择审核人",
-        description: "例会资料任务需要指定审核人后再继续",
-        variant: "destructive",
-      });
-      return;
-    }
-
     if (currentStep < 4) {
       setCurrentStep(previous => previous + 1);
     }
   };
 
   const handleBack = () => {
+    // 例会资料任务：Step 3 → Step 1（跳过任务拆解）
+    if (currentStep === 3 && taskType === TaskTypeEnum.MeetingMaterial) {
+      setCurrentStep(1);
+      return;
+    }
+
     if (currentStep > 1) {
       setCurrentStep(previous => previous - 1);
     }
@@ -284,36 +259,6 @@ export function useTaskCreate() {
 
     try {
       if (taskType === TaskTypeEnum.MeetingMaterial) {
-        if (!templateFileId) {
-          toast({
-            title: "缺少模板文件",
-            description: "请先上传 PPT 模板",
-            variant: "destructive",
-          });
-          return;
-        }
-
-        if (false && !meetingMaterialReviewerId) {
-          toast({
-            title: "请选择审核人",
-            description: "例会资料任务需要指定审核人后再发布",
-            variant: "destructive",
-          });
-          return;
-        }
-
-        const deptAssignments = meetingMaterialDeptRows
-          .filter(row => row.deptName && parsePageInput(row.pageSelection, templatePageCount).length > 0)
-          .map((row, index) => ({
-            id: `dept-new-${index}`,
-            department: row.deptName,
-            requirement: row.requirement || undefined,
-            pages: parsePageInput(row.pageSelection, templatePageCount),
-            headUserId: row.headUserId || undefined,
-            headUserName: row.headUserName || undefined,
-            status: "pending" as const,
-            userAssignments: [],
-          }));
         await addTask({
           title: taskTitle,
           description: taskDescription,
@@ -323,26 +268,19 @@ export function useTaskCreate() {
           deadline: formattedDeadline,
           createdBy: currentUser.name,
           createdByAvatar: currentUser.avatar,
-          templateFileId,
+          templateFileId: templateFileId || undefined,
           templateFileName: templateFile?.name,
           templateFileSize: templateFile ? templateFile.size / (1024 * 1024) : undefined,
           templatePageCount: templatePageCount || undefined,
-          totalAssignees: deptAssignments.length,
+          totalAssignees: 0,
           assignees: [],
-          meetingMaterialWorkflow: {
-            stage: MeetingMaterialStageEnum.DeptAssignment,
-            totalPages: templatePageCount || 0,
-            templateFileId,
-            deptAssignments,
-            pageVersions: {},
-          },
           allowedActions: [],
           source: TaskSourceEnum.Remote,
         });
 
         toast({
           title: "例会资料任务已创建",
-          description: `已完成 ${deptAssignments.length} 个部门的初始拆分`,
+          description: "任务已创建，请进入工作台完成部门分配",
         });
         navigate(taskType ? `/tasks/${encodeURIComponent(taskType)}` : "/tasks");
         return;

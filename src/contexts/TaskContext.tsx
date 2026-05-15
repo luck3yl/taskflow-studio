@@ -9,10 +9,11 @@ import {
 import {
   deleteTaskApi,
   executeTaskActionApi,
+  getMyTodosApi,
   getTaskDetailApi,
   getTasksApi,
-  createTaskApi,
 } from "@/services/apis/tasks";
+import { startProcessInstanceApi } from "@/services/apis/processes";
 import { uploadFileApi } from "@/services/apis/files";
 import { ApiRequestError } from "@/services/http/axios";
 import { adaptBackendTask } from "@/services/task-adapters";
@@ -35,6 +36,7 @@ import type {
   MeetingMaterialUserAssignment,
   Submission,
   Task,
+  TodoItem,
 } from "@/types/task";
 
 export {
@@ -58,6 +60,8 @@ export type {
   Submission,
   Task,
   TaskType,
+  TodoItem,
+  TodoType,
 } from "@/types/task";
 
 type TaskDraft = Omit<Task, "id" | "createdAt" | "completedCount" | "status">;
@@ -112,6 +116,14 @@ interface TaskContextType {
     taskId: string,
     toStage: MeetingMaterialStage
   ) => Promise<void>;
+  executePptCollabAction: (
+    taskId: string,
+    data: {
+      action: "dept_assign" | "assign_pages" | "submit" | "review" | "final_approve" | "mark_merged" | "reject_all";
+      payload: Record<string, unknown>;
+    }
+  ) => Promise<Task>;
+  fetchMyTodos: () => Promise<TodoItem[]>;
 }
 
 const TaskContext = createContext<TaskContextType | undefined>(undefined);
@@ -167,26 +179,14 @@ function buildPptWorkflowConfig(task: TaskDraft) {
   };
 }
 
-async function fetchRemotePptTasks(userId: string) {
+async function fetchRemoteTasks(userId: string, processKey?: string) {
   const taskList = await getTasksApi({
-    formKey: TaskFormKeyEnum.PptCollab,
-    // userId,
+    processKey,
   });
 
-  const taskIds = [...new Set(taskList.map((item: Record<string, unknown>) => String(item.id || "")))].filter(
-    Boolean
-  );
-
-  const detailResults = await Promise.allSettled(
-    taskIds.map(taskId => getTaskDetailApi(taskId, userId))
-  );
-
-  return detailResults
-    .filter(
-      (result): result is PromiseFulfilledResult<Record<string, unknown>> =>
-        result.status === "fulfilled"
-    )
-    .map(result => adaptBackendTask(result.value));
+  // 列表接口已返回完整数据（含 workflowState），直接适配即可
+  const items = Array.isArray(taskList) ? taskList : [];
+  return items.map((item: Record<string, any>) => adaptBackendTask(item));
 }
 
 export function TaskProvider({ children }: { children: ReactNode }) {
@@ -201,7 +201,7 @@ export function TaskProvider({ children }: { children: ReactNode }) {
     setLoading(true);
 
     try {
-      const nextRemoteTasks = await fetchRemotePptTasks(currentUser.id);
+      const nextRemoteTasks = await fetchRemoteTasks(currentUser.id, "ppt_collab");
       setRemoteTasks(nextRemoteTasks);
     } catch (error) {
       console.error("Failed to load PPT tasks", error);
@@ -230,16 +230,23 @@ export function TaskProvider({ children }: { children: ReactNode }) {
 
   const addTask = async (taskData: TaskDraft) => {
     if (taskData.type === TaskTypeEnum.MeetingMaterial) {
-      const formData = new FormData();
-      formData.append("title", taskData.title);
-      formData.append("description", taskData.description || "");
-      formData.append("type", taskData.type);
-      formData.append("department", taskData.department);
-      formData.append("deadline", taskData.deadline);
-      formData.append("formKey", TaskFormKeyEnum.PptCollab);
-      formData.append("workflowConfig", JSON.stringify(buildPptWorkflowConfig(taskData)));
+      // 按照 PPT_COLLAB_DEMO 文档，创建任务走 POST /api/v1/processes/instances
+      const variables: Record<string, unknown> = {
+        title: taskData.title,
+        category: "月报与材料编制",
+        department: taskData.department,
+      };
+      if (taskData.description) {
+        variables.description = taskData.description;
+      }
+      if (taskData.deadline) {
+        variables.deadline = taskData.deadline;
+      }
 
-      const createdTask = await createTaskApi(formData);
+      const createdTask = await startProcessInstanceApi({
+        process_key: "ppt_collab",
+        variables,
+      });
 
       const createdTaskId = String(createdTask.id || "");
       if (createdTaskId) {
@@ -464,6 +471,82 @@ export function TaskProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const executePptCollabAction = async (
+    taskId: string,
+    data: {
+      action: "dept_assign" | "assign_pages" | "submit" | "review" | "final_approve" | "mark_merged" | "reject_all";
+      payload: Record<string, unknown>;
+    }
+  ): Promise<Task> => {
+    const response = await executeTaskActionApi(taskId, data);
+
+    // Merge action response with existing task data, then adapt
+    const existingTask = remoteTasks.find(t => t.id === taskId);
+    const mergedData = {
+      ...(existingTask ? {
+        id: existingTask.id,
+        title: existingTask.title,
+        type: existingTask.type,
+        department: existingTask.department,
+        createdAt: existingTask.createdAt,
+        deadline: existingTask.deadline,
+        createdBy: existingTask.createdBy,
+        formKey: existingTask.formKey,
+      } : {}),
+      ...response,
+    };
+    const updatedTask = adaptBackendTask(mergedData);
+
+    setRemoteTasks(previous =>
+      previous.map(task => (task.id === taskId ? updatedTask : task))
+    );
+
+    return updatedTask;
+  };
+
+  const fetchMyTodos = async (): Promise<TodoItem[]> => {
+    const response = await getMyTodosApi({ userId: currentUser.id });
+    const items = Array.isArray(response) ? response : (response as any)?.data ?? [];
+    return items.map((item: Record<string, any>): TodoItem => ({
+      task: {
+        id: String(item.task?.id ?? ""),
+        title: String(item.task?.title ?? ""),
+        processKey: String(item.task?.processKey ?? item.task?.process_key ?? ""),
+        deadline: item.task?.deadline,
+        type: item.task?.type,
+        createdBy: item.task?.createdBy ?? item.task?.created_by,
+        templateFileId: item.task?.templateFileId ?? item.task?.template_file_id,
+        templateFileName: item.task?.templateFileName ?? item.task?.template_file_name,
+      },
+      todoType: item.todoType ?? item.todo_type,
+      todoLabel: item.todoLabel ?? item.todo_label ?? "",
+      userAssignment: item.userAssignment ?? item.user_assignment
+        ? {
+            id: String((item.userAssignment ?? item.user_assignment)?.id ?? ""),
+            pages: Array.isArray((item.userAssignment ?? item.user_assignment)?.pages)
+              ? (item.userAssignment ?? item.user_assignment).pages.map(Number)
+              : [],
+            taskDescription: (item.userAssignment ?? item.user_assignment)?.taskDescription
+              ?? (item.userAssignment ?? item.user_assignment)?.task_description,
+            status: String((item.userAssignment ?? item.user_assignment)?.status ?? ""),
+          }
+        : undefined,
+      deptAssignment: item.deptAssignment ?? item.dept_assignment
+        ? {
+            id: String((item.deptAssignment ?? item.dept_assignment)?.id ?? ""),
+            department: String((item.deptAssignment ?? item.dept_assignment)?.department ?? ""),
+          }
+        : undefined,
+      assignedBy: item.assignedBy ?? item.assigned_by
+        ? {
+            id: String((item.assignedBy ?? item.assigned_by)?.id ?? ""),
+            name: String((item.assignedBy ?? item.assigned_by)?.name ?? ""),
+            avatar: String((item.assignedBy ?? item.assigned_by)?.avatar ?? ""),
+          }
+        : undefined,
+    }));
+  };
+
   return (
     <TaskContext.Provider
       value={{
@@ -481,6 +564,8 @@ export function TaskProvider({ children }: { children: ReactNode }) {
         assignMeetingMaterialPagesToUser,
         markMeetingMaterialMerged,
         advanceMeetingMaterialStage,
+        executePptCollabAction,
+        fetchMyTodos,
       }}
     >
       {children}

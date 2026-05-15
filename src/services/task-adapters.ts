@@ -25,12 +25,23 @@ import type {
 
 const TASK_TYPE_BY_FORM_KEY: Record<string, TaskType> = {
   [TaskFormKeyEnum.PptCollab]: TaskTypeEnum.MeetingMaterial,
+  [TaskFormKeyEnum.PptCollabDeptAssign]: TaskTypeEnum.MeetingMaterial,
+  [TaskFormKeyEnum.PptCollabAssign]: TaskTypeEnum.MeetingMaterial,
+  [TaskFormKeyEnum.PptCollabSubmit]: TaskTypeEnum.MeetingMaterial,
+  [TaskFormKeyEnum.PptCollabReview]: TaskTypeEnum.MeetingMaterial,
+  [TaskFormKeyEnum.PptCollabFinalApprove]: TaskTypeEnum.MeetingMaterial,
+  [TaskFormKeyEnum.PptCollabMerge]: TaskTypeEnum.MeetingMaterial,
   [TaskFormKeyEnum.SimpleSubmit]: TaskTypeEnum.ResearchFeedback,
 };
 
-function toTaskType(rawType?: string, formKey?: string): TaskType {
+function toTaskType(rawType?: string, formKey?: string, processKey?: string): TaskType {
   if (rawType) {
     return rawType as TaskType;
+  }
+
+  // PPT 协同任务：通过 processKey 或 formKey 前缀判断
+  if (processKey === "ppt_collab" || formKey?.startsWith("ppt_collab")) {
+    return TaskTypeEnum.MeetingMaterial;
   }
 
   return TASK_TYPE_BY_FORM_KEY[formKey || ""] || TaskTypeEnum.ResearchFeedback;
@@ -99,18 +110,19 @@ function toMeetingDeptStatus(status?: string): MeetingMaterialDeptAssignment["st
 
 function toMeetingStage(stage?: string): MeetingMaterialStage {
   if (
+    stage === MeetingMaterialStageEnum.Created ||
     stage === MeetingMaterialStageEnum.DeptAssignment ||
-    stage === MeetingMaterialStageEnum.UserAssignment ||
     stage === MeetingMaterialStageEnum.InProgress ||
     stage === MeetingMaterialStageEnum.DeptReviewing ||
     stage === MeetingMaterialStageEnum.FinalReviewing ||
+    stage === MeetingMaterialStageEnum.FinalApproved ||
     stage === MeetingMaterialStageEnum.Approved ||
     stage === MeetingMaterialStageEnum.Merged
   ) {
     return stage;
   }
 
-  return MeetingMaterialStageEnum.DeptAssignment;
+  return MeetingMaterialStageEnum.Created;
 }
 
 function toSubmission(item: Record<string, any>): Submission {
@@ -303,11 +315,12 @@ function toSimpleAssignees(workflowState: Record<string, any>): Assignee[] {
 
 export function adaptBackendTask(taskDetail: Record<string, any>): Task {
   const formKey = taskDetail.formKey || taskDetail.form_key || "";
+  const processKey = taskDetail.processKey || taskDetail.process_key || "";
   const workflowState = (taskDetail.workflowState || taskDetail.workflow_state || {}) as Record<
     string,
     any
   >;
-  const type = toTaskType(taskDetail.type, formKey);
+  const type = toTaskType(taskDetail.type, formKey, processKey);
   const templateFileId =
     taskDetail.templateFileId ||
     taskDetail.template_file_id ||
@@ -315,11 +328,11 @@ export function adaptBackendTask(taskDetail: Record<string, any>): Task {
     workflowState.template_file_id;
 
   const meetingMaterialWorkflow =
-    formKey === TaskFormKeyEnum.PptCollab
+    formKey === TaskFormKeyEnum.PptCollab || formKey?.startsWith("ppt_collab") || processKey === "ppt_collab"
       ? toMeetingMaterialWorkflow(workflowState, templateFileId)
       : undefined;
   const assignees =
-    formKey === TaskFormKeyEnum.PptCollab && meetingMaterialWorkflow
+    (formKey === TaskFormKeyEnum.PptCollab || processKey === "ppt_collab") && meetingMaterialWorkflow
       ? flattenMeetingAssignees(meetingMaterialWorkflow)
       : toSimpleAssignees(workflowState);
   const completedCount = assignees.filter(
@@ -374,10 +387,11 @@ export function adaptBackendTask(taskDetail: Record<string, any>): Task {
     templateFileUrl: getFileDownloadUrl(templateFileId || meetingMaterialWorkflow?.templateFileId),
     totalAssignees,
     completedCount,
-    status:
+    status: taskDetail.status || (
       stage === MeetingMaterialStageEnum.Merged
         ? TaskStatusEnum.Completed
-        : TaskStatusEnum.InProgress,
+        : TaskStatusEnum.InProgress
+    ),
     assignees,
     meetingMaterialWorkflow,
     allowedActions: taskDetail.allowedActions || taskDetail.allowed_actions || [],

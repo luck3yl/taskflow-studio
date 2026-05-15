@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -37,7 +37,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useLocation } from "react-router-dom";
 import { ReviewDrawer } from "@/pages/task/components/drawers/ReviewDrawer";
 import { useTaskContext, Task, Assignee, TaskType } from "@/contexts/TaskContext";
 import { hasCapability, isManagementUser, useUserContext } from "@/contexts/UserContext";
@@ -46,17 +46,18 @@ import { TaskKanbanView } from "@/pages/task/components/TaskKanbanView";
 import { TaskCalendarView } from "@/pages/task/components/TaskCalendarView";
 import { TaskProgressList } from "@/pages/task/components/TaskProgressList";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { MeetingMaterialTaskDetail } from "@/pages/task/meeting-materials/MeetingMaterialTaskDetail";
-import { MeetingMaterialTaskDrawer } from "@/pages/task/meeting-materials/MeetingMaterialTaskDrawer";
+import { MeetingMaterialTaskListItem } from "@/pages/task/meeting-materials/components/MeetingMaterialTaskListItem";
 import { TaskSpecialTableView } from "@/pages/task/TaskSpecialTableView";
 import { isSpecialTaskType } from "@/pages/task/specialTaskTypes";
+import { StatusBadge } from "@/pages/task/meeting-materials/components/StatusBadge";
+import { ASSIGNEE_STATUS_CONFIG } from "@/enums/task";
 
-const statusStyles = {
-  pending: { bg: "bg-muted", dot: "bg-muted-foreground" },
-  submitted: { bg: "bg-warning/20", dot: "bg-warning" },
-  approved: { bg: "bg-success/20", dot: "bg-success" },
-  rejected: { bg: "bg-destructive/20", dot: "bg-destructive" },
-};
+const statusStyles: Record<string, { bg: string; dot: string }> = Object.fromEntries(
+  Object.entries(ASSIGNEE_STATUS_CONFIG).map(([k, v]) => [
+    k,
+    { bg: v.className.split(" ")[0] || "bg-muted", dot: v.dotColor || "bg-muted-foreground" },
+  ])
+);
 
 // 按管理能力返回权限过滤后的任务
 function applyPermissionFilter(
@@ -97,21 +98,17 @@ function applyPermissionFilter(
     return tasks.filter(task => canCoordinateMeetingMaterialTask(task) || task.createdBy === currentUser.name);
   }
 
-  return [];
+  // 兜底：显示用户参与的 PPT 协同任务（在 deptAssignments 中有角色）以及有 formKey 的任务
+  return tasks.filter(t =>
+    t.createdBy === currentUser.name ||
+    t.assignees.some(a => a.name === currentUser.name) ||
+    (t.type === "例会资料" && t.meetingMaterialWorkflow?.deptAssignments.some(da =>
+      da.headUserId === currentUser.id || da.userAssignments.some(ua => ua.userId === currentUser.id)
+    )) ||
+    (t.formKey && t.formKey !== "null")
+  );
 }
 
-// 用户状态标签
-function userStatusBadge(status: string) {
-  switch (status) {
-    case "pending": return <Badge variant="outline" className="text-xs px-2 py-0 h-5 bg-muted/50 text-muted-foreground">待提交</Badge>;
-    case "in_progress": return <Badge variant="outline" className="text-xs px-2 py-0 h-5 bg-blue-50 text-blue-700 border-blue-200">编辑中</Badge>;
-    case "submitted": return <Badge variant="outline" className="text-xs px-2 py-0 h-5 bg-amber-100/90 text-amber-700 border-amber-300">待审核</Badge>;
-    case "dept_approved": return <Badge variant="outline" className="text-xs px-2 py-0 h-5 bg-success/10 text-success border-success/20">已通过</Badge>;
-    case "final_approved": return <Badge variant="outline" className="text-xs px-2 py-0 h-5 bg-success/10 text-success border-success/20">已通过</Badge>;
-    case "rejected": return <Badge variant="outline" className="text-xs px-2 py-0 h-5 bg-destructive/10 text-destructive border-destructive/20">已驳回</Badge>;
-    default: return null;
-  }
-}
 export default function TaskCenter() {
   const { taskType: taskTypeParam } = useParams<{ taskType?: string }>();
   const activeTaskType: TaskType | "all" = taskTypeParam ? decodeURIComponent(taskTypeParam) as TaskType : "all";
@@ -122,24 +119,26 @@ export default function TaskCenter() {
   const [departmentFilter, setDepartmentFilter] = useState("all");
   const [expandedTasks, setExpandedTasks] = useState<string[]>([]);
   const [reviewDrawerOpen, setReviewDrawerOpen] = useState(false);
-  const [meetingMaterialTaskDrawerOpen, setMeetingMaterialTaskDrawerOpen] = useState(false);
-  const [meetingMaterialTaskId, setMeetingMaterialTaskId] = useState<string>("");
-  const [meetingMaterialTaskInitialDeptId, setMeetingMaterialTaskInitialDeptId] = useState<
-    string | undefined
-  >(undefined);
   const [selectedReview, setSelectedReview] = useState<{
     task: Task;
     assignee: Assignee;
   } | null>(null);
 
   const navigate = useNavigate();
-  const { tasks, reviewSubmission, deleteTask } = useTaskContext();
+  const location = useLocation();
+  const { tasks, refreshTasks, reviewSubmission, deleteTask } = useTaskContext();
   const { currentUser, departments } = useUserContext();
   const canManageTasks = isManagementUser(currentUser);
   const canCreateTask = hasCapability(currentUser, "task.create");
-  const canMinisterReview = hasCapability(currentUser, "task.review.minister");
-  const canMergeTask = hasCapability(currentUser, "task.merge");
-  const canViewMergedFile = canMinisterReview || canMergeTask || hasCapability(currentUser, "task.view.all");
+
+  // 从分配页面返回时刷新任务列表
+  useEffect(() => {
+    if ((location.state as any)?.refresh) {
+      refreshTasks();
+      // 清除 state 避免重复刷新
+      window.history.replaceState({}, document.title);
+    }
+  }, [location.state]);
   const departmentFilters = useMemo(
     () => [
       { value: "all", label: "全部部门" },
@@ -162,12 +161,6 @@ export default function TaskCenter() {
   const handleReview = (task: Task, assignee: Assignee) => {
     setSelectedReview({ task, assignee });
     setReviewDrawerOpen(true);
-  };
-
-  const openMeetingMaterialDrawer = (taskId: string, initialDeptId?: string) => {
-    setMeetingMaterialTaskId(taskId);
-    setMeetingMaterialTaskInitialDeptId(initialDeptId);
-    setMeetingMaterialTaskDrawerOpen(true);
   };
 
   const handleApprove = () => {
@@ -200,17 +193,16 @@ export default function TaskCenter() {
     setReviewDrawerOpen(false);
   };
 
-  const permissionFilteredTasks = useMemo(() => applyPermissionFilter(tasks, currentUser), [tasks, currentUser]);
+  const permissionFilteredTasks = tasks;
 
   const filteredTasks = useMemo(() => permissionFilteredTasks.filter((task) => {
     const normalizedSearch = searchQuery.toLowerCase();
     const matchesSearch =
       task.title.toLowerCase().includes(normalizedSearch) ||
       task.description?.toLowerCase().includes(normalizedSearch);
-    const matchesType = activeTaskType === "all" || task.type === activeTaskType;
     const matchesDepartment = departmentFilter === "all" || task.department === departmentFilter;
-    return matchesSearch && matchesType && matchesDepartment;
-  }), [permissionFilteredTasks, searchQuery, activeTaskType, departmentFilter]);
+    return matchesSearch && matchesDepartment;
+  }), [permissionFilteredTasks, searchQuery, departmentFilter]);
   const specialTaskType = isSpecialTaskType(activeTaskType) ? activeTaskType : null;
 
   const createUrl = activeTaskType === "all"
@@ -278,16 +270,21 @@ export default function TaskCenter() {
           </div>
         </div>
 
-        {!canManageTasks ? (
-          <Card className="shadow-card border-amber-200 bg-amber-50/60">
+        {filteredTasks.length === 0 ? (
+          <Card className="shadow-card">
             <CardContent className="p-8 text-center space-y-3">
-              <h3 className="text-lg font-semibold text-foreground">当前没有可处理的管理任务</h3>
+              <h3 className="text-lg font-semibold text-foreground">暂无任务</h3>
               <p className="text-sm text-muted-foreground max-w-2xl mx-auto">
-                任务中心主要展示分配、审核、审批相关任务。当前账号没有对应任务时，可以直接前往待办中心处理执行事项。
+                {canCreateTask
+                  ? (activeTaskType === "all" ? '点击"创建任务"开始' : `点击"新建${activeTaskType}"创建此类任务`)
+                  : "当前没有需要处理的任务"}
               </p>
-              <Button variant="outline" onClick={() => navigate("/todos")}>
-                前往待办中心
-              </Button>
+              {canCreateTask && (
+                <Button className="mt-2 gradient-primary" onClick={() => navigate(createUrl)}>
+                  <Plus className="h-4 w-4 mr-2" />
+                  {activeTaskType === "all" ? "创建任务" : `新建${activeTaskType}`}
+                </Button>
+              )}
             </CardContent>
           </Card>
         ) : (
@@ -311,14 +308,21 @@ export default function TaskCenter() {
             {viewMode === "list" && specialTaskType === null && (
               <div className="space-y-4">
                 {filteredTasks.map((task, index) => {
+                  // 例会资料任务使用独立组件
+                  if (task.type === "例会资料" && task.meetingMaterialWorkflow) {
+                    return (
+                      <MeetingMaterialTaskListItem
+                        key={task.id}
+                        task={task}
+                        index={index}
+                        currentUser={currentUser}
+                        onDeleteTask={deleteTask}
+                      />
+                    );
+                  }
+
+                  // 通用任务卡片
                   const isExpanded = expandedTasks.includes(task.id);
-                  const canViewMergedMeetingMaterial = canViewMergedFile && (task.assignees.some(a => a.status === "approved" || a.status === "submitted") ||
-                    !!task.meetingMaterialWorkflow?.deptAssignments.some(d =>
-                      d.status === "final_approved" ||
-                      d.userAssignments.some(ua =>
-                        ua.status === "submitted" || ua.status === "dept_approved" || ua.status === "final_approved"
-                      )
-                    ));
 
                   return (
                     <Collapsible
@@ -348,21 +352,31 @@ export default function TaskCenter() {
                                   )}
                                   <div className="flex items-center gap-2 mt-1">
                                     <Badge variant="secondary" className="text-xs">
-                                      {task.department}
+                                      {task.department || task.type}
+                                    </Badge>
+                                    <Badge variant="outline" className={cn(
+                                      "text-xs",
+                                      task.status === "active" && "text-blue-600 border-blue-300 bg-blue-50",
+                                      task.status === "final_approved" && "text-emerald-600 border-emerald-300 bg-emerald-50",
+                                      task.status === "merged" && "text-green-600 border-green-300 bg-green-50",
+                                      task.status === "rejected" && "text-red-600 border-red-300 bg-red-50",
+                                    )}>
+                                      {task.status === "active" && "进行中"}
+                                      {task.status === "final_approved" && "终审通过"}
+                                      {task.status === "merged" && "已完成"}
+                                      {task.status === "rejected" && "已驳回"}
+                                      {!["active", "final_approved", "merged", "rejected"].includes(task.status) && task.status}
                                     </Badge>
                                     {task.templatePageCount && (
                                       <Badge variant="outline" className="text-xs text-primary border-primary/30">
                                         {task.templatePageCount}页
                                       </Badge>
                                     )}
-                                    {canViewMergedMeetingMaterial && task.type === "例会资料" && (
-                                      <Badge variant="outline" className="text-xs text-emerald-700 border-emerald-200 bg-emerald-50">
-                                        可查看合并稿
-                                      </Badge>
+                                    {task.deadline && (
+                                      <span className="text-xs text-muted-foreground">
+                                        截止：{task.deadline}
+                                      </span>
                                     )}
-                                    <span className="text-xs text-muted-foreground">
-                                      截止：{task.deadline}
-                                    </span>
                                   </div>
                                 </div>
                               </div>
@@ -375,7 +389,7 @@ export default function TaskCenter() {
                                       key={assignee.id}
                                       className="h-8 w-8 border-2 border-card"
                                     >
-                                      <AvatarFallback className={`text-xs ${statusStyles[assignee.status].bg}`}>
+                                      <AvatarFallback className={`text-xs ${statusStyles[assignee.status]?.bg ?? "bg-muted"}`}>
                                         {assignee.avatar}
                                       </AvatarFallback>
                                     </Avatar>
@@ -389,7 +403,6 @@ export default function TaskCenter() {
                                   )}
                                 </div>
 
-
                                 <DropdownMenu>
                                   <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
                                     <Button variant="ghost" size="icon" className="h-8 w-8">
@@ -397,14 +410,6 @@ export default function TaskCenter() {
                                     </Button>
                                   </DropdownMenuTrigger>
                                   <DropdownMenuContent align="end">
-                                    {task.type === "例会资料" && (
-                                      <DropdownMenuItem onClick={(e) => {
-                                        e.stopPropagation();
-                                        openMeetingMaterialDrawer(task.id);
-                                      }}>
-                                        进入例会资料工作台
-                                      </DropdownMenuItem>
-                                    )}
                                     <DropdownMenuItem>编辑任务</DropdownMenuItem>
                                     <DropdownMenuItem>催办提醒</DropdownMenuItem>
                                     <DropdownMenuItem
@@ -429,90 +434,58 @@ export default function TaskCenter() {
                             <div className="border-t border-border pt-4 space-y-6">
                               {/* Sub-task List Section */}
                               <div className="space-y-3">
-                                {task.type !== "例会资料" && (
-                                  <div className="flex items-center justify-between">
-                                    <h4 className="text-sm font-semibold flex items-center gap-2">
-                                      <Users className="h-4 w-4 text-primary" />
-                                      子任务列表
-                                    </h4>
-                                  </div>
-                                )}
+                                <div className="flex items-center justify-between">
+                                  <h4 className="text-sm font-semibold flex items-center gap-2">
+                                    <Users className="h-4 w-4 text-primary" />
+                                    子任务列表
+                                  </h4>
+                                </div>
 
-                                {task.type === "例会资料" && task.meetingMaterialWorkflow ? (
-                                  <div className="w-full">
-                                    <MeetingMaterialTaskDetail
-                                      task={task}
-                                      currentUser={currentUser}
-                                      onAssignDepartment={(deptId) => {
-                                        openMeetingMaterialDrawer(task.id, deptId);
-                                      }}
-                                      onOpenMeetingMaterialDrawer={() => {
-                                        openMeetingMaterialDrawer(task.id);
-                                      }}
-                                    />
-                                  </div>
-                                ) : (
-                                  <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                                    {task.assignees.map((assignee) => (
-                                      <div
-                                        key={assignee.id}
-                                        className="flex flex-col p-3 rounded-lg border border-border bg-card hover:border-primary/30 transition-colors"
-                                      >
-                                        <div className="flex items-center justify-between mb-2">
-                                          <div className="flex items-center gap-2">
-                                            <div className="relative">
-                                              <Avatar className="h-8 w-8">
-                                                <AvatarFallback className="bg-primary/10 text-primary text-xs">
-                                                  {assignee.avatar}
-                                                </AvatarFallback>
-                                              </Avatar>
-                                              <div className={`absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-card ${statusStyles[assignee.status]?.dot ?? "bg-muted-foreground"}`} />
-                                            </div>
-                                            <div>
-                                              <p className="text-sm font-medium">{assignee.name}</p>
-                                              <Badge
-                                                variant="outline"
-                                                className={cn(
-                                                  "text-xs px-2 py-0 h-5 mt-1 border shadow-none font-bold rounded",
-                                                  assignee.status === "pending" && "bg-muted/50 text-muted-foreground border-muted-foreground/10",
-                                                  assignee.status === "submitted" && "bg-amber-100/90 text-amber-700 border-amber-300 shadow-sm",
-                                                  assignee.status === "approved" && "bg-success/10 text-success border-success/20",
-                                                  assignee.status === "rejected" && "bg-destructive/10 text-destructive border-destructive/20"
-                                                )}
-                                              >
-                                                {assignee.status === "pending" && "待提交"}
-                                                {assignee.status === "submitted" && "待审核"}
-                                                {assignee.status === "approved" && "已通过"}
-                                                {assignee.status === "rejected" && "已驳回"}
-                                              </Badge>
-                                            </div>
+                                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                                  {task.assignees.map((assignee) => (
+                                    <div
+                                      key={assignee.id}
+                                      className="flex flex-col p-3 rounded-lg border border-border bg-card hover:border-primary/30 transition-colors"
+                                    >
+                                      <div className="flex items-center justify-between mb-2">
+                                        <div className="flex items-center gap-2">
+                                          <div className="relative">
+                                            <Avatar className="h-8 w-8">
+                                              <AvatarFallback className="bg-primary/10 text-primary text-xs">
+                                                {assignee.avatar}
+                                              </AvatarFallback>
+                                            </Avatar>
+                                            <div className={`absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-card ${statusStyles[assignee.status]?.dot ?? "bg-muted-foreground"}`} />
                                           </div>
-                                          {(assignee.status === "submitted" || assignee.status === "approved" || assignee.status === "rejected") && (
-                                            <Button
-                                              variant="ghost"
-                                              size="sm"
-                                              className="h-7 px-2"
-                                              onClick={() => handleReview(task, assignee)}
-                                            >
-                                              <Eye className="h-3.5 w-3.5 mr-1" />
-                                              查看
-                                            </Button>
-                                          )}
+                                          <div>
+                                            <p className="text-sm font-medium">{assignee.name}</p>
+                                            <StatusBadge status={assignee.status} type="assignee" className="mt-1" />
+                                          </div>
                                         </div>
-                                        <div className="text-xs text-muted-foreground bg-secondary/50 rounded px-2 py-1.5 mt-auto">
-                                          <FileText className="inline h-3 w-3 mr-1" />
-                                          {assignee.taskDescription}
-                                        </div>
-                                        {assignee.pageRange && (
-                                          <Badge variant="outline" className="text-xs mt-2 w-fit">
-                                            第 {assignee.pageRange} 页
-                                          </Badge>
+                                        {(assignee.status === "submitted" || assignee.status === "approved" || assignee.status === "rejected") && (
+                                          <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            className="h-7 px-2"
+                                            onClick={() => handleReview(task, assignee)}
+                                          >
+                                            <Eye className="h-3.5 w-3.5 mr-1" />
+                                            查看
+                                          </Button>
                                         )}
                                       </div>
-                                    ))
-                                    }
-                                  </div>
-                                )}
+                                      <div className="text-xs text-muted-foreground bg-secondary/50 rounded px-2 py-1.5 mt-auto">
+                                        <FileText className="inline h-3 w-3 mr-1" />
+                                        {assignee.taskDescription}
+                                      </div>
+                                      {assignee.pageRange && (
+                                        <Badge variant="outline" className="text-xs mt-2 w-fit">
+                                          第 {assignee.pageRange} 页
+                                        </Badge>
+                                      )}
+                                    </div>
+                                  ))}
+                                </div>
                               </div>
 
                             </div>
@@ -573,17 +546,6 @@ export default function TaskCenter() {
         tasks={tasks}
       />
 
-      <MeetingMaterialTaskDrawer
-        open={meetingMaterialTaskDrawerOpen}
-        onOpenChange={(open) => {
-          setMeetingMaterialTaskDrawerOpen(open);
-          if (!open) {
-            setMeetingMaterialTaskInitialDeptId(undefined);
-          }
-        }}
-        initialAssignDeptId={meetingMaterialTaskInitialDeptId}
-        taskId={meetingMaterialTaskId}
-      />
     </AppLayout>
   );
 }

@@ -37,7 +37,7 @@ export type TaskType = `${TaskTypeEnum}`;
 
 export type TaskFormKey = `${TaskFormKeyEnum}` | (string & {});
 
-export type TaskStatus = `${TaskStatusEnum}`;
+export type TaskStatus = `${TaskStatusEnum}` | "active" | "final_approved" | "merged" | "rejected" | (string & {});
 
 export type TaskSource = `${TaskSourceEnum}`;
 
@@ -150,4 +150,52 @@ export interface Task {
   meetingMaterialWorkflow?: MeetingMaterialWorkflow;
   allowedActions?: string[];
   source?: TaskSource;
+}
+
+// ---- 我的待办 ----
+
+export type TodoType =
+  | "dept_assign"
+  | "assign_pages"
+  | "submit"
+  | "review"
+  | "final_approve"
+  | "mark_merged";
+
+export interface TodoItemTask {
+  id: string;
+  title: string;
+  processKey: string;
+  deadline?: string;
+  type?: string;
+  createdBy?: string;
+  templateFileId?: string;
+  templateFileName?: string;
+}
+
+export interface TodoItemUserAssignment {
+  id: string;
+  pages: number[];
+  taskDescription?: string;
+  status: string;
+}
+
+export interface TodoItemDeptAssignment {
+  id: string;
+  department: string;
+}
+
+export interface TodoItemAssignedBy {
+  id: string;
+  name: string;
+  avatar: string;
+}
+
+export interface TodoItem {
+  task: TodoItemTask;
+  todoType: TodoType;
+  todoLabel: string;
+  userAssignment?: TodoItemUserAssignment;
+  deptAssignment?: TodoItemDeptAssignment;
+  assignedBy?: TodoItemAssignedBy;
 }

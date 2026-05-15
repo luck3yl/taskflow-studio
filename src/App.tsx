@@ -13,6 +13,8 @@ import TaskCreate from "./pages/TaskCreate";
 import DocumentCenter from "./pages/DocumentCenter";
 import ProcessCenter from "./pages/ProcessCenter";
 import OnlineEditor from "./pages/OnlineEditor";
+import DeptAssignPage from "./pages/task/meeting-materials/DeptAssignPage";
+import AssignPagesPage from "./pages/task/meeting-materials/AssignPagesPage";
 import UserManagement from "./pages/UserManagement";
 
 import NotFound from "./pages/NotFound";
@@ -44,6 +46,8 @@ const App = () => (
                 <Route path="/processes" element={<ProcessCenter />} />
                 <Route path="/settings/users" element={<UserManagement />} />
                 <Route path="/editor/:taskId/:assigneeId" element={<OnlineEditor />} />
+                <Route path="/tasks/:taskId/assign" element={<DeptAssignPage />} />
+                <Route path="/tasks/:taskId/assign-pages" element={<AssignPagesPage />} />
 
                 <Route path="*" element={<NotFound />} />
               </Routes>
