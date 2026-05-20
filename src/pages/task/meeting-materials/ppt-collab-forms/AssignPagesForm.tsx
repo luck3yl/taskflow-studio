@@ -183,17 +183,18 @@ interface Assignment {
 }
 
 // ---- AssignPagesForm (left-list + right-detail layout) ----
-export function AssignPagesForm({ task, onSuccess, onError }: PptCollabFormProps) {
-  const { executePptCollabAction } = useTaskContext();
+export function AssignPagesForm({ task, onSuccess, onError, readOnly }: PptCollabFormProps) {
+  const { completePptAction } = useTaskContext();
   const { currentUser, users } = useUserContext();
   const { toast } = useToast();
 
   const workflow = task.meetingMaterialWorkflow;
 
-  // Find the dept where current user is head
+  // 找到当前用户负责的部门
+  // 优先通过 headUserId 匹配，如果匹配不到则取第一个（信任后端 assignee 分配）
   const myDept = workflow?.deptAssignments.find(
     (d) => d.headUserId === currentUser.id
-  );
+  ) || (workflow?.deptAssignments.length === 1 ? workflow.deptAssignments[0] : undefined);
 
   const deptPages = myDept
     ? [...new Set(myDept.pages)].sort((a, b) => a - b)
@@ -281,7 +282,7 @@ export function AssignPagesForm({ task, onSuccess, onError }: PptCollabFormProps
 
     setIsSubmitting(true);
     try {
-      const updatedTask = await executePptCollabAction(task.id, {
+      const updatedTask = await completePptAction(task.id, {
         action: "assign_pages",
         payload: {
           deptId: myDept.id,
@@ -310,7 +311,7 @@ export function AssignPagesForm({ task, onSuccess, onError }: PptCollabFormProps
   if (!myDept) {
     return (
       <div className="text-sm text-muted-foreground py-2">
-        您不是任何部门的室主任，无法进行员工分配。
+        未找到您负责的部门分配信息，可能业务数据尚未加载完成。
       </div>
     );
   }

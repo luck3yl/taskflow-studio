@@ -70,7 +70,7 @@ function DeptSummaryCard({ dept }: { dept: MeetingMaterialDeptAssignment }) {
 
 // ---- FinalApproveForm ----
 export function FinalApproveForm({ task, onSuccess, onError }: PptCollabFormProps) {
-  const { executePptCollabAction } = useTaskContext();
+  const { completePptAction } = useTaskContext();
   const { toast } = useToast();
 
   const workflow = task.meetingMaterialWorkflow;
@@ -82,7 +82,7 @@ export function FinalApproveForm({ task, onSuccess, onError }: PptCollabFormProp
   const handleApprove = async () => {
     setIsSubmitting(true);
     try {
-      const updatedTask = await executePptCollabAction(task.id, {
+      const updatedTask = await completePptAction(task.id, {
         action: "final_approve",
         payload: { approved: true, feedback: feedback.trim() || undefined },
       });
@@ -108,7 +108,7 @@ export function FinalApproveForm({ task, onSuccess, onError }: PptCollabFormProp
     }
     setIsSubmitting(true);
     try {
-      const updatedTask = await executePptCollabAction(task.id, {
+      const updatedTask = await completePptAction(task.id, {
         action: "final_approve",
         payload: { approved: false, feedback: feedback.trim() },
       });

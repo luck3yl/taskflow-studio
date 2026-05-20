@@ -4,8 +4,7 @@ import "bpmn-js/dist/assets/diagram-js.css";
 import "bpmn-js/dist/assets/bpmn-font/css/bpmn-embedded.css";
 import { useProcess } from "@/contexts/ProcessContext";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { ZoomIn, ZoomOut, Maximize } from "lucide-react";
+import { ZoomIn, ZoomOut, Maximize, Loader2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/components/ui/use-toast";
 import {
@@ -23,38 +22,47 @@ interface ProcessViewerDrawerProps {
 }
 
 export function ProcessViewerDrawer({ open, onOpenChange, processId }: ProcessViewerDrawerProps) {
-    const { getProcessById } = useProcess();
+    const { processes, getProcessXml } = useProcess();
     const { toast } = useToast();
 
     const containerRef = useRef<HTMLDivElement>(null);
     const viewerRef = useRef<any>(null);
 
-    const [process, setProcess] = useState<any>(null);
+    const [xmlContent, setXmlContent] = useState<string | null>(null);
+    const [xmlLoading, setXmlLoading] = useState(false);
     const [selectedNode, setSelectedNode] = useState<any>(null);
 
+    const process = processId ? processes.find(p => p.id === processId) : undefined;
+
+    // 当 drawer 打开时，通过 API 获取 XML
     useEffect(() => {
         if (open && processId) {
-            const p = getProcessById(processId);
-            if (p) {
-                setProcess(p);
-            } else {
-                toast({ title: "错误", description: "找不到该流程定义", variant: "destructive" });
-                onOpenChange(false);
-            }
+            setXmlLoading(true);
+            setXmlContent(null);
+            getProcessXml(processId).then((xml) => {
+                if (xml) {
+                    setXmlContent(xml);
+                } else {
+                    toast({ title: "错误", description: "无法获取流程 XML", variant: "destructive" });
+                    onOpenChange(false);
+                }
+            }).finally(() => {
+                setXmlLoading(false);
+            });
         } else if (!open) {
-            setProcess(null);
+            setXmlContent(null);
             setSelectedNode(null);
         }
-    }, [open, processId, getProcessById, toast, onOpenChange]);
+    }, [open, processId, getProcessXml, toast, onOpenChange]);
 
+    // 渲染 BPMN 图
     useEffect(() => {
         let timeoutId: ReturnType<typeof setTimeout>;
 
         const initViewer = () => {
-            if (!open || !process) return;
+            if (!open || !xmlContent) return;
 
             if (!containerRef.current) {
-                // If DOM is not yet ready, retry shortly
                 timeoutId = setTimeout(initViewer, 50);
                 return;
             }
@@ -67,18 +75,13 @@ export function ProcessViewerDrawer({ open, onOpenChange, processId }: ProcessVi
 
             viewerRef.current = viewer;
 
-            viewer.importXML(process.xmlContent).then(() => {
-                // Wait for the drawer sliding animation to complete before fitting viewport
-                // so the canvas isn't calculated based on a 0-width or animating container
+            viewer.importXML(xmlContent).then(() => {
                 setTimeout(() => {
                     if (viewerRef.current) {
                         try {
                             const canvas = viewerRef.current.get('canvas');
                             canvas.zoom('fit-viewport', 'auto');
-                            // Ensure it is perfectly centered
                             const viewbox = canvas.viewbox();
-
-                            // A slight zoom back can make it look better if it's too tight against the edges
                             if (viewbox.scale > 1) {
                                 canvas.zoom(1, 'auto');
                             }
@@ -96,7 +99,6 @@ export function ProcessViewerDrawer({ open, onOpenChange, processId }: ProcessVi
 
             eventBus.on('element.click', (e: any) => {
                 const { element } = e;
-                // Don't select the root process element itself
                 if (element.type !== 'bpmn:Process') {
                     setSelectedNode((prevSelected: any) => {
                         if (prevSelected) {
@@ -106,7 +108,7 @@ export function ProcessViewerDrawer({ open, onOpenChange, processId }: ProcessVi
                             canvas.addMarker(element.id, 'highlight');
                             return element;
                         }
-                        return null; // Toggle off if clicked again
+                        return null;
                     });
                 } else {
                     setSelectedNode((prevSelected: any) => {
@@ -119,20 +121,26 @@ export function ProcessViewerDrawer({ open, onOpenChange, processId }: ProcessVi
             });
         };
 
-        if (open && process) {
-            // Start initialization cycle
+        if (open && xmlContent) {
             initViewer();
         }
 
         return () => {
             clearTimeout(timeoutId);
-            // Cleanup viewer when drawer closes
             if (!open && viewerRef.current) {
                 viewerRef.current.destroy();
                 viewerRef.current = null;
             }
         };
-    }, [open, process, toast]);
+    }, [open, xmlContent, toast]);
+
+    // 当 drawer 关闭时销毁 viewer
+    useEffect(() => {
+        if (!open && viewerRef.current) {
+            viewerRef.current.destroy();
+            viewerRef.current = null;
+        }
+    }, [open]);
 
     const handleZoomIn = () => {
         if (viewerRef.current) {
@@ -152,16 +160,22 @@ export function ProcessViewerDrawer({ open, onOpenChange, processId }: ProcessVi
         }
     };
 
-    if (!process) return null;
-
     return (
         <Sheet open={open} onOpenChange={onOpenChange}>
             <SheetContent side="right" className="w-[80vw] sm:max-w-4xl p-0 flex flex-col h-full bg-background border-l border-border/50">
                 <SheetHeader className="h-14 shrink-0 flex flex-row items-center justify-between border-b border-border/50 px-6 bg-card space-y-0 text-left">
                     <div className="flex items-center gap-4">
-                        <SheetTitle className="text-base font-semibold">{process.name}</SheetTitle>
-                        <Badge variant="outline" className="text-xs px-1.5 py-0 rounded-sm">V{process.version}</Badge>
-                        <span className="text-xs text-muted-foreground">{process.key}</span>
+                        <SheetTitle className="text-base font-semibold">
+                            {process?.name || "流程预览"}
+                        </SheetTitle>
+                        {process && (
+                            <>
+                                <Badge variant="outline" className="text-xs px-1.5 py-0 rounded-sm">
+                                    V{process.version}
+                                </Badge>
+                                <span className="text-xs text-muted-foreground">{process.key}</span>
+                            </>
+                        )}
                         <SheetDescription className="sr-only">
                             流程定义的详细可视化大图
                         </SheetDescription>
@@ -170,32 +184,35 @@ export function ProcessViewerDrawer({ open, onOpenChange, processId }: ProcessVi
 
                 {/* Main Workspace */}
                 <div className="flex-1 flex overflow-hidden">
-                    {/* Left Sidebar - Component Library Placeholder */}
-                    {/* <aside className="w-64 border-r border-border/50 bg-card/50 hidden md:flex flex-col shrink-0">
-             - Hidden since editing is not required currently - 
-          </aside> */}
-
-                    {/* Center Canvas */}
                     <main className="flex-1 relative bg-[#FAFAFA] dark:bg-zinc-950/50 min-w-0">
-                        {/* BPMN Canvas Container */}
-                        <div ref={containerRef} className="absolute inset-0" />
-
-                        {/* Canvas Floating Toolbar */}
-                        <div className="absolute bottom-6 flex justify-center w-full pointer-events-none">
-                            <div className="flex items-center gap-1 p-1 bg-card/80 backdrop-blur-md border border-border/50 rounded-lg shadow-lg pointer-events-auto">
-                                <Button variant="ghost" size="icon" className="h-8 w-8 rounded-md" onClick={handleZoomOut} title="缩小">
-                                    <ZoomOut className="h-4 w-4" />
-                                </Button>
-                                <div className="w-[1px] h-4 bg-border mx-1" />
-                                <Button variant="ghost" size="icon" className="h-8 w-8 rounded-md" onClick={handleFitViewport} title="适应屏幕">
-                                    <Maximize className="h-4 w-4" />
-                                </Button>
-                                <div className="w-[1px] h-4 bg-border mx-1" />
-                                <Button variant="ghost" size="icon" className="h-8 w-8 rounded-md" onClick={handleZoomIn} title="放大">
-                                    <ZoomIn className="h-4 w-4" />
-                                </Button>
+                        {xmlLoading ? (
+                            <div className="absolute inset-0 flex items-center justify-center">
+                                <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                                <span className="ml-2 text-muted-foreground">加载流程图...</span>
                             </div>
-                        </div>
+                        ) : (
+                            <>
+                                {/* BPMN Canvas Container */}
+                                <div ref={containerRef} className="absolute inset-0" />
+
+                                {/* Canvas Floating Toolbar */}
+                                <div className="absolute bottom-6 flex justify-center w-full pointer-events-none">
+                                    <div className="flex items-center gap-1 p-1 bg-card/80 backdrop-blur-md border border-border/50 rounded-lg shadow-lg pointer-events-auto">
+                                        <Button variant="ghost" size="icon" className="h-8 w-8 rounded-md" onClick={handleZoomOut} title="缩小">
+                                            <ZoomOut className="h-4 w-4" />
+                                        </Button>
+                                        <div className="w-[1px] h-4 bg-border mx-1" />
+                                        <Button variant="ghost" size="icon" className="h-8 w-8 rounded-md" onClick={handleFitViewport} title="适应屏幕">
+                                            <Maximize className="h-4 w-4" />
+                                        </Button>
+                                        <div className="w-[1px] h-4 bg-border mx-1" />
+                                        <Button variant="ghost" size="icon" className="h-8 w-8 rounded-md" onClick={handleZoomIn} title="放大">
+                                            <ZoomIn className="h-4 w-4" />
+                                        </Button>
+                                    </div>
+                                </div>
+                            </>
+                        )}
                     </main>
                 </div>
             </SheetContent>

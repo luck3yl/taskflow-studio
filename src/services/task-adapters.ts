@@ -131,7 +131,7 @@ function toSubmission(item: Record<string, any>): Submission {
   return {
     id: item.id || "",
     fileId,
-    fileName: item.fileName || item.file_name || "\u672a\u547d\u540d\u6587\u4ef6",
+    fileName: item.fileName || item.file_name || "未命名文件",
     fileSize: Number(item.fileSize ?? item.file_size ?? 0),
     fileUrl: item.fileUrl || getFileDownloadUrl(fileId),
     submittedAt:
@@ -161,7 +161,7 @@ function toMeetingSubmission(
     department: item.department || department.department || "",
     submittedAt: item.submittedAt || item.submitted_at || "",
     fileId,
-    fileName: item.fileName || item.file_name || "\u672a\u547d\u540d\u6587\u4ef6",
+    fileName: item.fileName || item.file_name || "未命名文件",
     fileSize: Number(item.fileSize ?? item.file_size ?? 0),
     fileUrl: item.fileUrl || getFileDownloadUrl(fileId),
     note: item.note,
@@ -313,6 +313,10 @@ function toSimpleAssignees(workflowState: Record<string, any>): Assignee[] {
   }));
 }
 
+/**
+ * 将后端返回的任务数据适配为前端 Task 类型
+ * 兼容任务列表和任务详情两种响应格式
+ */
 export function adaptBackendTask(taskDetail: Record<string, any>): Task {
   const formKey = taskDetail.formKey || taskDetail.form_key || "";
   const processKey = taskDetail.processKey || taskDetail.process_key || "";
@@ -343,7 +347,7 @@ export function adaptBackendTask(taskDetail: Record<string, any>): Task {
 
   return {
     id: taskDetail.id || "",
-    title: taskDetail.title || taskDetail.name || "\u672a\u547d\u540d\u4efb\u52a1",
+    title: taskDetail.title || taskDetail.name || "未命名任务",
     description: taskDetail.description || "",
     type,
     formKey,
@@ -355,7 +359,7 @@ export function adaptBackendTask(taskDetail: Record<string, any>): Task {
       taskDetail.createdByName ||
       taskDetail.creatorName ||
       taskDetail.initiatorName ||
-      "\u7cfb\u7edf",
+      "系统",
     createdByAvatar: toAvatar(
       taskDetail.createdBy ||
         taskDetail.createdByName ||

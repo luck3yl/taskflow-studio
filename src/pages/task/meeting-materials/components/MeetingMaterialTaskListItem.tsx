@@ -213,14 +213,14 @@ export function MeetingMaterialTaskListItem({
                     )}
                   </div>
 
-                  {/* 根据 formKey 显示分配按钮 */}
+                  {/* 节点操作按钮：跳转到统一动态任务详情页，按 formKey 渲染 */}
                   {task.formKey === "ppt_collab_dept_assign" && (
                     <Button
                       size="sm"
                       className="h-8 text-xs bg-amber-500 hover:bg-amber-600 text-white shadow-sm gap-1.5 shrink-0"
                       onClick={(e) => {
                         e.stopPropagation();
-                        navigate(`/tasks/${task.id}/assign`);
+                        navigate(`/tasks/detail/${task.id}`);
                       }}
                     >
                       <Users className="h-3.5 w-3.5" />
@@ -234,7 +234,7 @@ export function MeetingMaterialTaskListItem({
                       className="h-8 text-xs bg-amber-500 hover:bg-amber-600 text-white shadow-sm gap-1.5 shrink-0"
                       onClick={(e) => {
                         e.stopPropagation();
-                        navigate(`/tasks/${task.id}/assign-pages`);
+                        navigate(`/tasks/detail/${task.id}`);
                       }}
                     >
                       <Users className="h-3.5 w-3.5" />
@@ -251,9 +251,15 @@ export function MeetingMaterialTaskListItem({
                     <DropdownMenuContent align="end">
                       <DropdownMenuItem onClick={(e) => {
                         e.stopPropagation();
+                        navigate(`/tasks/detail/${task.id}`);
+                      }}>
+                        进入任务页
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={(e) => {
+                        e.stopPropagation();
                         openDrawer();
                       }}>
-                        进入例会资料工作台
+                        旧版工作台
                       </DropdownMenuItem>
                       <DropdownMenuItem>编辑任务</DropdownMenuItem>
                       <DropdownMenuItem>催办提醒</DropdownMenuItem>

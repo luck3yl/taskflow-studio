@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { CheckCircle2, XCircle, Download, Eye, FileText, Loader2 } from "lucide-react";
+import { CheckCircle2, XCircle, Download, FileText, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { useTaskContext } from "@/contexts/TaskContext";
 import { useUserContext } from "@/contexts/UserContext";
 import { useToast } from "@/hooks/use-toast";
+import { getFileDownloadUrl, extractFileIdFromUrl } from "@/services/apis/files";
 import { formatPageRange } from "@/lib/utils";
 import type { PptCollabFormProps } from "./types";
 import type {
@@ -80,27 +81,30 @@ function ReviewItem({
           </p>
         </div>
         <div className="flex gap-1.5 shrink-0">
-          {submission.fileUrl && (
+          {(submission.fileId || submission.fileUrl) && (
             <Button
               size="sm"
               variant="outline"
               className="h-8 text-xs gap-1"
-              onClick={() =>
-                window.open(submission.fileUrl, "_blank", "noopener,noreferrer")
-              }
-            >
-              <Eye className="h-3.5 w-3.5" />
-              预览
-            </Button>
-          )}
-          {submission.fileUrl && (
-            <Button
-              size="sm"
-              variant="outline"
-              className="h-8 text-xs gap-1"
-              onClick={() =>
-                window.open(submission.fileUrl, "_blank", "noopener,noreferrer")
-              }
+              onClick={async () => {
+                const fileId = submission.fileId || extractFileIdFromUrl(submission.fileUrl);
+                const downloadUrl = fileId ? getFileDownloadUrl(fileId) : submission.fileUrl;
+                if (!downloadUrl) return;
+                try {
+                  const resp = await fetch(downloadUrl);
+                  const blob = await resp.blob();
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement("a");
+                  a.href = url;
+                  a.download = submission.fileName || "下载文件";
+                  document.body.appendChild(a);
+                  a.click();
+                  document.body.removeChild(a);
+                  URL.revokeObjectURL(url);
+                } catch {
+                  window.location.href = downloadUrl;
+                }
+              }}
             >
               <Download className="h-3.5 w-3.5" />
               下载
@@ -212,7 +216,7 @@ function ReviewItem({
 
 // ---- ReviewForm ----
 export function ReviewForm({ task, onSuccess, onError }: PptCollabFormProps) {
-  const { executePptCollabAction } = useTaskContext();
+  const { completePptAction } = useTaskContext();
   const { currentUser } = useUserContext();
   const { toast } = useToast();
 
@@ -255,7 +259,7 @@ export function ReviewForm({ task, onSuccess, onError }: PptCollabFormProps) {
 
     setItemSubmitting(ua.id, true);
     try {
-      const updatedTask = await executePptCollabAction(task.id, {
+      const updatedTask = await completePptAction(task.id, {
         action: "review",
         payload: { submissionId, approved: true, feedback },
       });
@@ -283,7 +287,7 @@ export function ReviewForm({ task, onSuccess, onError }: PptCollabFormProps) {
 
     setItemSubmitting(ua.id, true);
     try {
-      const updatedTask = await executePptCollabAction(task.id, {
+      const updatedTask = await completePptAction(task.id, {
         action: "review",
         payload: { submissionId, approved: false, feedback },
       });

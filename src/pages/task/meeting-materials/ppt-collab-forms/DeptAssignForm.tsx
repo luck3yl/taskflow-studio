@@ -187,7 +187,7 @@ interface DeptAssignment {
 
 // ---- DeptAssignForm ----
 export function DeptAssignForm({ task, onSuccess, onError, totalPages: propTotalPages, templateFileId: propTemplateFileId }: PptCollabFormProps) {
-  const { executePptCollabAction } = useTaskContext();
+  const { completePptAction } = useTaskContext();
   const { users, departments, currentUser } = useUserContext();
   const { toast } = useToast();
 
@@ -249,7 +249,7 @@ export function DeptAssignForm({ task, onSuccess, onError, totalPages: propTotal
 
     setIsSubmitting(true);
     try {
-      const updatedTask = await executePptCollabAction(task.id, {
+      const updatedTask = await completePptAction(task.id, {
         action: "dept_assign",
         payload: {
           totalPages: totalPagesNum,

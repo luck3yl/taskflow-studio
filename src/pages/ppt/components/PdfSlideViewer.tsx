@@ -39,6 +39,8 @@ interface PdfSlideViewerProps {
   highlightClass?: string;
   /** 仅显示指定页码（1-based），其他页不渲染也不展示 */
   visiblePages?: Set<number>;
+  /** 隐藏组件内部的标题栏（当外层已有标题时使用） */
+  hideHeader?: boolean;
 }
 
 interface PageImage {
@@ -64,6 +66,7 @@ export function PdfSlideViewer({
   highlightedPages,
   highlightClass = "ring-primary",
   visiblePages,
+  hideHeader = false,
 }: PdfSlideViewerProps) {
   const [pages, setPages] = useState<PageImage[]>([]);
   const [totalPages, setTotalPages] = useState(externalPageCount || 0);
@@ -212,14 +215,16 @@ export function PdfSlideViewer({
         className={cn("flex flex-col bg-background overflow-hidden", className)}
       >
         {/* 标题栏 */}
-        <div className="shrink-0 px-4 py-2.5 flex items-center gap-2">
-          <span className="text-sm font-medium text-foreground">PPT 预览</span>
-          {displayTotalPages > 0 && (
-            <span className="text-sm text-muted-foreground">
-              （共 {displayTotalPages} 页）
-            </span>
-          )}
-        </div>
+        {!hideHeader && (
+          <div className="shrink-0 px-4 py-2.5 flex items-center gap-2">
+            <span className="text-sm font-medium text-foreground">PPT 预览</span>
+            {displayTotalPages > 0 && (
+              <span className="text-sm text-muted-foreground">
+                （共 {displayTotalPages} 页）
+              </span>
+            )}
+          </div>
+        )}
 
         {/* 大图区域 */}
         <div className="shrink-0 px-4 pb-3">

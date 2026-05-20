@@ -210,9 +210,6 @@ export function useTaskCreate() {
       const uploadedFile = await uploadFileApi({
         file,
         category: "template",
-        metadata: {
-          task_type: TASK_TYPE_TO_FORM_KEY[taskType as TaskTypeEnum] || TaskFormKeyEnum.SimpleSubmit,
-        },
       });
 
       setTemplateFileId(uploadedFile.fileId);

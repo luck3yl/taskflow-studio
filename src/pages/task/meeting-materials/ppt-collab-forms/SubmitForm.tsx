@@ -101,7 +101,7 @@ function FileUploadArea({
 
 // ---- SubmitForm ----
 export function SubmitForm({ task, onSuccess, onError }: PptCollabFormProps) {
-  const { executePptCollabAction } = useTaskContext();
+  const { completePptAction } = useTaskContext();
   const { currentUser } = useUserContext();
   const { toast } = useToast();
 
@@ -162,17 +162,16 @@ export function SubmitForm({ task, onSuccess, onError }: PptCollabFormProps) {
       const uploaded = await uploadFileApi({
         file,
         category: "submission",
-        metadata: { task_id: task.id, uaId: myUaId },
       });
 
       // Step 2: submit action
-      const updatedTask = await executePptCollabAction(task.id, {
+      const updatedTask = await completePptAction(task.id, {
         action: "submit",
         payload: {
           uaId: myUaId,
           fileId: uploaded.fileId,
           baseVersion,
-          note: note.trim() || undefined,
+          note: note.trim() || "",
         },
       });
 
@@ -244,9 +243,23 @@ export function SubmitForm({ task, onSuccess, onError }: PptCollabFormProps) {
             size="sm"
             variant="outline"
             className="h-8 text-xs gap-1.5 shrink-0"
-            onClick={() =>
-              window.open(templateDownloadUrl, "_blank", "noopener,noreferrer")
-            }
+            onClick={async () => {
+              try {
+                const resp = await fetch(templateDownloadUrl);
+                const blob = await resp.blob();
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement("a");
+                a.href = url;
+                a.download = task.templateFileName || "模板文件.pptx";
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+              } catch {
+                // fallback
+                window.location.href = templateDownloadUrl;
+              }
+            }}
           >
             <Download className="h-3.5 w-3.5" />
             下载我的页面

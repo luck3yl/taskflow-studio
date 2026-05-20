@@ -8,4 +8,6 @@ export interface PptCollabFormProps {
   totalPages?: number;
   /** 模板文件 ID（由 DeptAssignPage 上传模板后传入） */
   templateFileId?: string;
+  /** 只读模式：当前用户不是 assignee，不能操作 */
+  readOnly?: boolean;
 }

@@ -108,7 +108,11 @@ export function AppSidebar() {
     const match = location.pathname.match(/^\/tasks\/(.+)$/);
     if (!match) return null;
     const raw = decodeURIComponent(match[1]);
-    if (raw.startsWith("create")) return null;
+    // 创建页面：/tasks/create/例会资料 → 提取类别名保持侧边栏高亮
+    if (raw.startsWith("create/")) {
+      return raw.slice("create/".length) || null;
+    }
+    if (raw === "create") return null;
     return raw;
   })();
 

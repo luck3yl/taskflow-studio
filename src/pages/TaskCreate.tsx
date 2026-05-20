@@ -10,7 +10,6 @@ import { Step3TimeConfig } from "@/pages/task/components/create-wizard/Step3Time
 import { Step4PreviewPublish } from "@/pages/task/components/create-wizard/Step4PreviewPublish";
 import { TaskTypeEnum } from "@/enums/task";
 import { MeetingMaterialCreateForm } from "@/pages/task/meeting-materials/MeetingMaterialCreateForm";
-import { MeetingMaterialTaskDrawer } from "@/pages/task/meeting-materials/MeetingMaterialTaskDrawer";
 import { useNavigate, useParams } from "react-router-dom";
 
 const WIZARD_STEPS = [
@@ -20,32 +19,25 @@ const WIZARD_STEPS = [
   { id: 4, title: "预览发布", icon: Rocket },
 ];
 
-// 例会资料任务：单页表单，不走多步骤向导
+// 创建流程表单
 function MeetingMaterialCreate() {
   const navigate = useNavigate();
-  const [openDrawerTaskId, setOpenDrawerTaskId] = useState<string | null>(null);
+  const { taskType } = useParams<{ taskType?: string }>();
+  const defaultCategory = taskType ? decodeURIComponent(taskType) : undefined;
+  const returnPath = defaultCategory ? `/tasks/${encodeURIComponent(defaultCategory)}` : "/tasks";
 
   return (
-    <AppLayout title="新建例会资料任务">
+    <AppLayout title="创建流程">
       <div className="max-w-2xl mx-auto">
         <MeetingMaterialCreateForm
-          onSuccess={(taskId) => {
-            // 创建成功后直接打开工作台
-            setOpenDrawerTaskId(taskId);
+          defaultCategory={defaultCategory}
+          onSuccess={() => {
+            // 创建成功后回到对应的任务中心分类页
+            navigate(returnPath, { state: { refresh: true } });
           }}
           onCancel={() => navigate(-1)}
         />
       </div>
-      {/* 创建成功后立即打开工作台 */}
-      {openDrawerTaskId && (
-        <MeetingMaterialTaskDrawer
-          open={true}
-          onOpenChange={(open) => {
-            if (!open) navigate(`/tasks/${encodeURIComponent("例会资料")}`);
-          }}
-          taskId={openDrawerTaskId}
-        />
-      )}
     </AppLayout>
   );
 }
@@ -126,16 +118,6 @@ function WizardCreate() {
 }
 
 export default function TaskCreate() {
-  const { taskType } = useParams<{ taskType?: string }>();
-  const decodedType = taskType ? decodeURIComponent(taskType) : "";
-
-  if (decodedType === TaskTypeEnum.MeetingMaterial) {
-    return <MeetingMaterialCreate />;
-  }
-
-  return (
-    <TaskCreateProvider>
-      <WizardCreate />
-    </TaskCreateProvider>
-  );
+  // 统一使用创建流程表单（选择类别后启动对应流程）
+  return <MeetingMaterialCreate />;
 }

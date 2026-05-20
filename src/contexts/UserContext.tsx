@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useState, ReactNode } from "react";
 import { getDepartmentsApi, type BackendDepartment } from "@/services/apis/departments";
-import { getUsersApi, type BackendUser } from "@/services/apis/users";
+import { getUsersApi, getAuthMeApi, type BackendUser } from "@/services/apis/users";
 import { setApiCurrentUser } from "@/services/http/axios";
 
 // 部门层级职级
@@ -299,7 +299,7 @@ function normalizeRemoteDepartment(
 }
 
 export function UserProvider({ children }: { children: ReactNode }) {
-    const [currentUser, setCurrentUser] = useState<User>(USERS[0]);
+    const [currentUser, setCurrentUser] = useState<User>(USERS[3]); // 默认赵强（设备部长）
     const [users, setUsers] = useState<User[]>(USERS);
     const [departments, setDepartments] = useState<Department[]>(DEPARTMENTS);
 
@@ -336,6 +336,44 @@ export function UserProvider({ children }: { children: ReactNode }) {
         };
 
         void syncUsers();
+
+        return () => {
+            cancelled = true;
+        };
+    }, []);
+
+    // 调用 GET /auth/me 获取当前登录用户信息
+    useEffect(() => {
+        let cancelled = false;
+
+        const fetchCurrentUser = async () => {
+            try {
+                const me = await getAuthMeApi();
+                if (cancelled || !me?.id) return;
+
+                // 用 /auth/me 返回的 id 匹配用户列表中的用户
+                setCurrentUser((previous) => {
+                    // 先在已有用户列表中查找
+                    const matched = users.find((u) => u.id === me.id);
+                    if (matched) return matched;
+
+                    // 如果用户列表中没有，用 /auth/me 的信息构建一个基础用户
+                    return {
+                        ...previous,
+                        id: me.id,
+                        name: me.name || previous.name,
+                        role: me.role || previous.role,
+                        department: me.department || previous.department,
+                        avatar: me.avatar || me.name?.charAt(0) || previous.avatar,
+                    };
+                });
+            } catch (error) {
+                // /auth/me 失败时保持默认用户，不阻塞应用
+                console.warn("GET /auth/me failed, using default user", error);
+            }
+        };
+
+        void fetchCurrentUser();
 
         return () => {
             cancelled = true;

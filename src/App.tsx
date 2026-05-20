@@ -10,6 +10,7 @@ import Index from "./pages/Index";
 import TodoCenter from "./pages/TodoCenter";
 import TaskCenter from "./pages/TaskCenter";
 import TaskCreate from "./pages/TaskCreate";
+import TaskDetail from "./pages/TaskDetail";
 import DocumentCenter from "./pages/DocumentCenter";
 import ProcessCenter from "./pages/ProcessCenter";
 import OnlineEditor from "./pages/OnlineEditor";
@@ -42,6 +43,7 @@ const App = () => (
                 <Route path="/tasks/:taskType" element={<TaskCenter />} />
                 <Route path="/tasks/create" element={<TaskCreate />} />
                 <Route path="/tasks/create/:taskType" element={<TaskCreate />} />
+                <Route path="/tasks/detail/:taskId" element={<TaskDetail />} />
                 <Route path="/documents" element={<DocumentCenter />} />
                 <Route path="/processes" element={<ProcessCenter />} />
                 <Route path="/settings/users" element={<UserManagement />} />

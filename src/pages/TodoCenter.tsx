@@ -17,12 +17,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { useNavigate } from "react-router-dom";
 import { TaskProcessDrawer } from "@/pages/task/components/drawers/TaskProcessDrawer";
 import { useTaskContext, type Assignee, type Task } from "@/contexts/TaskContext";
 import { useUserContext } from "@/contexts/UserContext";
-import { MeetingMaterialTaskDrawer } from "@/pages/task/meeting-materials/MeetingMaterialTaskDrawer";
-import { getMyTodosApi, getTaskDetailApi } from "@/services/apis/tasks";
-import { adaptBackendTask } from "@/services/task-adapters";
+import { getMyTodosApi } from "@/services/apis/tasks";
 
 const statusStyles = {
   pending: "bg-warning/10 text-warning border-warning/20",
@@ -77,6 +76,8 @@ type BackendTodoItem = {
   deptAssignment?: Record<string, any>;
   assignedBy?: Record<string, any>;
   assigned_by?: Record<string, any>;
+  todoType?: string;
+  todoLabel?: string;
 };
 
 export default function TodoCenter() {
@@ -84,234 +85,104 @@ export default function TodoCenter() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [selectedItem, setSelectedItem] = useState<TodoItem | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const [meetingMaterialDrawerOpen, setMeetingMaterialDrawerOpen] = useState(false);
-  const [meetingMaterialTaskId, setMeetingMaterialTaskId] = useState<string>("");
-  const [meetingMaterialTaskInitialDeptId, setMeetingMaterialTaskInitialDeptId] = useState<
-    string | undefined
-  >(undefined);
   const [todoItems, setTodoItems] = useState<TodoItem[]>([]);
   const [loading, setLoading] = useState(true);
 
   const { submitWork, submitMeetingMaterialWork } = useTaskContext();
   const { currentUser } = useUserContext();
-
-  const buildDeptHeadTodoAssignee = (task: Task, deptId: string): TodoAssignee | null => {
-    const dept = task.meetingMaterialWorkflow?.deptAssignments.find(item => item.id === deptId);
-    if (!dept || dept.headUserId !== currentUser.id) {
-      return null;
-    }
-
-    const submittedAssignments = dept.userAssignments.filter(
-      ua => ua.status === "submitted" && ua.submissions.length > 0
-    );
-    const canAssign = task.allowedActions?.includes("assign_pages") ?? false;
-    const needsAssign = canAssign && dept.userAssignments.length === 0;
-    const needsReview = submittedAssignments.length > 0;
-
-    if (!needsAssign && !needsReview) {
-      return null;
-    }
-
-    return {
-      id: `dept-head-${dept.id}`,
-      memberId: currentUser.id,
-      name: currentUser.name,
-      avatar: currentUser.avatar,
-      department: dept.department,
-      taskDescription: needsReview
-        ? `待审核 ${submittedAssignments.length} 份提交`
-        : dept.requirement || `负责第 ${formatPageRange(dept.pages)} 页的人员分配`,
-      pageRange: formatPageRange(dept.pages),
-      status: needsReview ? "submitted" : "pending",
-      submissions: [],
-      isDeptHeadDistribution: true,
-      todoMode: needsReview ? "review" : "assign",
-      deptId: dept.id,
-    };
-  };
-
-  const buildCreatorMergeTodoAssignee = (task: Task): TodoAssignee | null => {
-    if (!task.meetingMaterialWorkflow || currentUser.name !== task.createdBy) {
-      return null;
-    }
-
-    const allAssignments = task.meetingMaterialWorkflow.deptAssignments.flatMap(
-      (dept) => dept.userAssignments
-    );
-    const reviewedCount = allAssignments.filter(
-      (assignment) =>
-        assignment.status === "dept_approved" || assignment.status === "final_approved"
-    ).length;
-    const readyToMerge =
-      allAssignments.length > 0 &&
-      reviewedCount === allAssignments.length &&
-      task.meetingMaterialWorkflow.stage !== "merged";
-
-    if (!readyToMerge) {
-      return null;
-    }
-
-    return {
-      id: `creator-merge-${task.id}`,
-      memberId: currentUser.id,
-      name: currentUser.name,
-      avatar: currentUser.avatar,
-      department: task.department,
-      taskDescription: "全部页面已审核通过，等待发起人发起最终合并",
-      status: "dept_approved",
-      submissions: [],
-      isCreatorMerge: true,
-      todoMode: "merge",
-    };
-  };
-
-  const mapTodoRecordToItem = (
-    record: BackendTodoItem,
-    taskMap: Map<string, Task>
-  ): TodoItem | null => {
-    const taskId = String(record.task?.id || "");
-    const task = taskMap.get(taskId);
-    if (!task) {
-      return null;
-    }
-
-    const userAssignment = record.user_assignment || record.userAssignment;
-    const deptAssignment = record.dept_assignment || record.deptAssignment;
-    const assignedBy = record.assignedBy || record.assigned_by;
-    const rawTaskCreatedBy = String(record.task?.createdBy || "");
-    const rawTaskCreatedByAvatar = String(record.task?.createdByAvatar || "");
-    const hasRealTaskCreator =
-      Boolean(task.createdBy?.trim()) && task.createdBy.trim() !== "系统";
-    const hasTodoTaskCreator = Boolean(rawTaskCreatedBy.trim());
-    const hasAssignedBy = Boolean(String(assignedBy?.name || "").trim());
-    const displayCreatedBy = hasRealTaskCreator
-      ? task.createdBy
-      : hasTodoTaskCreator
-        ? rawTaskCreatedBy
-        : hasAssignedBy
-          ? String(assignedBy?.name || "")
-          : task.createdBy;
-    const displayCreatedByAvatar =
-      hasRealTaskCreator && task.createdByAvatar && task.createdByAvatar !== "?"
-        ? task.createdByAvatar
-        : rawTaskCreatedByAvatar
-          ? rawTaskCreatedByAvatar
-          : String(assignedBy?.avatar || displayCreatedBy.charAt(0) || "");
-    const displayTask =
-      displayCreatedBy !== task.createdBy || displayCreatedByAvatar !== task.createdByAvatar
-        ? {
-            ...task,
-            createdBy: displayCreatedBy,
-            createdByAvatar: displayCreatedByAvatar,
-          }
-        : task;
-    const userAssignmentId = String(userAssignment?.id || "");
-    if (userAssignmentId) {
-      const assignee = task.assignees.find(
-        item =>
-          item.id === userAssignmentId ||
-          item.memberId === userAssignment?.userId ||
-          item.memberId === userAssignment?.user_id
-      );
-
-      if (!assignee) {
-        return null;
-      }
-
-      return {
-        task: displayTask,
-        assignee: {
-          ...assignee,
-          todoMode: "execute",
-        },
-      };
-    }
-
-    const assigneeId = String(record.assignee?.id || "");
-    if (assigneeId) {
-      const assignee = task.assignees.find(
-        item =>
-          item.id === assigneeId ||
-          item.memberId === record.assignee?.userId ||
-          item.memberId === record.assignee?.memberId
-      );
-
-      if (!assignee) {
-        return null;
-      }
-
-      return {
-        task: displayTask,
-        assignee: {
-          ...assignee,
-          todoMode: "execute",
-        },
-      };
-    }
-
-    const deptAssignmentId = String(deptAssignment?.id || "");
-    if (deptAssignmentId) {
-      const assignee = buildDeptHeadTodoAssignee(task, deptAssignmentId);
-      if (!assignee) {
-        return null;
-      }
-
-      return { task: displayTask, assignee };
-    }
-
-    return null;
-  };
+  const navigate = useNavigate();
 
   const loadTodos = async () => {
     setLoading(true);
 
     try {
-      const records = await getMyTodosApi({ userId: currentUser.id });
+      const records = await getMyTodosApi();
       const todoRecords = Array.isArray(records)
         ? (records as BackendTodoItem[])
         : Array.isArray((records as { data?: BackendTodoItem[] })?.data)
           ? ((records as { data: BackendTodoItem[] }).data)
           : [];
-      const taskIds = [...new Set(todoRecords.map(item => String(item.task?.id || "")).filter(Boolean))];
 
-      const detailResults = await Promise.allSettled(
-        taskIds.map(taskId => getTaskDetailApi(taskId, currentUser.id))
-      );
+      // 直接从 my-todos 响应构建待办列表，不再逐个调用 getTaskDetailApi
+      const nextItems: TodoItem[] = [];
 
-      const taskMap = new Map<string, Task>();
-      detailResults.forEach(result => {
-        if (result.status !== "fulfilled") {
-          return;
+      for (const record of todoRecords) {
+        const rawTask = record.task;
+        if (!rawTask?.id) continue;
+
+        const userAssignment = record.user_assignment || record.userAssignment;
+        const deptAssignment = record.dept_assignment || record.deptAssignment;
+        const assignedBy = record.assignedBy || record.assigned_by;
+
+        // 从 my-todos 响应构建轻量 Task 对象（足够列表渲染和跳转）
+        const task: Task = {
+          id: String(rawTask.id),
+          title: String(rawTask.title || ""),
+          description: "",
+          type: "例会资料" as any,
+          department: String(rawTask.department || ""),
+          createdAt: "",
+          deadline: String(rawTask.deadline || ""),
+          createdBy: String(rawTask.createdBy || assignedBy?.name || ""),
+          createdByAvatar: String(rawTask.createdByAvatar || assignedBy?.avatar || (rawTask.createdBy || "").charAt(0) || ""),
+          totalAssignees: 0,
+          completedCount: 0,
+          status: "active",
+          assignees: [],
+          source: "remote" as any,
+        };
+
+        // 构建 assignee
+        const todoLabel = String(record.todoLabel || record.todoType || "待处理");
+        const uaStatus = String(userAssignment?.status || deptAssignment?.status || "pending");
+
+        if (userAssignment?.id) {
+          const assignee: TodoAssignee = {
+            id: String(userAssignment.id),
+            memberId: currentUser.id,
+            name: currentUser.name,
+            avatar: currentUser.avatar,
+            department: String(deptAssignment?.department || task.department),
+            taskDescription: String(userAssignment.taskDescription || todoLabel),
+            pageRange: userAssignment.pages ? formatPageRange(userAssignment.pages) : undefined,
+            status: uaStatus as any,
+            submissions: [],
+            todoMode: "execute",
+          };
+          nextItems.push({ task, assignee });
+        } else if (deptAssignment?.id) {
+          const assignee: TodoAssignee = {
+            id: `dept-head-${deptAssignment.id}`,
+            memberId: currentUser.id,
+            name: currentUser.name,
+            avatar: currentUser.avatar,
+            department: String(deptAssignment.department || ""),
+            taskDescription: todoLabel,
+            status: uaStatus as any,
+            submissions: [],
+            isDeptHeadDistribution: true,
+            todoMode: (record.todoType === "review" ? "review" : "assign") as TodoMode,
+            deptId: String(deptAssignment.id),
+          };
+          nextItems.push({ task, assignee });
+        } else {
+          // 通用待办（如 merge）
+          const assignee: TodoAssignee = {
+            id: `todo-${rawTask.id}`,
+            memberId: currentUser.id,
+            name: currentUser.name,
+            avatar: currentUser.avatar,
+            department: task.department,
+            taskDescription: todoLabel,
+            status: uaStatus as any,
+            submissions: [],
+            todoMode: "execute",
+          };
+          nextItems.push({ task, assignee });
         }
+      }
 
-        const task = adaptBackendTask(result.value);
-        if (task.id) {
-          taskMap.set(task.id, task);
-        }
-      });
-
-      const nextItems = todoRecords
-        .map(record => mapTodoRecordToItem(record, taskMap))
-        .filter((item): item is TodoItem => Boolean(item));
-
-      taskMap.forEach((task) => {
-        task.meetingMaterialWorkflow?.deptAssignments.forEach((dept) => {
-          if (dept.headUserId !== currentUser.id) {
-            return;
-          }
-
-          const deptTodo = buildDeptHeadTodoAssignee(task, dept.id);
-          if (deptTodo) {
-            nextItems.push({ task, assignee: deptTodo });
-          }
-        });
-
-        const creatorMergeTodo = buildCreatorMergeTodoAssignee(task);
-        if (creatorMergeTodo) {
-          nextItems.push({ task, assignee: creatorMergeTodo });
-        }
-      });
-
+      // 去重
       const uniqueItems = new Map<string, TodoItem>();
       nextItems.forEach(item => {
         uniqueItems.set(
@@ -348,18 +219,14 @@ export default function TodoCenter() {
   }, [todoItems, searchQuery, statusFilter]);
 
   const handleProcessTask = (task: Task, assignee: TodoAssignee) => {
-    if (
-      task.type === "例会资料" &&
-      (assignee.isDeptHeadDistribution || assignee.isCreatorMerge)
-    ) {
-      setMeetingMaterialTaskId(task.id);
-      setMeetingMaterialTaskInitialDeptId(
-        assignee.todoMode === "assign" ? assignee.deptId : undefined
-      );
-      setMeetingMaterialDrawerOpen(true);
+    // 例会资料任务：统一跳到动态任务详情页，按 formKey 分发节点
+    // 待办与任务中心使用同一个任务页（老板要求）
+    if (task.type === "例会资料") {
+      navigate(`/tasks/detail/${task.id}`);
       return;
     }
 
+    // 其他类型保留原有抽屉提交流程
     setSelectedItem({ task, assignee });
     setDrawerOpen(true);
   };
@@ -579,19 +446,6 @@ export default function TodoCenter() {
         task={selectedItem?.task}
         assignee={selectedItem?.assignee}
         onSubmit={handleSubmit}
-      />
-
-      <MeetingMaterialTaskDrawer
-        open={meetingMaterialDrawerOpen}
-        onOpenChange={(open) => {
-          setMeetingMaterialDrawerOpen(open);
-          if (!open) {
-            setMeetingMaterialTaskInitialDeptId(undefined);
-            void loadTodos();
-          }
-        }}
-        initialAssignDeptId={meetingMaterialTaskInitialDeptId}
-        taskId={meetingMaterialTaskId}
       />
     </AppLayout>
   );
