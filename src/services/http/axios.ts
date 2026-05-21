@@ -6,6 +6,8 @@ import type {
 } from "axios";
 
 const CURRENT_USER_STORAGE_KEY = "taskflow.current-user";
+const ACCESS_TOKEN_KEY = "taskflow.access-token";
+const REFRESH_TOKEN_KEY = "taskflow.refresh-token";
 
 export class ApiRequestError extends Error {
   status?: number;
@@ -21,6 +23,31 @@ export class ApiRequestError extends Error {
   }
 }
 
+// --- Token 管理 ---
+
+export const setTokens = (accessToken: string, refreshToken: string) => {
+  localStorage.setItem(ACCESS_TOKEN_KEY, accessToken);
+  localStorage.setItem(REFRESH_TOKEN_KEY, refreshToken);
+};
+
+export const getAccessToken = (): string | null => {
+  return localStorage.getItem(ACCESS_TOKEN_KEY);
+};
+
+export const getRefreshToken = (): string | null => {
+  return localStorage.getItem(REFRESH_TOKEN_KEY);
+};
+
+export const clearTokens = () => {
+  localStorage.removeItem(ACCESS_TOKEN_KEY);
+  localStorage.removeItem(REFRESH_TOKEN_KEY);
+};
+
+export const isAuthenticated = (): boolean => {
+  return !!getAccessToken();
+};
+
+// --- 当前用户信息（仅用于本地缓存，不再注入请求头） ---
 
 export const setApiCurrentUser = (user?: {
   id?: string;
@@ -64,18 +91,10 @@ function unpack<T>(response: AxiosResponse<T>) {
 
 service.interceptors.request.use(
   config => {
-    const currentUser = getStoredCurrentUser();
-
-    if (currentUser?.id) {
-      config.headers.set("X-User-Id", currentUser.id);
-    }
-
-    if (currentUser?.name) {
-      config.headers.set("X-User-Name", encodeURIComponent(currentUser.name));
-    }
-
-    if (currentUser?.department) {
-      config.headers.set("X-User-Department", encodeURIComponent(currentUser.department));
+    // Bearer Token 鉴权
+    const accessToken = getAccessToken();
+    if (accessToken) {
+      config.headers.set("Authorization", `Bearer ${accessToken}`);
     }
 
     config.headers.set("Accept", "application/json");
@@ -105,8 +124,22 @@ service.interceptors.response.use(
       payload?.error?.message ||
       payload?.errorMessage ||
       payload?.message ||
+      (payload?.detail && typeof payload.detail === "string" ? payload.detail : null) ||
       error.message ||
       "网络连接故障";
+
+    // 401 时清除 token 并跳转登录页（排除登录/注册接口本身）
+    if (status === 401) {
+      const url = error.config?.url || "";
+      const isAuthEndpoint = url.includes("/auth/login") || url.includes("/auth/register");
+      if (!isAuthEndpoint) {
+        clearTokens();
+        // 使用 location.replace 避免循环
+        if (window.location.pathname !== "/login") {
+          window.location.replace("/login");
+        }
+      }
+    }
 
     return Promise.reject(
       new ApiRequestError(message, {

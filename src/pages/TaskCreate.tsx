@@ -10,7 +10,7 @@ import { Step3TimeConfig } from "@/pages/task/components/create-wizard/Step3Time
 import { Step4PreviewPublish } from "@/pages/task/components/create-wizard/Step4PreviewPublish";
 import { TaskTypeEnum } from "@/enums/task";
 import { MeetingMaterialCreateForm } from "@/pages/task/meeting-materials/MeetingMaterialCreateForm";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 
 const WIZARD_STEPS = [
   { id: 1, title: "基础定义", icon: FileText },
@@ -23,16 +23,31 @@ const WIZARD_STEPS = [
 function MeetingMaterialCreate() {
   const navigate = useNavigate();
   const { taskType } = useParams<{ taskType?: string }>();
-  const defaultCategory = taskType ? decodeURIComponent(taskType) : undefined;
-  const returnPath = defaultCategory ? `/tasks/${encodeURIComponent(defaultCategory)}` : "/tasks";
+  const [searchParams] = useSearchParams();
+  const categoryCode = taskType ? decodeURIComponent(taskType) : "";
+  const categoryName = searchParams.get("name") || categoryCode;
+  const returnPath = categoryCode ? `/tasks/${encodeURIComponent(categoryCode)}` : "/tasks";
+
+  if (!categoryCode) {
+    return (
+      <AppLayout title="创建流程">
+        <div className="max-w-2xl mx-auto text-center py-16">
+          <p className="text-muted-foreground">请从任务中心选择流程类别后创建</p>
+          <Button variant="outline" className="mt-4" onClick={() => navigate("/tasks")}>
+            返回任务中心
+          </Button>
+        </div>
+      </AppLayout>
+    );
+  }
 
   return (
     <AppLayout title="创建流程">
       <div className="max-w-2xl mx-auto">
         <MeetingMaterialCreateForm
-          defaultCategory={defaultCategory}
+          categoryCode={categoryCode}
+          categoryName={categoryName}
           onSuccess={() => {
-            // 创建成功后回到对应的任务中心分类页
             navigate(returnPath, { state: { refresh: true } });
           }}
           onCancel={() => navigate(-1)}

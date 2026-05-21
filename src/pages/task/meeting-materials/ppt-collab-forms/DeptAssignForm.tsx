@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Plus, Trash2, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,10 +12,12 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useTaskContext } from "@/contexts/TaskContext";
-import { useUserContext } from "@/contexts/UserContext";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import type { PptCollabFormProps } from "./types";
+import { getDepartmentsApi } from "@/services/apis/departments";
+import { getUsersApi } from "@/services/apis/users";
+import type { DepartmentDto, UserDto } from "@/types/user";
 
 // ---- PageSelector with range support ----
 function PageSelector({
@@ -179,7 +181,8 @@ function PageSelector({
 
 // ---- Types ----
 interface DeptAssignment {
-  department: string;
+  departmentId: string;
+  departmentName: string;
   pages: number[];
   headUserId: string;
   requirement: string;
@@ -188,7 +191,6 @@ interface DeptAssignment {
 // ---- DeptAssignForm ----
 export function DeptAssignForm({ task, onSuccess, onError, totalPages: propTotalPages, templateFileId: propTemplateFileId }: PptCollabFormProps) {
   const { completePptAction } = useTaskContext();
-  const { users, departments, currentUser } = useUserContext();
   const { toast } = useToast();
 
   const workflow = task.meetingMaterialWorkflow;
@@ -198,21 +200,60 @@ export function DeptAssignForm({ task, onSuccess, onError, totalPages: propTotal
       ? Array.from({ length: totalPagesNum }, (_, i) => i + 1)
       : [];
 
+  const [departments, setDepartments] = useState<DepartmentDto[]>([]);
+  const [allUsers, setAllUsers] = useState<UserDto[]>([]);
+  const [filteredUsers, setFilteredUsers] = useState<UserDto[]>([]);
+  const [loadingData, setLoadingData] = useState(true);
+
+  // 加载部门和用户列表
+  useEffect(() => {
+    const loadData = async () => {
+      setLoadingData(true);
+      try {
+        const [depts, users] = await Promise.all([
+          getDepartmentsApi(),
+          getUsersApi(),
+        ]);
+        setDepartments(Array.isArray(depts) ? depts : []);
+        setAllUsers(Array.isArray(users) ? users : []);
+      } catch (error) {
+        console.error("Failed to load departments/users", error);
+      } finally {
+        setLoadingData(false);
+      }
+    };
+    void loadData();
+  }, []);
+
   const [deptAssignments, setDeptAssignments] = useState<DeptAssignment[]>([
-    { department: "", pages: [], headUserId: "", requirement: "" },
+    { departmentId: "", departmentName: "", pages: [], headUserId: "", requirement: "" },
   ]);
   const [selectedDeptIndex, setSelectedDeptIndex] = useState(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // 负责人选项：有室主任角色的用户
-  const headUserOptions = users.filter((u) =>
-    u.roles.includes("室主任") || u.role === "室主任"
-  );
+  // 当选中行的部门变化时，按 departmentId 筛选用户
+  const currentAssignment = deptAssignments[selectedDeptIndex];
+
+  useEffect(() => {
+    if (!currentAssignment?.departmentId) {
+      setFilteredUsers(allUsers);
+      return;
+    }
+    const loadUsersForDept = async () => {
+      try {
+        const users = await getUsersApi({ departmentId: currentAssignment.departmentId });
+        setFilteredUsers(Array.isArray(users) ? users : []);
+      } catch {
+        setFilteredUsers([]);
+      }
+    };
+    void loadUsersForDept();
+  }, [currentAssignment?.departmentId, allUsers]);
 
   const addRow = () => {
     const newAssignments = [
       ...deptAssignments,
-      { department: "", pages: [], headUserId: "", requirement: "" },
+      { departmentId: "", departmentName: "", pages: [], headUserId: "", requirement: "" },
     ];
     setDeptAssignments(newAssignments);
     setSelectedDeptIndex(newAssignments.length - 1);
@@ -234,8 +275,6 @@ export function DeptAssignForm({ task, onSuccess, onError, totalPages: propTotal
     );
   };
 
-  const currentAssignment = deptAssignments[selectedDeptIndex];
-
   const handleSubmit = async () => {
     if (deptAssignments.length === 0) {
       toast({ title: "至少需要配置一个部门", variant: "destructive" });
@@ -247,6 +286,17 @@ export function DeptAssignForm({ task, onSuccess, onError, totalPages: propTotal
       return;
     }
 
+    // 检查是否所有页码都已分配
+    const allAssignedPages = deptAssignments.flatMap((a) => a.pages);
+    const uniqueAssignedPages = [...new Set(allAssignedPages)];
+    if (uniqueAssignedPages.length < totalPagesNum) {
+      const unassignedCount = totalPagesNum - uniqueAssignedPages.length;
+      const confirmed = window.confirm(
+        `还有 ${unassignedCount} 页未分配，确定要继续提交吗？`
+      );
+      if (!confirmed) return;
+    }
+
     setIsSubmitting(true);
     try {
       const updatedTask = await completePptAction(task.id, {
@@ -254,9 +304,8 @@ export function DeptAssignForm({ task, onSuccess, onError, totalPages: propTotal
         payload: {
           totalPages: totalPagesNum,
           templateFileId: propTemplateFileId || undefined,
-          approverId: currentUser.id,
           deptAssignments: deptAssignments.map((a) => ({
-            department: a.department,
+            department: a.departmentName,
             pages: a.pages,
             headUserId: a.headUserId,
             requirement: a.requirement || undefined,
@@ -290,164 +339,169 @@ export function DeptAssignForm({ task, onSuccess, onError, totalPages: propTotal
         </p>
       </div>
 
-      {/* Main: left dept list + right detail */}
-      <div className="flex-1 flex gap-4 min-h-0 overflow-hidden">
-        {/* Left: Department list */}
-        <div className="w-44 shrink-0 flex flex-col gap-2 overflow-auto">
-          {deptAssignments.map((assignment, index) => (
-            <div
-              key={index}
-              onClick={() => setSelectedDeptIndex(index)}
-              className={cn(
-                "group relative rounded-lg border px-3 py-2.5 cursor-pointer transition-all text-sm",
-                selectedDeptIndex === index
-                  ? "border-primary bg-primary/5 shadow-sm"
-                  : "border-border hover:border-primary/40 hover:bg-muted/30"
-              )}
-            >
-              <div className="font-medium truncate">
-                {assignment.department || `部门 ${index + 1}`}
-              </div>
-              {assignment.pages.length > 0 && (
-                <div className="text-xs text-muted-foreground mt-0.5">
-                  {assignment.pages.length} 页：第 {assignment.pages.join("、")} 页
-                </div>
-              )}
-              {deptAssignments.length > 1 && (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  className="absolute top-1 right-1 h-5 w-5 p-0 opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    removeRow(index);
-                  }}
-                >
-                  <Trash2 className="h-3 w-3" />
-                </Button>
-              )}
-            </div>
-          ))}
-
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="w-full h-9 border-dashed gap-1.5 shrink-0"
-            onClick={addRow}
-          >
-            <Plus className="h-3.5 w-3.5" />
-            添加部门
-          </Button>
+      {loadingData ? (
+        <div className="flex flex-1 items-center justify-center">
+          <Loader2 className="h-5 w-5 animate-spin text-primary" />
+          <span className="ml-2 text-sm text-muted-foreground">加载部门和用户数据...</span>
         </div>
-
-        {/* Right: Detail panel for selected department */}
-        <div className="flex-1 overflow-auto space-y-4">
-          {currentAssignment && (
-            <>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <Label className="text-xs font-medium">部门名称</Label>
-                  <Select
-                    value={currentAssignment.department}
-                    onValueChange={(val) =>
-                      updateRow(selectedDeptIndex, {
-                        ...currentAssignment,
-                        department: val,
-                        headUserId: "",
-                      })
-                    }
-                  >
-                    <SelectTrigger className="mt-1 h-9 text-sm">
-                      <SelectValue placeholder="选择部门" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {departments.map((d) => (
-                        <SelectItem key={d.id} value={d.name}>
-                          {d.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+      ) : (
+        /* Main: left dept list + right detail */
+        <div className="flex-1 flex gap-4 min-h-0 overflow-hidden">
+          {/* Left: Department list */}
+          <div className="w-44 shrink-0 flex flex-col gap-2 overflow-auto">
+            {deptAssignments.map((assignment, index) => (
+              <div
+                key={index}
+                onClick={() => setSelectedDeptIndex(index)}
+                className={cn(
+                  "group relative rounded-lg border px-3 py-2.5 cursor-pointer transition-all text-sm",
+                  selectedDeptIndex === index
+                    ? "border-primary bg-primary/5 shadow-sm"
+                    : "border-border hover:border-primary/40 hover:bg-muted/30"
+                )}
+              >
+                <div className="font-medium truncate">
+                  {assignment.departmentName || `部门 ${index + 1}`}
                 </div>
-
-                <div>
-                  <Label className="text-xs font-medium">负责人</Label>
-                  <Select
-                    value={currentAssignment.headUserId}
-                    onValueChange={(val) =>
-                      updateRow(selectedDeptIndex, {
-                        ...currentAssignment,
-                        headUserId: val,
-                      })
-                    }
+                {assignment.pages.length > 0 && (
+                  <div className="text-xs text-muted-foreground mt-0.5">
+                    {assignment.pages.length} 页：第 {assignment.pages.join("、")} 页
+                  </div>
+                )}
+                {deptAssignments.length > 1 && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="absolute top-1 right-1 h-5 w-5 p-0 opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      removeRow(index);
+                    }}
                   >
-                    <SelectTrigger className="mt-1 h-9 text-sm">
-                      <SelectValue placeholder="选择负责人" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {(currentAssignment.department
-                        ? headUserOptions.filter(
-                            (u) => u.department === currentAssignment.department
-                          )
-                        : headUserOptions
-                      ).map((u) => (
-                        <SelectItem key={u.id} value={u.id}>
-                          {u.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+                    <Trash2 className="h-3 w-3" />
+                  </Button>
+                )}
               </div>
+            ))}
 
-              {allPages.length > 0 && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="w-full h-9 border-dashed gap-1.5 shrink-0"
+              onClick={addRow}
+            >
+              <Plus className="h-3.5 w-3.5" />
+              添加部门
+            </Button>
+          </div>
+
+          {/* Right: Detail panel for selected department */}
+          <div className="flex-1 overflow-auto space-y-4">
+            {currentAssignment && (
+              <>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <Label className="text-xs font-medium">部门名称</Label>
+                    <Select
+                      value={currentAssignment.departmentId}
+                      onValueChange={(val) => {
+                        const dept = departments.find((d) => d.id === val);
+                        updateRow(selectedDeptIndex, {
+                          ...currentAssignment,
+                          departmentId: val,
+                          departmentName: dept?.name || "",
+                          headUserId: "",
+                        });
+                      }}
+                    >
+                      <SelectTrigger className="mt-1 h-9 text-sm">
+                        <SelectValue placeholder="选择部门" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {departments.map((d) => (
+                          <SelectItem key={d.id} value={d.id}>
+                            {d.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div>
+                    <Label className="text-xs font-medium">负责人</Label>
+                    <Select
+                      value={currentAssignment.headUserId}
+                      onValueChange={(val) =>
+                        updateRow(selectedDeptIndex, {
+                          ...currentAssignment,
+                          headUserId: val,
+                        })
+                      }
+                      disabled={!currentAssignment.departmentId}
+                    >
+                      <SelectTrigger className="mt-1 h-9 text-sm">
+                        <SelectValue placeholder={currentAssignment.departmentId ? "选择负责人" : "请先选择部门"} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {filteredUsers.map((u) => (
+                          <SelectItem key={u.id} value={u.id}>
+                            {u.name || u.username}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                {allPages.length > 0 && (
+                  <div>
+                    <Label className="text-xs font-medium">负责页码</Label>
+                    <PageSelector
+                      pages={allPages}
+                      selectedPages={currentAssignment.pages}
+                      otherDeptPages={
+                        deptAssignments
+                          .filter((_, i) => i !== selectedDeptIndex)
+                          .flatMap((a) => a.pages)
+                      }
+                      onChange={(pages) =>
+                        updateRow(selectedDeptIndex, {
+                          ...currentAssignment,
+                          pages,
+                        })
+                      }
+                    />
+                  </div>
+                )}
+
                 <div>
-                  <Label className="text-xs font-medium">负责页码</Label>
-                  <PageSelector
-                    pages={allPages}
-                    selectedPages={currentAssignment.pages}
-                    otherDeptPages={
-                      deptAssignments
-                        .filter((_, i) => i !== selectedDeptIndex)
-                        .flatMap((a) => a.pages)
-                    }
-                    onChange={(pages) =>
+                  <Label className="text-xs font-medium">需求说明（选填）</Label>
+                  <Textarea
+                    className="mt-1 resize-none text-sm"
+                    rows={3}
+                    placeholder="填写该部门的具体需求..."
+                    value={currentAssignment.requirement}
+                    onChange={(e) =>
                       updateRow(selectedDeptIndex, {
                         ...currentAssignment,
-                        pages,
+                        requirement: e.target.value,
                       })
                     }
                   />
                 </div>
-              )}
-
-              <div>
-                <Label className="text-xs font-medium">需求说明（选填）</Label>
-                <Textarea
-                  className="mt-1 resize-none text-sm"
-                  rows={3}
-                  placeholder="填写该部门的具体需求..."
-                  value={currentAssignment.requirement}
-                  onChange={(e) =>
-                    updateRow(selectedDeptIndex, {
-                      ...currentAssignment,
-                      requirement: e.target.value,
-                    })
-                  }
-                />
-              </div>
-            </>
-          )}
+              </>
+            )}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Footer: Submit */}
       <div className="shrink-0 pt-4">
         <Button
           className="w-full h-10 font-semibold"
-          disabled={isSubmitting || totalPagesNum <= 0}
+          disabled={isSubmitting || totalPagesNum <= 0 || loadingData}
           onClick={handleSubmit}
         >
           {isSubmitting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}

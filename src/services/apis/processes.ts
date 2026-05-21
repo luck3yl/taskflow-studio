@@ -146,7 +146,8 @@ export const getProcessDefinitionXmlApi = (definitionId: string) => {
  * 响应为 Flowable 原生流程实例对象
  */
 export const startProcessInstanceApi = (params: {
-  process_key: string;
+  process_key?: string;
+  category_code?: string;
   variables?: Record<string, unknown>;
   business_key?: string;
 }) => {
@@ -163,7 +164,7 @@ export const startProcessInstanceApi = (params: {
  */
 export const getProcessInstancesApi = (params?: {
   processDefinitionKey?: string;
-  category?: string;
+  categoryCode?: string;
   keyword?: string;
   size?: number;
   start?: number;

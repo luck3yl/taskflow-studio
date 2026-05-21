@@ -17,129 +17,106 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
-import { useTaskContext } from "@/contexts/TaskContext";
-import { useProcess } from "@/contexts/ProcessContext";
 import { useUserContext } from "@/contexts/UserContext";
 import { useToast } from "@/hooks/use-toast";
-import { TaskFormKeyEnum, TaskSourceEnum, TaskTypeEnum } from "@/enums/task";
 import { getProcessDefinitionFormApi, type FormResponse } from "@/services/apis/forms";
+import { getProcessDefinitionsApi, startProcessInstanceApi } from "@/services/apis/processes";
 import type { FormDataField } from "@/services/apis/processes";
 
-/** 可选的流程类别（对应后端 category 字段） - 作为 fallback */
-const FALLBACK_PROCESS_CATEGORIES = [
-  { value: "例会资料", label: "例会资料" },
-  { value: "设备管理月报编制", label: "设备管理月报编制" },
-  { value: "设备管理月报（成本模块）", label: "设备管理月报（成本模块）" },
-  { value: "设备例会材料（成本模块）", label: "设备例会材料（成本模块）" },
-  { value: "维修费用使用情况例会材料", label: "维修费用使用情况例会材料" },
-];
-
-/** 根据 category 自动生成默认流程名称 */
-function generateDefaultTitle(category: string): string {
-  return category;
-}
-
 interface MeetingMaterialCreateFormProps {
-  defaultCategory?: string;
-  onSuccess: (taskId: string) => void;
+  /** 流程类别 code（从 URL 参数传入） */
+  categoryCode: string;
+  /** 类别显示名称 */
+  categoryName?: string;
+  /** 流程定义 ID（从 categories API 获取，可选） */
+  processDefinitionId?: string;
+  onSuccess: (processInstanceId: string) => void;
   onCancel: () => void;
 }
 
 export function MeetingMaterialCreateForm({
-  defaultCategory,
+  categoryCode,
+  categoryName,
+  processDefinitionId: propDefinitionId,
   onSuccess,
   onCancel,
 }: MeetingMaterialCreateFormProps) {
-  const { addTask } = useTaskContext();
-  const { definitions, refreshDefinitions } = useProcess();
   const { currentUser } = useUserContext();
   const { toast } = useToast();
 
-  const [category, setCategory] = useState(defaultCategory || "");
-  const [title, setTitle] = useState(defaultCategory ? generateDefaultTitle(defaultCategory) : "");
-  const [titleManuallyEdited, setTitleManuallyEdited] = useState(false);
+  const [title, setTitle] = useState(categoryName || categoryCode);
   const [description, setDescription] = useState("");
   const [deadlineDate, setDeadlineDate] = useState<Date>();
   const [deadlineTime, setDeadlineTime] = useState("18:00");
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [selectedProcessKey, setSelectedProcessKey] = useState("");
 
   // 动态表单相关状态
   const [dynamicFields, setDynamicFields] = useState<FormDataField[]>([]);
   const [dynamicValues, setDynamicValues] = useState<Record<string, string>>({});
-  const [loadingForm, setLoadingForm] = useState(false);
+  const [loadingForm, setLoadingForm] = useState(true);
 
-  // 页面加载时获取流程定义列表
+  // 页面加载时获取动态表单字段
   useEffect(() => {
-    refreshDefinitions();
-  }, [refreshDefinitions]);
+    const loadFormFields = async () => {
+      setLoadingForm(true);
+      try {
+        let definitionId = propDefinitionId;
 
-  // 从后端获取的流程定义构建可选列表（只展示未停用的）
-  const processOptions = definitions
-    .filter(def => !def.suspended)
-    .map(def => ({
-      key: def.key,
-      name: def.name || def.key,
-      id: def.id,
-    }));
+        // 如果没有直接传入 processDefinitionId，从 categories API 获取
+        if (!definitionId) {
+          const { getProcessCategoriesGroupedApi } = await import("@/services/apis/process-categories");
+          const groups = await getProcessCategoriesGroupedApi({ activeOnly: true });
+          const allGroups = Array.isArray(groups) ? groups : (groups as any)?.data ?? [];
+          for (const group of allGroups) {
+            const found = group.items?.find((item: any) => item.code === categoryCode);
+            if (found?.processDefinitionId) {
+              definitionId = found.processDefinitionId;
+              break;
+            }
+          }
+        }
 
-  // 选择流程类别后，请求该流程定义的动态表单字段
-  const fetchDynamicForm = async (processDefinitionId: string) => {
-    setLoadingForm(true);
-    try {
-      const formResponse: FormResponse = await getProcessDefinitionFormApi(processDefinitionId);
-      if (formResponse.formData && formResponse.formData.length > 0) {
-        setDynamicFields(formResponse.formData);
-        // 初始化默认值
-        const defaults: Record<string, string> = {};
-        formResponse.formData.forEach(field => {
-          defaults[field.id] = field.value || "";
-        });
-        setDynamicValues(defaults);
-      } else {
-        setDynamicFields([]);
-        setDynamicValues({});
+        // 如果还是没有，尝试从流程定义列表匹配
+        if (!definitionId) {
+          const response = await getProcessDefinitionsApi();
+          const definitions = Array.isArray(response)
+            ? response
+            : (response as any)?.data ?? [];
+          const matchedDef = definitions.find(
+            (def: any) =>
+              def.category === categoryCode ||
+              def.key === categoryCode ||
+              def.name === categoryCode
+          );
+          definitionId = matchedDef?.id;
+        }
+
+        if (definitionId) {
+          const formResponse: FormResponse = await getProcessDefinitionFormApi(definitionId);
+          if (formResponse.formData && formResponse.formData.length > 0) {
+            setDynamicFields(formResponse.formData);
+            const defaults: Record<string, string> = {};
+            formResponse.formData.forEach((field) => {
+              defaults[field.id] = field.value || "";
+            });
+            setDynamicValues(defaults);
+          }
+        }
+      } catch (error) {
+        console.error("Failed to fetch process form", error);
+      } finally {
+        setLoadingForm(false);
       }
-    } catch (error) {
-      console.error("Failed to fetch process form", error);
-      setDynamicFields([]);
-      setDynamicValues({});
-    } finally {
-      setLoadingForm(false);
-    }
-  };
+    };
 
-  const handleCategoryChange = (value: string) => {
-    setCategory(value);
-    // 根据选择的类别找到对应的流程定义
-    const matchedDef = processOptions.find(
-      def => def.name === value || def.key === value
-    );
-    setSelectedProcessKey(matchedDef?.key || "ppt_collab");
-    // 如果用户没有手动编辑过名称，自动填充
-    if (!titleManuallyEdited) {
-      setTitle(generateDefaultTitle(value));
-    }
-    // 请求动态表单字段
-    if (matchedDef?.id) {
-      fetchDynamicForm(matchedDef.id);
-    }
-  };
-
-  const handleTitleChange = (value: string) => {
-    setTitle(value);
-    setTitleManuallyEdited(true);
-  };
+    void loadFormFields();
+  }, [categoryCode, propDefinitionId]);
 
   const handleDynamicFieldChange = (fieldId: string, value: string) => {
-    setDynamicValues(prev => ({ ...prev, [fieldId]: value }));
+    setDynamicValues((prev) => ({ ...prev, [fieldId]: value }));
   };
 
   const handleSubmit = async () => {
-    if (!category) {
-      toast({ title: "请选择流程类别", variant: "destructive" });
-      return;
-    }
     if (!title.trim()) {
       toast({ title: "请填写流程名称", variant: "destructive" });
       return;
@@ -155,36 +132,31 @@ export function MeetingMaterialCreateForm({
 
     const formattedDeadline = deadlineDate
       ? `${format(deadlineDate, "yyyy-MM-dd")} ${deadlineTime}`
-      : format(
-          new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-          "yyyy-MM-dd"
-        ) + " 18:00";
+      : format(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), "yyyy-MM-dd") +
+        " 18:00";
 
     setIsSubmitting(true);
     try {
-      const taskId = await addTask({
+      const variables: Record<string, unknown> = {
         title: title.trim(),
-        description: description.trim(),
-        category,
-        type: TaskTypeEnum.MeetingMaterial,
-        formKey: TaskFormKeyEnum.PptCollab,
-        department: currentUser.department || "全公司",
+        department: currentUser.department || "",
         deadline: formattedDeadline,
-        createdBy: currentUser.name,
-        createdByAvatar: currentUser.avatar,
-        totalAssignees: 0,
-        assignees: [],
-        allowedActions: [],
-        source: TaskSourceEnum.Remote,
-        // 动态表单字段值作为额外 variables
-        extraVariables: dynamicValues,
+        ...dynamicValues,
+      };
+      if (description.trim()) {
+        variables.description = description.trim();
+      }
+
+      const instance = await startProcessInstanceApi({
+        category_code: categoryCode,
+        variables,
       });
 
       toast({
         title: "流程已启动",
         description: "请在任务中心查看并处理后续节点",
       });
-      onSuccess(taskId);
+      onSuccess(instance?.id || "");
     } catch (error) {
       toast({
         title: "启动失败",
@@ -200,14 +172,23 @@ export function MeetingMaterialCreateForm({
   const renderDynamicField = (field: FormDataField) => {
     const value = dynamicValues[field.id] || "";
 
+    // 跳过 title/department/deadline 等已有内置字段
+    if (["title", "department", "deadline", "description"].includes(field.id)) {
+      return null;
+    }
+
     // 枚举类型 → 下拉选择
     if (field.type === "enum" && field.enumValues?.length > 0) {
       return (
         <div key={field.id} className="space-y-1.5">
           <Label>
-            {field.name} {field.required && <span className="text-destructive">*</span>}
+            {field.name}{" "}
+            {field.required && <span className="text-destructive">*</span>}
           </Label>
-          <Select value={value} onValueChange={(v) => handleDynamicFieldChange(field.id, v)}>
+          <Select
+            value={value}
+            onValueChange={(v) => handleDynamicFieldChange(field.id, v)}
+          >
             <SelectTrigger>
               <SelectValue placeholder={`选择${field.name}`} />
             </SelectTrigger>
@@ -229,7 +210,8 @@ export function MeetingMaterialCreateForm({
       return (
         <div key={field.id} className="space-y-1.5">
           <Label>
-            {field.name} {field.required && <span className="text-destructive">*</span>}
+            {field.name}{" "}
+            {field.required && <span className="text-destructive">*</span>}
           </Label>
           <Popover>
             <PopoverTrigger asChild>
@@ -250,7 +232,12 @@ export function MeetingMaterialCreateForm({
               <Calendar
                 mode="single"
                 selected={dateValue}
-                onSelect={(d) => handleDynamicFieldChange(field.id, d ? format(d, "yyyy-MM-dd") : "")}
+                onSelect={(d) =>
+                  handleDynamicFieldChange(
+                    field.id,
+                    d ? format(d, "yyyy-MM-dd") : ""
+                  )
+                }
                 initialFocus
                 className="p-3 pointer-events-auto"
               />
@@ -265,9 +252,13 @@ export function MeetingMaterialCreateForm({
       return (
         <div key={field.id} className="space-y-1.5">
           <Label>
-            {field.name} {field.required && <span className="text-destructive">*</span>}
+            {field.name}{" "}
+            {field.required && <span className="text-destructive">*</span>}
           </Label>
-          <Select value={value} onValueChange={(v) => handleDynamicFieldChange(field.id, v)}>
+          <Select
+            value={value}
+            onValueChange={(v) => handleDynamicFieldChange(field.id, v)}
+          >
             <SelectTrigger>
               <SelectValue placeholder={`选择${field.name}`} />
             </SelectTrigger>
@@ -285,7 +276,8 @@ export function MeetingMaterialCreateForm({
       return (
         <div key={field.id} className="space-y-1.5">
           <Label>
-            {field.name} {field.required && <span className="text-destructive">*</span>}
+            {field.name}{" "}
+            {field.required && <span className="text-destructive">*</span>}
           </Label>
           <Input
             type="number"
@@ -301,7 +293,8 @@ export function MeetingMaterialCreateForm({
     return (
       <div key={field.id} className="space-y-1.5">
         <Label>
-          {field.name} {field.required && <span className="text-destructive">*</span>}
+          {field.name}{" "}
+          {field.required && <span className="text-destructive">*</span>}
         </Label>
         <Input
           placeholder={`输入${field.name}`}
@@ -317,43 +310,19 @@ export function MeetingMaterialCreateForm({
       <CardHeader>
         <CardTitle>创建流程</CardTitle>
         <CardDescription>
-          选择流程类别并填写基本信息，确认后启动流程
+          {categoryName || categoryCode} — 填写基本信息后启动流程
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-5">
-        {/* 流程类别 */}
-        <div className="space-y-1.5">
-          <Label>
-            流程类别 <span className="text-destructive">*</span>
-          </Label>
-          <Select value={category} onValueChange={handleCategoryChange}>
-            <SelectTrigger>
-              <SelectValue placeholder="选择流程类别" />
-            </SelectTrigger>
-            <SelectContent>
-              {processOptions.map((item) => (
-                <SelectItem key={item.key} value={item.name}>
-                  {item.name}
-                </SelectItem>
-              ))}
-              {processOptions.length === 0 && (
-                <SelectItem value="_empty" disabled>
-                  暂无可用流程定义
-                </SelectItem>
-              )}
-            </SelectContent>
-          </Select>
-        </div>
-
         {/* 流程名称 */}
         <div className="space-y-1.5">
           <Label>
             流程名称 <span className="text-destructive">*</span>
           </Label>
           <Input
-            placeholder="选择类别后自动生成，也可手动修改"
+            placeholder="输入流程名称"
             value={title}
-            onChange={(e) => handleTitleChange(e.target.value)}
+            onChange={(e) => setTitle(e.target.value)}
           />
         </div>
 
@@ -406,7 +375,7 @@ export function MeetingMaterialCreateForm({
           </div>
         </div>
 
-        {/* 动态表单字段（来自流程定义的 formData） */}
+        {/* 动态表单字段 */}
         {loadingForm && (
           <div className="flex items-center gap-2 text-muted-foreground text-sm py-2">
             <Loader2 className="h-4 w-4 animate-spin" />
@@ -415,8 +384,11 @@ export function MeetingMaterialCreateForm({
         )}
         {!loadingForm && dynamicFields.length > 0 && (
           <div className="space-y-4 border-t pt-4">
-            <p className="text-sm text-muted-foreground">以下为流程附加字段：</p>
-            {dynamicFields.filter(f => f.writable).map(renderDynamicField)}
+            <p className="text-sm text-muted-foreground">流程附加字段：</p>
+            {dynamicFields
+              .filter((f) => f.writable)
+              .map(renderDynamicField)
+              .filter(Boolean)}
           </div>
         )}
 
@@ -427,7 +399,7 @@ export function MeetingMaterialCreateForm({
           </Button>
           <Button
             className="gradient-primary"
-            disabled={isSubmitting || !category || !title.trim()}
+            disabled={isSubmitting || !title.trim()}
             onClick={handleSubmit}
           >
             {isSubmitting ? (

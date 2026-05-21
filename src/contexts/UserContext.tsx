@@ -1,474 +1,477 @@
-import React, { createContext, useContext, useEffect, useState, ReactNode } from "react";
-import { getDepartmentsApi, type BackendDepartment } from "@/services/apis/departments";
-import { getUsersApi, getAuthMeApi, type BackendUser } from "@/services/apis/users";
+import React, { createContext, useContext, useEffect, useState, useCallback, useMemo, ReactNode } from "react";
+import { getUsersApi } from "@/services/apis/users";
+import { getAuthMeApi } from "@/services/apis/auth";
+import { getDepartmentTreeApi } from "@/services/apis/departments";
+import { getRolesApi } from "@/services/apis/roles";
 import { setApiCurrentUser } from "@/services/http/axios";
+import type {
+  UserDto,
+  MeResponse,
+  DepartmentDto,
+  RoleDto,
+  Permission,
+} from "@/types/user";
 
-// 部门层级职级
-export type DeptLevel = "普通职员" | "室主任" | "分管副部长" | "设备部长";
-// 厂级层级职级
-export type FactoryLevel = "普通职员" | "设备组长" | "设备厂长";
-// 所属体系
-export type OrgSystem = "department" | "factory";
-export type UserPosition = DeptLevel | FactoryLevel;
-export interface UserRoleAssignment {
-    role: UserPosition;
-    department: string;
+// ============================================================
+// 权限相关工具函数
+// ============================================================
+
+/**
+ * 判断用户是否拥有某个权限
+ * admin 角色拥有全部权限
+ */
+export function hasPermission(me: MeResponse | null, permission: Permission): boolean {
+  if (!me) return false;
+  if (me.roles.includes("admin")) return true;
+  return me.permissions.includes(permission);
 }
-export type UserCapability =
-    | "todo.execute"
-    | "task.create"
-    | "task.assign.department"
-    | "task.assign.member"
-    | "task.review.director"
-    | "task.review.minister"
-    | "task.merge"
-    | "task.view.all";
 
-const POSITION_CAPABILITY_MAP: Record<UserPosition, UserCapability[]> = {
-    "普通职员": ["todo.execute"],
-    "室主任": ["task.create", "task.assign.member", "task.review.director"],
-    "分管副部长": ["task.create", "task.review.minister"],
-    "设备部长": ["task.create", "task.assign.department", "task.review.minister", "task.merge", "task.view.all"],
-    "设备组长": ["task.create", "task.assign.member", "task.review.director"],
-    "设备厂长": ["task.create", "task.assign.department", "task.review.minister", "task.merge", "task.view.all"],
+/**
+ * 判断用户是否为管理员
+ */
+export function isAdmin(me: MeResponse | null): boolean {
+  if (!me) return false;
+  return me.roles.includes("admin");
+}
+
+// 内置角色标签映射
+export const ROLE_LABELS: Record<string, string> = {
+  admin: "系统管理员",
+  dept_leader: "部门领导",
+  team_leader: "室主任",
+  staff: "普通员工",
 };
 
-export const CAPABILITY_LABELS: Record<UserCapability, string> = {
-    "todo.execute": "待办执行",
-    "task.create": "创建任务",
-    "task.assign.department": "分配至科室",
-    "task.assign.member": "科室二次拆分",
-    "task.review.director": "主任审核",
-    "task.review.minister": "部长审批",
-    "task.merge": "结果合并",
-    "task.view.all": "全局查看",
+// 权限标识标签映射
+export const PERMISSION_LABELS: Record<Permission, string> = {
+  "process:deploy": "部署流程定义",
+  "process:manage": "管理流程",
+  "process:view_all": "查看所有流程实例",
+  "process:view_dept": "查看本部门流程实例",
+  "task:view_all": "查看所有任务",
+  "user:manage": "用户管理",
+  "dept:manage": "部门管理",
+  "group:manage": "工作组管理",
+  "role:manage": "角色与权限管理",
+  "file:upload": "上传文件",
+  "file:delete": "删除文件",
 };
+
+export function getRoleLabel(roleId: string): string {
+  return ROLE_LABELS[roleId] || roleId;
+}
+
+export function formatUserName(user: Pick<UserDto, "name" | "username">): string {
+  return user.name || user.username;
+}
+
+// ============================================================
+// 部门树工具函数
+// ============================================================
+
+/** 扁平化部门树 */
+export function flattenDepartmentTree(tree: DepartmentDto[]): DepartmentDto[] {
+  const result: DepartmentDto[] = [];
+  const walk = (nodes: DepartmentDto[]) => {
+    for (const node of nodes) {
+      result.push(node);
+      if (node.children?.length) walk(node.children);
+    }
+  };
+  walk(tree);
+  return result;
+}
+
+/** 获取某部门及其所有子部门 ID */
+export function getDescendantIds(tree: DepartmentDto[], deptId: string): string[] {
+  const ids: string[] = [deptId];
+  const walk = (nodes: DepartmentDto[]) => {
+    for (const node of nodes) {
+      if (node.parentId === deptId || ids.includes(node.parentId || "")) {
+        ids.push(node.id);
+      }
+      if (node.children?.length) walk(node.children);
+    }
+  };
+  walk(tree);
+  return ids;
+}
+
+// ============================================================
+// 兼容层：旧 User / Department 类型 + 旧工具函数
+// 供尚未迁移的组件使用
+// ============================================================
 
 export interface Department {
-    id: string;
-    name: string;
-    description?: string;
-    managerId?: string;
-    managerName?: string;
-    parentId?: string;
+  id: string;
+  name: string;
+  description?: string;
+  managerId?: string;
+  managerName?: string;
+  parentId?: string;
 }
 
 export interface User {
-    id: string;
-    name: string;
-    avatar: string;
-    department: string;
-    role: string;
-    // 所属体系：department = 部门层级，factory = 厂级层级
-    orgSystem: OrgSystem;
-    // 支持多角色兼任（如室主任兼部长）
-    roles: string[];
-    roleAssignments?: UserRoleAssignment[];
-    staffId: string;
-    email: string;
-    phone: string;
-    lastLogin: string;
-    online: boolean;
+  id: string;
+  name: string;
+  avatar: string;
+  department: string;
+  role: string;
+  roles: string[];
+  staffId: string;
+  email: string;
 }
 
-export function getUserRoleAssignments(
-    user: Pick<User, "department" | "role" | "roles"> & Partial<Pick<User, "roleAssignments">>
-): UserRoleAssignment[] {
-    if (user.roleAssignments?.length) {
-        const uniqueAssignments = new Map<string, UserRoleAssignment>();
+/** 旧版能力标识（兼容） */
+export type UserCapability =
+  | "todo.execute"
+  | "task.create"
+  | "task.assign.department"
+  | "task.assign.member"
+  | "task.review.director"
+  | "task.review.minister"
+  | "task.merge"
+  | "task.view.all";
 
-        user.roleAssignments.forEach((assignment) => {
-            uniqueAssignments.set(`${assignment.role}-${assignment.department}`, assignment);
-        });
-
-        return [...uniqueAssignments.values()];
-    }
-
-    const roles = user.roles?.length ? user.roles : [user.role];
-    return roles.filter(Boolean).map((role) => ({
-        role: role as UserPosition,
-        department: user.department,
-    }));
-}
-
-export function getUserRoles(
-    user: Pick<User, "department" | "role" | "roles"> & Partial<Pick<User, "roleAssignments">>
-): UserPosition[] {
-    return [...new Set(getUserRoleAssignments(user).map((assignment) => assignment.role))];
-}
-
-export function getPrimaryRole(
-    user: Pick<User, "department" | "role" | "roles"> & Partial<Pick<User, "roleAssignments">>
-): UserPosition {
-    return (user.role || getUserRoles(user)[0] || "普通职员") as UserPosition;
-}
-
-export function getUserCapabilities(
-    user: Pick<User, "department" | "role" | "roles"> & Partial<Pick<User, "roleAssignments">>
-): UserCapability[] {
-    return [...new Set(getUserRoles(user).flatMap((role) => POSITION_CAPABILITY_MAP[role] ?? []))];
-}
-
+/**
+ * 兼容旧版 hasCapability
+ * 将新权限模型映射到旧能力标识
+ */
 export function hasCapability(
-    user: Pick<User, "department" | "role" | "roles"> & Partial<Pick<User, "roleAssignments">>,
-    capability: UserCapability
+  user: Pick<User, "role" | "roles"> | MeResponse | null,
+  capability: UserCapability
 ): boolean {
-    return getUserCapabilities(user).includes(capability);
-}
+  if (!user) return false;
 
-export function isManagementUser(
-    user: Pick<User, "department" | "role" | "roles"> & Partial<Pick<User, "roleAssignments">>
-): boolean {
-    return getUserCapabilities(user).some((capability) => capability !== "todo.execute");
-}
-
-export function getCapabilityLabels(capabilities: UserCapability[]): string[] {
-    return capabilities.map((capability) => CAPABILITY_LABELS[capability]);
-}
-
-export function summarizeUserRole(user: Pick<User, "role" | "roles">): string {
-    const roles = getUserRoles(user);
-    if (roles.length === 0) {
-        return "未设置岗位";
+  // 如果是 MeResponse（新模型），用 permissions 判断
+  if ("permissions" in user) {
+    const me = user as MeResponse;
+    if (me.roles.includes("admin")) return true;
+    switch (capability) {
+      case "task.create":
+        return me.roles.includes("admin") || me.roles.includes("dept_leader") || me.roles.includes("team_leader");
+      case "task.assign.department":
+        return me.permissions.includes("task:view_all") || me.roles.includes("dept_leader");
+      case "task.assign.member":
+        return me.roles.includes("team_leader") || me.roles.includes("dept_leader");
+      case "task.review.director":
+        return me.roles.includes("team_leader") || me.roles.includes("dept_leader");
+      case "task.review.minister":
+        return me.roles.includes("dept_leader") || me.roles.includes("admin");
+      case "task.merge":
+        return me.permissions.includes("task:view_all");
+      case "task.view.all":
+        return me.permissions.includes("task:view_all");
+      case "todo.execute":
+        return true;
+      default:
+        return false;
     }
+  }
 
-    return roles.length === 1 ? roles[0] : `${roles[0]} +${roles.length - 1}兼岗`;
+  // 旧模型兼容：基于角色名推断
+  const roles = (user as User).roles || [(user as User).role];
+  const isAdminRole = roles.includes("admin");
+  if (isAdminRole) return true;
+
+  const isDeptLeader = roles.includes("dept_leader");
+  const isTeamLeader = roles.includes("team_leader");
+
+  switch (capability) {
+    case "task.create":
+      return isDeptLeader || isTeamLeader;
+    case "task.assign.department":
+      return isDeptLeader;
+    case "task.assign.member":
+      return isTeamLeader || isDeptLeader;
+    case "task.review.director":
+      return isTeamLeader || isDeptLeader;
+    case "task.review.minister":
+      return isDeptLeader;
+    case "task.merge":
+      return isDeptLeader;
+    case "task.view.all":
+      return isDeptLeader;
+    case "todo.execute":
+      return true;
+    default:
+      return false;
+  }
 }
 
-export function formatRoleAssignmentLabel(assignment: UserRoleAssignment): string {
-    return `${assignment.role}（${assignment.department}）`;
+/**
+ * 兼容旧版 isManagementUser
+ */
+export function isManagementUser(user: Pick<User, "role" | "roles"> | MeResponse | null): boolean {
+  if (!user) return false;
+  if ("permissions" in user) {
+    const me = user as MeResponse;
+    return me.roles.includes("admin") || me.roles.includes("dept_leader") || me.roles.includes("team_leader");
+  }
+  const roles = (user as User).roles || [(user as User).role];
+  return roles.some(r => r === "admin" || r === "dept_leader" || r === "team_leader");
 }
 
-const DEPARTMENTS: Department[] = [
-    { id: "dept-1", name: "武钢有限" },
-    { id: "dept-2", name: "设备管理部" },
-    { id: "dept-3", name: "综合组", parentId: "dept-2" },
-    { id: "dept-4", name: "设备室", parentId: "dept-2" },
-    { id: "dept-5", name: "技术室", parentId: "dept-2" },
-    { id: "dept-6", name: "能环部" },
-    { id: "dept-7", name: "运输部" },
-    { id: "dept-8", name: "炼铁厂" },
-    // { id: "dept-9", name: "炼钢厂" },
-    // { id: "dept-10", name: "热轧厂" },
-    // { id: "dept-11", name: "条材厂" },
-    // { id: "dept-12", name: "冷轧厂" },
-    // { id: "dept-13", name: "硅钢部" },
-    // { id: "dept-14", name: "质检中心" },
-    // { id: "dept-15", name: "钢电公司" },
-    // { id: "dept-16", name: "WINSteel"     },
-];
+/**
+ * 兼容旧版 summarizeUserRole
+ */
+export function summarizeUserRole(user: Pick<User, "role" | "roles"> | UserDto | MeResponse | null): string {
+  if (!user) return "未设置";
+  const roles = (user as any).roles as string[] | undefined;
+  if (!roles || roles.length === 0) {
+    const role = (user as any).role as string | undefined;
+    return role ? getRoleLabel(role) : "未设置";
+  }
+  if (roles.length === 1) return getRoleLabel(roles[0]);
+  return `${getRoleLabel(roles[0])} +${roles.length - 1}`;
+}
 
-const USERS: User[] = [
-    { id: "user-1", name: "张明", avatar: "张", department: "技术室", role: "普通职员", orgSystem: "department", roles: ["普通职员"], roleAssignments: [{ role: "普通职员", department: "技术室" }], staffId: "SB001", email: "zhangming@corp.cn", phone: "13800000001", lastLogin: "2026-04-20 10:00", online: true },
-    { id: "user-2", name: "李华", avatar: "李", department: "综合组", role: "普通职员", orgSystem: "department", roles: ["普通职员"], roleAssignments: [{ role: "普通职员", department: "综合组" }], staffId: "SB002", email: "lihua@corp.cn", phone: "13800000002", lastLogin: "2026-04-20 11:30", online: false },
-    { id: "user-3", name: "王芳", avatar: "王", department: "技术室", role: "室主任", orgSystem: "department", roles: ["室主任"], roleAssignments: [{ role: "室主任", department: "技术室" }], staffId: "SB003", email: "wangfang@corp.cn", phone: "13800000003", lastLogin: "2026-04-19 14:00", online: true },
-    { id: "user-4", name: "赵强", avatar: "赵", department: "设备管理部", role: "设备部长", orgSystem: "department", roles: ["设备部长", "室主任"], roleAssignments: [{ role: "设备部长", department: "设备管理部" }, { role: "室主任", department: "设备室" }], staffId: "SB004", email: "zhaoqiang@corp.cn", phone: "13800000004", lastLogin: "2026-04-20 09:00", online: true },
-    { id: "user-8", name: "周凯", avatar: "周", department: "设备管理部", role: "分管副部长", orgSystem: "department", roles: ["分管副部长"], roleAssignments: [{ role: "分管副部长", department: "设备管理部" }], staffId: "SB005", email: "zhoukai@corp.cn", phone: "13800000008", lastLogin: "2026-04-20 15:20", online: true },
-    { id: "user-5", name: "陈静", avatar: "陈", department: "炼铁厂", role: "普通职员", orgSystem: "factory", roles: ["普通职员"], roleAssignments: [{ role: "普通职员", department: "炼铁厂" }], staffId: "SC001", email: "chenjing@corp.cn", phone: "13800000005", lastLogin: "2026-04-18 16:30", online: false },
-    { id: "user-6", name: "刘洋", avatar: "刘", department: "热轧厂", role: "设备组长", orgSystem: "factory", roles: ["设备组长"], roleAssignments: [{ role: "设备组长", department: "热轧厂" }], staffId: "SC002", email: "liuyang@corp.cn", phone: "13800000006", lastLogin: "2026-04-20 13:00", online: true },
-    { id: "user-7", name: "孙磊", avatar: "孙", department: "武钢有限", role: "设备厂长", orgSystem: "factory", roles: ["设备厂长"], roleAssignments: [{ role: "设备厂长", department: "武钢有限" }], staffId: "SC003", email: "sunlei@corp.cn", phone: "13800000007", lastLogin: "2026-04-20 08:30", online: true },
-];
+/**
+ * 兼容旧版 getUserRoleAssignments
+ */
+export function getUserRoleAssignments(user: Pick<User, "role" | "roles" | "department">): Array<{ role: string; department: string }> {
+  const roles = user.roles?.length ? user.roles : [user.role].filter(Boolean);
+  return roles.map(role => ({ role, department: user.department }));
+}
+
+/**
+ * 兼容旧版 formatRoleAssignmentLabel
+ */
+export function formatRoleAssignmentLabel(assignment: { role: string; department: string }): string {
+  return `${getRoleLabel(assignment.role)}（${assignment.department}）`;
+}
+
+// ============================================================
+// 将新 DTO 转为旧 User 类型（兼容层）
+// ============================================================
+
+function userDtoToLegacyUser(dto: UserDto): User {
+  return {
+    id: dto.id,
+    name: dto.name || `${dto.lastName || ""}${dto.firstName || ""}`,
+    avatar: dto.avatar || (dto.name || dto.username || "?").charAt(0),
+    department: dto.department || "",
+    role: dto.roles?.[0] || "staff",
+    roles: dto.roles || ["staff"],
+    staffId: dto.staffId || "",
+    email: dto.email || "",
+  };
+}
+
+function meResponseToLegacyUser(me: MeResponse): User {
+  return {
+    id: me.id,
+    name: me.name || `${me.lastName || ""}${me.firstName || ""}`,
+    avatar: me.avatar || (me.name || me.username || "?").charAt(0),
+    department: me.department?.name || "",
+    role: me.roles?.[0] || "staff",
+    roles: me.roles || ["staff"],
+    staffId: me.staffId || "",
+    email: me.email || "",
+  };
+}
+
+function deptDtoToLegacyDepartment(dto: DepartmentDto): Department {
+  return {
+    id: dto.id,
+    name: dto.name,
+    description: dto.description,
+    managerId: dto.managerId || undefined,
+    parentId: dto.parentId || undefined,
+  };
+}
+
+// ============================================================
+// Context 定义
+// ============================================================
 
 interface UserContextType {
-    currentUser: User;
-    users: User[];
-    departments: Department[];
-    switchUser: (userId: string) => void;
-    addUser: (user: Omit<User, "id">) => void;
-    updateUser: (userId: string, updates: Partial<User>) => void;
-    deleteUser: (userId: string) => void;
-    addDepartment: (dept: Omit<Department, "id">) => void;
-    updateDepartment: (deptId: string, updates: Partial<Department>) => void;
-    deleteDepartment: (deptId: string) => void;
+  /** 当前登录用户完整信息（新模型，含权限） */
+  me: MeResponse | null;
+  /** 当前用户（旧兼容格式） */
+  currentUser: User;
+  /** 用户列表（旧兼容格式） */
+  users: User[];
+  /** 部门列表（旧兼容格式） */
+  departments: Department[];
+  /** 部门树（新模型） */
+  departmentTree: DepartmentDto[];
+  /** 角色列表（新模型） */
+  roles: RoleDto[];
+  /** 用户列表（新模型） */
+  userDtos: UserDto[];
+  /** 数据加载中 */
+  loading: boolean;
+  /** 切换当前用户（开发模式） */
+  switchUser: (userId: string) => void;
+  /** 刷新用户列表 */
+  refreshUsers: () => Promise<void>;
+  /** 刷新部门树 */
+  refreshDepartments: () => Promise<void>;
+  /** 刷新角色列表 */
+  refreshRoles: () => Promise<void>;
+  /** 刷新当前用户信息 */
+  refreshMe: () => Promise<void>;
+  /** 刷新所有数据（登录后调用） */
+  refreshAll: () => Promise<void>;
+  /** 权限检查快捷方法 */
+  can: (permission: Permission) => boolean;
 }
 
 const UserContext = createContext<UserContextType | undefined>(undefined);
 
-function normalizeRemoteRole(
-    backendUser: BackendUser,
-    fallbackRole?: UserPosition
-): UserPosition {
-    const roleSource = [backendUser.role, ...(backendUser.roles || [])].filter(Boolean).join(" ");
-
-    if (roleSource.includes("副部长") || roleSource.includes("分管")) {
-        return "分管副部长";
-    }
-
-    if (roleSource.includes("部长") || roleSource.includes("厂长")) {
-        return backendUser.department?.includes("厂") ? "设备厂长" : "设备部长";
-    }
-
-    if (roleSource.includes("主任") || roleSource.includes("组长")) {
-        return backendUser.department?.includes("厂") ? "设备组长" : "室主任";
-    }
-
-    return fallbackRole || "普通职员";
-}
-
-function getRemoteUserRoles(
-    backendUser: BackendUser,
-    matchedLocalUser?: User
-): UserPosition[] {
-    const fallbackRole = matchedLocalUser?.role as UserPosition | undefined;
-    const remoteRoles = [backendUser.role, ...(backendUser.roles || [])]
-        .filter((role): role is string => Boolean(role && role.trim()));
-
-    if (remoteRoles.length === 0) {
-        if (matchedLocalUser?.roles?.length) {
-            return matchedLocalUser.roles as UserPosition[];
-        }
-
-        return [normalizeRemoteRole(backendUser, fallbackRole)];
-    }
-
-    const primaryRole = normalizeRemoteRole(backendUser, fallbackRole);
-
-    return [...new Set([
-        primaryRole,
-        ...remoteRoles.map((roleText) =>
-            normalizeRemoteRole(
-                { ...backendUser, role: roleText, roles: [roleText] },
-                fallbackRole
-            )
-        ),
-    ])];
-}
-
-function normalizeRemoteUser(
-    backendUser: BackendUser,
-    existingUsers: User[]
-): User {
-    const matchedLocalUser = existingUsers.find((user) =>
-        user.id === backendUser.id ||
-        user.staffId === backendUser.staffId ||
-        user.name === backendUser.name
-    );
-    const department = backendUser.department || matchedLocalUser?.department || "";
-    const remoteUserWithDepartment = {
-        ...backendUser,
-        department,
-    };
-    const roles = getRemoteUserRoles(remoteUserWithDepartment, matchedLocalUser);
-    const role = roles[0] || normalizeRemoteRole(remoteUserWithDepartment, matchedLocalUser?.role as UserPosition | undefined);
-    const hasRemoteRoleInfo = Boolean(backendUser.role) || Boolean(backendUser.roles?.length);
-    const roleAssignments = hasRemoteRoleInfo
-        ? roles.map((assignedRole) => ({
-            role: assignedRole,
-            department,
-        }))
-        : matchedLocalUser?.roleAssignments?.length
-            ? matchedLocalUser.roleAssignments
-            : [{
-                role,
-                department,
-            }];
-
-    return {
-        id: backendUser.id,
-        name: backendUser.name,
-        avatar: backendUser.avatar || matchedLocalUser?.avatar || backendUser.name.charAt(0),
-        department,
-        role,
-        orgSystem: department.includes("厂") ? "factory" : "department",
-        roles,
-        roleAssignments,
-        staffId: backendUser.staffId || matchedLocalUser?.staffId || "",
-        email: backendUser.email || matchedLocalUser?.email || "",
-        phone: matchedLocalUser?.phone || "",
-        lastLogin: matchedLocalUser?.lastLogin || "",
-        online: matchedLocalUser?.online ?? false,
-    };
-}
-
-function normalizeRemoteDepartment(
-    backendDepartment: BackendDepartment,
-    existingDepartments: Department[]
-): Department {
-    const matchedLocalDepartment = existingDepartments.find((department) =>
-        department.id === backendDepartment.id || department.name === backendDepartment.name
-    );
-
-    return {
-        id: backendDepartment.id,
-        name: backendDepartment.name,
-        description: backendDepartment.description || matchedLocalDepartment?.description,
-        managerId: backendDepartment.managerId || matchedLocalDepartment?.managerId,
-        managerName: backendDepartment.managerName || matchedLocalDepartment?.managerName,
-        parentId: backendDepartment.parentId ?? matchedLocalDepartment?.parentId,
-    };
-}
+// ============================================================
+// Provider
+// ============================================================
 
 export function UserProvider({ children }: { children: ReactNode }) {
-    const [currentUser, setCurrentUser] = useState<User>(USERS[3]); // 默认赵强（设备部长）
-    const [users, setUsers] = useState<User[]>(USERS);
-    const [departments, setDepartments] = useState<Department[]>(DEPARTMENTS);
+  const [me, setMe] = useState<MeResponse | null>(null);
+  const [userDtos, setUserDtos] = useState<UserDto[]>([]);
+  const [departmentTree, setDepartmentTree] = useState<DepartmentDto[]>([]);
+  const [roles, setRoles] = useState<RoleDto[]>([]);
+  const [loading, setLoading] = useState(true);
 
-    useEffect(() => {
-        let cancelled = false;
+  // --- 数据加载 ---
 
-        const syncUsers = async () => {
-            try {
-                const remoteUsers = await getUsersApi();
-                if (!remoteUsers.length || cancelled) {
-                    return;
-                }
+  const refreshMe = useCallback(async () => {
+    try {
+      const data = await getAuthMeApi();
+      if (data?.id) {
+        setMe(data);
+        setApiCurrentUser({ id: data.id, name: data.name, department: data.department?.name });
+      }
+    } catch (error: any) {
+      // 401 表示 token 无效，清除本地状态
+      if (error?.status === 401) {
+        setMe(null);
+      }
+      console.warn("GET /auth/me failed", error);
+    }
+  }, []);
 
-                setUsers((previousUsers) => {
-                    const normalizedUsers = remoteUsers.map((backendUser) =>
-                        normalizeRemoteUser(backendUser, previousUsers)
-                    );
+  const refreshUsers = useCallback(async () => {
+    try {
+      const data = await getUsersApi();
+      if (Array.isArray(data) && data.length > 0) {
+        setUserDtos(data);
+      }
+    } catch (error) {
+      console.error("Failed to load users", error);
+    }
+  }, []);
 
-                    setCurrentUser((previous) => {
-                        const matchedUser = normalizedUsers.find((user) =>
-                            user.id === previous.id ||
-                            user.staffId === previous.staffId ||
-                            user.name === previous.name
-                        );
+  const refreshDepartments = useCallback(async () => {
+    try {
+      const data = await getDepartmentTreeApi();
+      if (Array.isArray(data) && data.length > 0) {
+        setDepartmentTree(data);
+      }
+    } catch (error) {
+      console.error("Failed to load department tree", error);
+    }
+  }, []);
 
-                        return matchedUser || previous;
-                    });
+  const refreshRoles = useCallback(async () => {
+    try {
+      const data = await getRolesApi();
+      if (Array.isArray(data) && data.length > 0) {
+        setRoles(data);
+      }
+    } catch (error) {
+      console.error("Failed to load roles", error);
+    }
+  }, []);
 
-                    return normalizedUsers;
-                });
-            } catch (error) {
-                console.error("Failed to load users", error);
-            }
-        };
+  useEffect(() => {
+    let cancelled = false;
 
-        void syncUsers();
-
-        return () => {
-            cancelled = true;
-        };
-    }, []);
-
-    // 调用 GET /auth/me 获取当前登录用户信息
-    useEffect(() => {
-        let cancelled = false;
-
-        const fetchCurrentUser = async () => {
-            try {
-                const me = await getAuthMeApi();
-                if (cancelled || !me?.id) return;
-
-                // 用 /auth/me 返回的 id 匹配用户列表中的用户
-                setCurrentUser((previous) => {
-                    // 先在已有用户列表中查找
-                    const matched = users.find((u) => u.id === me.id);
-                    if (matched) return matched;
-
-                    // 如果用户列表中没有，用 /auth/me 的信息构建一个基础用户
-                    return {
-                        ...previous,
-                        id: me.id,
-                        name: me.name || previous.name,
-                        role: me.role || previous.role,
-                        department: me.department || previous.department,
-                        avatar: me.avatar || me.name?.charAt(0) || previous.avatar,
-                    };
-                });
-            } catch (error) {
-                // /auth/me 失败时保持默认用户，不阻塞应用
-                console.warn("GET /auth/me failed, using default user", error);
-            }
-        };
-
-        void fetchCurrentUser();
-
-        return () => {
-            cancelled = true;
-        };
-    }, []);
-
-    useEffect(() => {
-        let cancelled = false;
-
-        const syncDepartments = async () => {
-            try {
-                const remoteDepartments = await getDepartmentsApi();
-                if (!remoteDepartments.length || cancelled) {
-                    return;
-                }
-
-                setDepartments(remoteDepartments.map((department) =>
-                    normalizeRemoteDepartment(department, DEPARTMENTS)
-                ));
-            } catch (error) {
-                console.error("Failed to load departments", error);
-            }
-        };
-
-        void syncDepartments();
-
-        return () => {
-            cancelled = true;
-        };
-    }, []);
-
-    useEffect(() => {
-        setApiCurrentUser({
-            id: currentUser.id,
-            name: currentUser.name,
-            department: currentUser.department,
-        });
-    }, [currentUser]);
-
-    const switchUser = (userId: string) => {
-        const user = users.find((u) => u.id === userId);
-        if (user) setCurrentUser(user);
+    const init = async () => {
+      setLoading(true);
+      await Promise.allSettled([
+        refreshMe(),
+        refreshUsers(),
+        refreshDepartments(),
+        refreshRoles(),
+      ]);
+      if (!cancelled) setLoading(false);
     };
 
-    const addUser = (userData: Omit<User, "id">) => {
-        const newUser: User = { ...userData, id: `user-${Date.now()}` };
-        setUsers(prev => [...prev, newUser]);
-    };
+    void init();
+    return () => { cancelled = true; };
+  }, [refreshMe, refreshUsers, refreshDepartments, refreshRoles]);
 
-    const updateUser = (userId: string, updates: Partial<User>) => {
-        setUsers(prev => prev.map(u => u.id === userId ? { ...u, ...updates } : u));
-        if (currentUser.id === userId) {
-            setCurrentUser(prev => ({ ...prev, ...updates }));
-        }
-    };
+  // --- 兼容层：旧格式数据 ---
 
-    const deleteUser = (userId: string) => {
-        setUsers(prev => prev.filter(u => u.id !== userId));
-    };
+  const currentUser: User = useMemo(() => {
+    if (me) return meResponseToLegacyUser(me);
+    return { id: "", name: "加载中", avatar: "?", department: "", role: "staff", roles: ["staff"], staffId: "", email: "" };
+  }, [me]);
 
-    const addDepartment = (deptData: Omit<Department, "id">) => {
-        const newDept: Department = { ...deptData, id: `dept-${Date.now()}` };
-        setDepartments(prev => [...prev, newDept]);
-    };
+  const users: User[] = useMemo(() => {
+    return userDtos.map(userDtoToLegacyUser);
+  }, [userDtos]);
 
-    const updateDepartment = (deptId: string, updates: Partial<Department>) => {
-        setDepartments(prev => prev.map(d => d.id === deptId ? { ...d, ...updates } : d));
-    };
+  const departments: Department[] = useMemo(() => {
+    return flattenDepartmentTree(departmentTree).map(deptDtoToLegacyDepartment);
+  }, [departmentTree]);
 
-    const deleteDepartment = (deptId: string) => {
-        setDepartments(prev => prev.filter(d => d.id !== deptId));
-    };
+  // --- 开发模式切换用户 ---
 
-    return (
-        <UserContext.Provider value={{
-            currentUser,
-            users,
-            departments,
-            switchUser,
-            addUser,
-            updateUser,
-            deleteUser,
-            addDepartment,
-            updateDepartment,
-            deleteDepartment
-        }}>
-            {children}
-        </UserContext.Provider>
-    );
+  const switchUser = useCallback((userId: string) => {
+    const user = userDtos.find((u) => u.id === userId);
+    if (!user) return;
+    setApiCurrentUser({ id: user.id, name: user.name, department: user.department });
+    void refreshMe();
+  }, [userDtos, refreshMe]);
+
+  // --- 登录后刷新所有数据 ---
+
+  const refreshAll = useCallback(async () => {
+    setLoading(true);
+    await Promise.allSettled([
+      refreshMe(),
+      refreshUsers(),
+      refreshDepartments(),
+      refreshRoles(),
+    ]);
+    setLoading(false);
+  }, [refreshMe, refreshUsers, refreshDepartments, refreshRoles]);
+
+  // --- 权限检查 ---
+
+  const can = useCallback((permission: Permission) => {
+    return hasPermission(me, permission);
+  }, [me]);
+
+  return (
+    <UserContext.Provider
+      value={{
+        me,
+        currentUser,
+        users,
+        departments,
+        departmentTree,
+        roles,
+        userDtos,
+        loading,
+        switchUser,
+        refreshUsers,
+        refreshDepartments,
+        refreshRoles,
+        refreshMe,
+        refreshAll,
+        can,
+      }}
+    >
+      {children}
+    </UserContext.Provider>
+  );
 }
 
 export function useUserContext() {
-    const context = useContext(UserContext);
-    if (!context) {
-        throw new Error("useUserContext must be used within a UserProvider");
-    }
-    return context;
+  const context = useContext(UserContext);
+  if (!context) {
+    throw new Error("useUserContext must be used within a UserProvider");
+  }
+  return context;
 }

@@ -280,6 +280,16 @@ export function AssignPagesForm({ task, onSuccess, onError, readOnly }: PptColla
       }
     }
 
+    // 检查是否所有页码都已分配
+    const assignedPages = new Set(validAssignments.flatMap((a) => a.pages));
+    const unassignedPages = deptPages.filter((p) => !assignedPages.has(p));
+    if (unassignedPages.length > 0) {
+      const confirmed = window.confirm(
+        `还有 ${unassignedPages.length} 页未分配（第 ${unassignedPages.join("、")} 页），确定要继续提交吗？`
+      );
+      if (!confirmed) return;
+    }
+
     setIsSubmitting(true);
     try {
       const updatedTask = await completePptAction(task.id, {

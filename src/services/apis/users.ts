@@ -1,44 +1,39 @@
 import { http } from "@/services/http/axios";
+import type {
+  UserDto,
+  CreateUserRequest,
+  UpdateUserRequest,
+} from "@/types/user";
 
 const { baseURL } = window.__requestConfig;
 const usersURL = `${baseURL}/api/v1/users`;
-const authURL = `${baseURL}/api/v1/auth`;
 
-export interface BackendUser {
-  id: string;
-  username?: string;
-  name: string;
-  avatar?: string;
-  email?: string;
-  department?: string;
-  role?: string;
-  roles?: string[];
-  staffId?: string;
-}
-
-export interface AuthMeResponse {
-  id: string;
-  name: string;
-  role: string;
-  department?: string;
-  avatar?: string;
-}
-
+/** GET /users */
 export const getUsersApi = (params?: {
-  department?: string;
+  departmentId?: string;
+  groupId?: string;
+  roleId?: string;
   search?: string;
 }) => {
-  return http.get<BackendUser[]>(usersURL, {
-    params,
-  });
+  return http.get<UserDto[]>(usersURL, { params });
 };
 
-/**
- * 获取当前用户信息
- * GET /api/v1/auth/me
- *
- * 响应包含 id、name、role，每个角色的操作都依赖 id 来过滤数据
- */
-export const getAuthMeApi = () => {
-  return http.get<AuthMeResponse>(`${authURL}/me`);
+/** GET /users/{userId} */
+export const getUserApi = (userId: string) => {
+  return http.get<UserDto>(`${usersURL}/${userId}`);
+};
+
+/** POST /users — 需要 user:manage 权限 */
+export const createUserApi = (data: CreateUserRequest) => {
+  return http.post<UserDto>(usersURL, data);
+};
+
+/** PUT /users/{userId} — 需要 user:manage 权限 */
+export const updateUserApi = (userId: string, data: UpdateUserRequest) => {
+  return http.put<UserDto>(`${usersURL}/${userId}`, data);
+};
+
+/** DELETE /users/{userId} — 需要 user:manage 权限（软删除） */
+export const deleteUserApi = (userId: string) => {
+  return http.delete(`${usersURL}/${userId}`);
 };

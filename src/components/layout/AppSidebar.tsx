@@ -11,14 +11,9 @@
   Sparkles,
   Workflow,
   Users,
-  Search,
-  GraduationCap,
-  Star,
-  Presentation,
-  Bell,
-  Map,
-  Mountain,
-  Grid3X3,
+  Building2,
+  Shield,
+  Circle,
 } from "lucide-react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import {
@@ -44,49 +39,24 @@ import {
   DropdownMenuLabel,
 } from "@/components/ui/dropdown-menu";
 import { summarizeUserRole, useUserContext } from "@/contexts/UserContext";
-import { useState, useCallback } from "react";
-import { TaskType } from "@/contexts/TaskContext";
-
-interface TaskTypeNavItem {
-  type: TaskType;
-  label: string;
-  icon: React.ElementType;
-  color: string;
-}
-
-interface TaskTypeGroup {
-  groupLabel: string;
-  items: TaskTypeNavItem[];
-}
-
-const taskTypeGroups: TaskTypeGroup[] = [
-  {
-    groupLabel: "综合管理",
-    items: [
-      { type: "调研反馈", label: "调研反馈", icon: Search, color: "text-blue-500" },
-      { type: "例会反馈", label: "例会反馈", icon: Users, color: "text-indigo-500" },
-      { type: "例会资料", label: "例会资料", icon: Presentation, color: "text-rose-500" },
-      { type: "督办事务", label: "督办事务", icon: Bell, color: "text-orange-500" },
-    ],
-  },
-  {
-    groupLabel: "对标找差",
-    items: [
-      { type: "行动计划", label: "行动计划", icon: Map, color: "text-green-500" },
-      { type: "培训交流", label: "培训交流", icon: GraduationCap, color: "text-cyan-500" },
-      { type: "他山之石", label: "他山之石", icon: Mountain, color: "text-teal-500" },
-      { type: "标杆机组评价", label: "标杆机组评价", icon: Star, color: "text-amber-500" },
-      { type: "体系能力评价", label: "体系能力评价", icon: Grid3X3, color: "text-purple-500" },
-    ],
-  },
-];
+import { useState, useCallback, useEffect } from "react";
+import { logoutApi } from "@/services/apis/auth";
+import {
+  getProcessCategoriesGroupedApi,
+  type ProcessCategoryGroup,
+} from "@/services/apis/process-categories";
 
 const staticNavItems = [
-  { title: "工作台", url: "/", icon: LayoutDashboard },
-  { title: "待办中心", url: "/todos", icon: ClipboardList },
-  { title: "流程中心", url: "/processes", icon: Workflow },
-  { title: "文档中心", url: "/documents", icon: FileText },
-  { title: "用户管理", url: "/settings/users", icon: Users },
+  { title: "工作台", url: "/", icon: LayoutDashboard, permission: null },
+  { title: "待办中心", url: "/todos", icon: ClipboardList, permission: null },
+  { title: "流程中心", url: "/processes", icon: Workflow, permission: null },
+  { title: "文档中心", url: "/documents", icon: FileText, permission: null },
+];
+
+const identityNavItems = [
+  { title: "部门管理", url: "/settings/departments", icon: Building2, permission: "user:manage" as const },
+  { title: "用户管理", url: "/settings/users", icon: Users, permission: "user:manage" as const },
+  { title: "角色管理", url: "/settings/roles", icon: Shield, permission: "user:manage" as const },
 ];
 
 export function AppSidebar() {
@@ -94,11 +64,37 @@ export function AppSidebar() {
   const collapsed = state === "collapsed";
   const location = useLocation();
   const navigate = useNavigate();
-  const { currentUser, users, switchUser } = useUserContext();
+  const { currentUser, can } = useUserContext();
 
   const isOnTasksPage = location.pathname.startsWith("/tasks");
+  const isOnIdentityPage = location.pathname.startsWith("/settings/");
+
+  // 根据权限过滤菜单项
+  const visibleNavItems = staticNavItems.filter(item => {
+    if (!item.permission) return true;
+    return can(item.permission);
+  });
+  const visibleIdentityItems = identityNavItems.filter(item => can(item.permission));
   const [taskMenuOpen, setTaskMenuOpen] = useState(isOnTasksPage);
+  const [identityMenuOpen, setIdentityMenuOpen] = useState(isOnIdentityPage);
   const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
+
+  // 从后端获取流程类别菜单
+  const [categoryGroups, setCategoryGroups] = useState<ProcessCategoryGroup[]>([]);
+
+  useEffect(() => {
+    const loadCategories = async () => {
+      try {
+        const response = await getProcessCategoriesGroupedApi({ activeOnly: true });
+        const groups = Array.isArray(response) ? response : (response as any)?.data ?? [];
+        setCategoryGroups(groups);
+      } catch {
+        // 接口失败时菜单为空
+        setCategoryGroups([]);
+      }
+    };
+    void loadCategories();
+  }, []);
 
   const toggleGroup = useCallback((groupLabel: string) => {
     setCollapsedGroups(prev => ({ ...prev, [groupLabel]: !prev[groupLabel] }));
@@ -148,7 +144,7 @@ export function AppSidebar() {
             <SidebarMenu className="space-y-0.5">
 
               {/* 工作台 + 待办中心 */}
-              {staticNavItems.slice(0, 2).map((item) => {
+              {visibleNavItems.slice(0, 2).map((item) => {
                 const isActive = location.pathname === item.url;
                 return (
                   <SidebarMenuItem key={item.title}>
@@ -213,18 +209,18 @@ export function AppSidebar() {
                 {/* 任务类型子菜单 */}
                 {!collapsed && taskMenuOpen && (
                   <div className="mt-1 ml-3 pl-3 border-l border-border/50 space-y-1 py-1">
-                    {taskTypeGroups.map((group) => {
-                      const isGroupCollapsed = !!collapsedGroups[group.groupLabel];
+                    {categoryGroups.map((group) => {
+                      const isGroupCollapsed = !!collapsedGroups[group.menuGroup];
                       return (
-                        <div key={group.groupLabel}>
+                        <div key={group.menuGroup}>
                           <button
-                            onClick={() => toggleGroup(group.groupLabel)}
+                            onClick={() => toggleGroup(group.menuGroup)}
                             className={cn(
                               "group w-full flex items-center gap-2.5 rounded-lg px-2.5 py-1.5 transition-all duration-200 text-sm font-medium",
                               "text-sidebar-foreground/80 hover:bg-white/50 dark:hover:bg-white/10 hover:text-foreground"
                             )}
                           >
-                            <span className="flex-1 text-left">{group.groupLabel}</span>
+                            <span className="flex-1 text-left">{group.menuGroup}</span>
                             {isGroupCollapsed
                               ? <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
                               : <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
@@ -233,12 +229,11 @@ export function AppSidebar() {
                           {!isGroupCollapsed && (
                             <div className="space-y-0.5 mt-0.5">
                               {group.items.map((item) => {
-                                const Icon = item.icon;
-                                const isTypeActive = currentTaskType === item.type;
+                                const isTypeActive = currentTaskType === item.code;
                                 return (
-                                  <div key={item.type}>
+                                  <div key={item.code}>
                                     <NavLink
-                                      to={`/tasks/${encodeURIComponent(item.type)}`}
+                                      to={`/tasks/${encodeURIComponent(item.code)}?name=${encodeURIComponent(item.name)}`}
                                       className={cn(
                                         "flex items-center gap-2.5 rounded-lg px-2.5 py-1.5 transition-all duration-150 text-sm",
                                         isTypeActive
@@ -246,8 +241,8 @@ export function AppSidebar() {
                                           : "text-sidebar-foreground/80 hover:bg-white/50 dark:hover:bg-white/10 hover:text-foreground"
                                       )}
                                     >
-                                      <Icon className={cn("h-3.5 w-3.5 shrink-0", isTypeActive ? "text-primary" : item.color)} />
-                                      <span className="truncate">{item.label}</span>
+                                      <Circle className={cn("h-2 w-2 shrink-0 fill-current", isTypeActive ? "text-primary" : "text-muted-foreground/50")} />
+                                      <span className="truncate">{item.name}</span>
                                       {isTypeActive && (
                                         <div className="ml-auto h-1.5 w-1.5 rounded-full bg-primary shrink-0" />
                                       )}
@@ -264,8 +259,8 @@ export function AppSidebar() {
                 )}
               </SidebarMenuItem>
 
-              {/* 其余静态菜单 */}
-              {staticNavItems.slice(2).map((item) => {
+              {/* 流程中心 + 文档中心 */}
+              {visibleNavItems.slice(2).map((item) => {
                 const isActive = location.pathname === item.url;
                 return (
                   <SidebarMenuItem key={item.title}>
@@ -288,6 +283,73 @@ export function AppSidebar() {
                   </SidebarMenuItem>
                 );
               })}
+
+              {/* 组织权限 — 可展开子菜单 */}
+              {visibleIdentityItems.length > 0 && (
+                <SidebarMenuItem>
+                  <button
+                    onClick={() => {
+                      if (collapsed) {
+                        navigate("/settings/departments");
+                      } else {
+                        setIdentityMenuOpen(v => !v);
+                        if (!isOnIdentityPage) navigate("/settings/departments");
+                      }
+                    }}
+                    className={cn(
+                      "group w-full flex items-center gap-3 rounded-xl px-3 py-2.5 transition-all duration-200",
+                      isOnIdentityPage
+                        ? "bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300"
+                        : "text-sidebar-foreground hover:bg-white/60 dark:hover:bg-white/10"
+                    )}
+                  >
+                    <Settings className={cn(
+                      "h-5 w-5 shrink-0",
+                      isOnIdentityPage ? "text-blue-600" : "text-sidebar-muted group-hover:text-primary"
+                    )} />
+                    {!collapsed && (
+                      <>
+                        <span className={cn(
+                          "text-sm font-medium flex-1 text-left",
+                          isOnIdentityPage ? "text-blue-700" : "group-hover:text-foreground"
+                        )}>组织权限</span>
+                        {identityMenuOpen
+                          ? <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                          : <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                        }
+                      </>
+                    )}
+                  </button>
+
+                  {/* 组织权限子菜单 */}
+                  {!collapsed && identityMenuOpen && (
+                    <div className="mt-1 ml-3 pl-3 border-l border-border/50 space-y-0.5 py-1">
+                      {visibleIdentityItems.map((item) => {
+                        const Icon = item.icon;
+                        const isActive = location.pathname === item.url;
+                        return (
+                          <NavLink
+                            key={item.url}
+                            to={item.url}
+                            className={cn(
+                              "flex items-center gap-2.5 rounded-lg px-2.5 py-1.5 transition-all duration-150 text-sm",
+                              isActive
+                                ? "bg-primary/10 text-primary font-semibold"
+                                : "text-sidebar-foreground/80 hover:bg-white/50 dark:hover:bg-white/10 hover:text-foreground"
+                            )}
+                          >
+                            <Icon className={cn("h-3.5 w-3.5 shrink-0", isActive ? "text-primary" : "text-muted-foreground")} />
+                            <span className="truncate">{item.title}</span>
+                            {isActive && (
+                              <div className="ml-auto h-1.5 w-1.5 rounded-full bg-primary shrink-0" />
+                            )}
+                          </NavLink>
+                        );
+                      })}
+                    </div>
+                  )}
+                </SidebarMenuItem>
+              )}
 
             </SidebarMenu>
           </SidebarGroupContent>
@@ -320,47 +382,28 @@ export function AppSidebar() {
               )}
             </button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-72">
-            <DropdownMenuLabel className="flex items-center gap-2 px-2 py-1.5 text-xs font-normal text-muted-foreground">
-              <Users className="h-3.5 w-3.5" />
-              <span>切换身份 (仅测试用)</span>
+          <DropdownMenuContent align="end" className="w-56">
+            <DropdownMenuLabel className="font-normal">
+              <div className="flex flex-col space-y-1">
+                <p className="text-sm font-medium leading-none">{currentUser.name}</p>
+                <p className="text-xs leading-none text-muted-foreground">
+                  {currentUser.department} · {summarizeUserRole(currentUser)}
+                </p>
+              </div>
             </DropdownMenuLabel>
-            <div className="max-h-48 overflow-y-auto">
-              {users.map((user) => (
-                <DropdownMenuItem
-                  key={user.id}
-                  className={cn(
-                    "cursor-pointer flex items-center justify-between",
-                    user.id === currentUser.id && "bg-accent/50 font-medium"
-                  )}
-                  onClick={() => switchUser(user.id)}
-                >
-                  <div className="flex items-center gap-2 min-w-0">
-                    <Avatar className="h-6 w-6 shrink-0">
-                      <AvatarFallback className="text-xs bg-primary/10 text-primary">
-                        {user.avatar}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div className="flex flex-col min-w-0">
-                      <span className="text-xs font-medium leading-tight">{user.name}</span>
-                      <span className="text-xs text-muted-foreground leading-tight truncate">{user.department} · {summarizeUserRole(user)}</span>
-                    </div>
-                  </div>
-                  {user.id === currentUser.id && <div className="h-1.5 w-1.5 rounded-full bg-primary shrink-0" />}
-                </DropdownMenuItem>
-              ))}
-            </div>
             <DropdownMenuSeparator />
             <DropdownMenuItem className="cursor-pointer">
               <UserIcon className="mr-2 h-4 w-4" />
               <span>个人信息</span>
             </DropdownMenuItem>
-            <DropdownMenuItem className="cursor-pointer">
-              <Settings className="mr-2 h-4 w-4" />
-              <span>设置</span>
-            </DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem className="cursor-pointer text-destructive focus:text-destructive">
+            <DropdownMenuItem
+              className="cursor-pointer text-destructive focus:text-destructive"
+              onClick={async () => {
+                await logoutApi();
+                navigate("/login");
+              }}
+            >
               <LogOut className="mr-2 h-4 w-4" />
               <span>退出登录</span>
             </DropdownMenuItem>

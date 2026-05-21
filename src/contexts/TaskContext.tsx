@@ -96,7 +96,7 @@ interface TaskContextType {
   /** 流程实例列表 */
   processInstances: ProcessInstanceDto[];
   /** 加载流程实例列表 */
-  refreshProcessInstances: (params?: { processDefinitionKey?: string; category?: string; keyword?: string }) => Promise<void>;
+  refreshProcessInstances: (params?: { processDefinitionKey?: string; categoryCode?: string; keyword?: string }) => Promise<void>;
   /** 启动流程实例 */
   startProcess: (processKey: string, variables?: Record<string, unknown>) => Promise<ProcessInstanceDto | undefined>;
   /** 终止流程实例 */
@@ -215,11 +215,11 @@ export function TaskProvider({ children }: { children: ReactNode }) {
 
   // ─── 流程实例操作 ──────────────────────────────────────
 
-  const refreshProcessInstances = async (params?: { processDefinitionKey?: string; category?: string; keyword?: string }) => {
+  const refreshProcessInstances = async (params?: { processDefinitionKey?: string; categoryCode?: string; keyword?: string }) => {
     try {
       const response = await getProcessInstancesApi({
         processDefinitionKey: params?.processDefinitionKey,
-        category: params?.category,
+        categoryCode: params?.categoryCode,
         keyword: params?.keyword,
         size: 100,
       });
@@ -347,7 +347,6 @@ export function TaskProvider({ children }: { children: ReactNode }) {
     if (taskData.type === TaskTypeEnum.MeetingMaterial) {
       const variables: Record<string, unknown> = {
         title: taskData.title,
-        category: taskData.category || "例会资料",
         department: taskData.department,
       };
       if (taskData.description) variables.description = taskData.description;
