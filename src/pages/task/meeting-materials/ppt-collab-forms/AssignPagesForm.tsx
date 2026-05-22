@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Plus, Trash2, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,11 +11,23 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { useTaskContext } from "@/contexts/TaskContext";
 import { useUserContext } from "@/contexts/UserContext";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import type { PptCollabFormProps } from "./types";
+import { getUsersApi } from "@/services/apis/users";
+import type { UserDto } from "@/types/user";
 
 // ---- PageSelector with range support ----
 function PageSelector({
@@ -185,13 +197,12 @@ interface Assignment {
 // ---- AssignPagesForm (left-list + right-detail layout) ----
 export function AssignPagesForm({ task, onSuccess, onError, readOnly }: PptCollabFormProps) {
   const { completePptAction } = useTaskContext();
-  const { currentUser, users } = useUserContext();
+  const { currentUser } = useUserContext();
   const { toast } = useToast();
 
   const workflow = task.meetingMaterialWorkflow;
 
   // 找到当前用户负责的部门
-  // 优先通过 headUserId 匹配，如果匹配不到则取第一个（信任后端 assignee 分配）
   const myDept = workflow?.deptAssignments.find(
     (d) => d.headUserId === currentUser.id
   ) || (workflow?.deptAssignments.length === 1 ? workflow.deptAssignments[0] : undefined);
@@ -200,20 +211,33 @@ export function AssignPagesForm({ task, onSuccess, onError, readOnly }: PptColla
     ? [...new Set(myDept.pages)].sort((a, b) => a - b)
     : [];
 
-  // Users that can be assigned (non-management, in same dept or sub-depts)
-  const assignableUsers = users.filter(
-    (u) =>
-      u.department === myDept?.department &&
-      !u.roles.some((r) =>
-        ["室主任", "设备部长", "分管副部长", "设备厂长", "设备组长"].includes(r)
-      )
-  );
+  // 通过接口获取该部门下可分配的用户（roleId=staff 过滤普通员工）
+  const [assignableUsers, setAssignableUsers] = useState<UserDto[]>([]);
+  const [usersLoading, setUsersLoading] = useState(false);
+
+  useEffect(() => {
+    if (!myDept?.departmentId) return;
+    const loadUsers = async () => {
+      setUsersLoading(true);
+      try {
+        const users = await getUsersApi({ departmentId: myDept.departmentId, roleId: "staff" });
+        setAssignableUsers(Array.isArray(users) ? users : []);
+      } catch {
+        setAssignableUsers([]);
+      } finally {
+        setUsersLoading(false);
+      }
+    };
+    void loadUsers();
+  }, [myDept?.departmentId]);
 
   const [assignments, setAssignments] = useState<Assignment[]>([
     { userId: "", pages: [], taskDescription: "" },
   ]);
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [confirmSubmit, setConfirmSubmit] = useState(false);
+  const [unassignedWarning, setUnassignedWarning] = useState("");
 
   const getOccupiedPages = (excludeIndex: number) =>
     assignments
@@ -249,7 +273,7 @@ export function AssignPagesForm({ task, onSuccess, onError, readOnly }: PptColla
 
   const getUserName = (userId: string) => {
     const user = assignableUsers.find((u) => u.id === userId);
-    return user?.name || "";
+    return user?.name || user?.username || "";
   };
 
   const handleSubmit = async () => {
@@ -284,11 +308,23 @@ export function AssignPagesForm({ task, onSuccess, onError, readOnly }: PptColla
     const assignedPages = new Set(validAssignments.flatMap((a) => a.pages));
     const unassignedPages = deptPages.filter((p) => !assignedPages.has(p));
     if (unassignedPages.length > 0) {
-      const confirmed = window.confirm(
-        `还有 ${unassignedPages.length} 页未分配（第 ${unassignedPages.join("、")} 页），确定要继续提交吗？`
-      );
-      if (!confirmed) return;
+      setUnassignedWarning(`还有 ${unassignedPages.length} 页未分配（第 ${unassignedPages.join("、")} 页）`);
+      setConfirmSubmit(true);
+      return;
     }
+
+    await doSubmit(validAssignments);
+  };
+
+  const doSubmit = async (validAssignments?: Assignment[]) => {
+    setConfirmSubmit(false);
+    setUnassignedWarning("");
+
+    const toSubmit = validAssignments || assignments.filter(
+      (a) => a.userId && a.pages.length > 0
+    );
+
+    if (!myDept) return;
 
     setIsSubmitting(true);
     try {
@@ -296,7 +332,7 @@ export function AssignPagesForm({ task, onSuccess, onError, readOnly }: PptColla
         action: "assign_pages",
         payload: {
           deptId: myDept.id,
-          assignments: validAssignments.map((a) => ({
+          assignments: toSubmit.map((a) => ({
             userId: a.userId,
             pages: a.pages,
             taskDescription: a.taskDescription || undefined,
@@ -320,8 +356,13 @@ export function AssignPagesForm({ task, onSuccess, onError, readOnly }: PptColla
 
   if (!myDept) {
     return (
-      <div className="text-sm text-muted-foreground py-2">
-        未找到您负责的部门分配信息，可能业务数据尚未加载完成。
+      <div className="flex flex-col items-center justify-center py-12 text-center space-y-3">
+        <p className="text-sm text-muted-foreground">
+          未找到您负责的部门分配信息
+        </p>
+        <p className="text-xs text-muted-foreground">
+          可能业务数据尚未加载完成，请返回后重新进入
+        </p>
       </div>
     );
   }
@@ -406,9 +447,11 @@ export function AssignPagesForm({ task, onSuccess, onError, readOnly }: PptColla
                     <SelectValue placeholder="选择员工" />
                   </SelectTrigger>
                   <SelectContent>
-                    {assignableUsers.map((u) => (
+                    {usersLoading ? (
+                      <SelectItem value="_loading" disabled>加载中...</SelectItem>
+                    ) : assignableUsers.map((u) => (
                       <SelectItem key={u.id} value={u.id}>
-                        {u.name} · {u.department}
+                        {u.name || u.username}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -452,6 +495,22 @@ export function AssignPagesForm({ task, onSuccess, onError, readOnly }: PptColla
 
       {/* Footer: Submit */}
       <div className="shrink-0 pt-4">
+        <AlertDialog open={confirmSubmit} onOpenChange={setConfirmSubmit}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>页码未完全分配</AlertDialogTitle>
+              <AlertDialogDescription>
+                {unassignedWarning}，确定要继续提交吗？
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>取消</AlertDialogCancel>
+              <AlertDialogAction onClick={() => void doSubmit()}>
+                确认提交
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
         <Button
           className="w-full h-10 font-semibold"
           disabled={isSubmitting}

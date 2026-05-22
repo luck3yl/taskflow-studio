@@ -173,34 +173,31 @@ export function AppSidebar() {
                 <button
                   onClick={() => {
                     if (collapsed) {
-                      navigate("/tasks");
+                      setTaskMenuOpen(true);
                     } else {
                       setTaskMenuOpen(v => !v);
-                      if (!isOnTasksPage) navigate("/tasks");
                     }
                   }}
                   className={cn(
                     "group w-full flex items-center gap-3 rounded-xl px-3 py-2.5 transition-all duration-200",
-                    isOnTasksPage && !currentTaskType
-                      ? "bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-600/25"
-                      : isOnTasksPage
-                        ? "bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300"
-                        : "text-sidebar-foreground hover:bg-white/60 dark:hover:bg-white/10"
+                    isOnTasksPage
+                      ? "bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300"
+                      : "text-sidebar-foreground hover:bg-white/60 dark:hover:bg-white/10"
                   )}
                 >
                   <FolderKanban className={cn(
                     "h-5 w-5 shrink-0",
-                    isOnTasksPage ? (currentTaskType ? "text-blue-600" : "text-white") : "text-sidebar-muted group-hover:text-primary"
+                    isOnTasksPage ? "text-blue-600" : "text-sidebar-muted group-hover:text-primary"
                   )} />
                   {!collapsed && (
                     <>
                       <span className={cn(
                         "text-sm font-medium flex-1 text-left",
-                        isOnTasksPage && !currentTaskType ? "text-white" : isOnTasksPage ? "text-blue-700" : "group-hover:text-foreground"
+                        isOnTasksPage ? "text-blue-700" : "group-hover:text-foreground"
                       )}>任务中心</span>
                       {taskMenuOpen
-                        ? <ChevronDown className={cn("h-4 w-4 transition-transform", isOnTasksPage && !currentTaskType ? "text-white/70" : "text-muted-foreground")} />
-                        : <ChevronRight className={cn("h-4 w-4 transition-transform", isOnTasksPage && !currentTaskType ? "text-white/70" : "text-muted-foreground")} />
+                        ? <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                        : <ChevronRight className="h-4 w-4 text-muted-foreground" />
                       }
                     </>
                   )}

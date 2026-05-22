@@ -36,11 +36,8 @@ import {
 import { flattenDepartmentTree, useUserContext } from "@/contexts/UserContext";
 import { useToast } from "@/hooks/use-toast";
 import {
-  addDepartmentMemberApi,
   createDepartmentApi,
   deleteDepartmentApi,
-  getDepartmentMembersApi,
-  removeDepartmentMemberApi,
   updateDepartmentApi,
 } from "@/services/apis/departments";
 import {
@@ -54,7 +51,6 @@ import {
 import { getUsersApi } from "@/services/apis/users";
 import type {
   DepartmentDto,
-  DepartmentMemberDto,
   GroupDto,
   GroupMemberDto,
   UserDto,
@@ -104,13 +100,6 @@ export function DepartmentManagement() {
     parentId: "root",
     managerId: "",
   });
-
-  // ─── 部门成员管理 Sheet ──────────────────────────
-  const [isMembersSheetOpen, setIsMembersSheetOpen] = useState(false);
-  const [deptMembers, setDeptMembers] = useState<DepartmentMemberDto[]>([]);
-  const [allUsers, setAllUsers] = useState<UserDto[]>([]);
-  const [membersLoading, setMembersLoading] = useState(false);
-  const [addMemberSearch, setAddMemberSearch] = useState("");
 
   // ─── 工作组列表 ────────────────────────────────
   const [groups, setGroups] = useState<GroupDto[]>([]);
@@ -235,77 +224,6 @@ export function DepartmentManagement() {
       });
     }
   };
-
-  // ─── 部门成员 ──────────────────────────────────
-
-  const openMembersSheet = async (dept: DepartmentDto) => {
-    setSelectedDept(dept);
-    setMembersLoading(true);
-    setIsMembersSheetOpen(true);
-    setAddMemberSearch("");
-
-    try {
-      const [members, users] = await Promise.all([
-        getDepartmentMembersApi(dept.id),
-        getUsersApi(),
-      ]);
-      setDeptMembers(Array.isArray(members) ? members : []);
-      setAllUsers(Array.isArray(users) ? users : []);
-    } catch (error: any) {
-      toast({
-        title: "加载失败",
-        description: error.message,
-        variant: "destructive",
-      });
-    } finally {
-      setMembersLoading(false);
-    }
-  };
-
-  const handleAddMember = async (userId: string) => {
-    if (!selectedDept) return;
-
-    try {
-      await addDepartmentMemberApi(selectedDept.id, userId);
-      const members = await getDepartmentMembersApi(selectedDept.id);
-      setDeptMembers(Array.isArray(members) ? members : []);
-      await refreshDepartments();
-      toast({ title: "用户已加入部门" });
-    } catch (error: any) {
-      toast({
-        title: "加入失败",
-        description: error.message,
-        variant: "destructive",
-      });
-    }
-  };
-
-  const handleRemoveMember = async (userId: string) => {
-    if (!selectedDept) return;
-
-    try {
-      await removeDepartmentMemberApi(selectedDept.id, userId);
-      setDeptMembers((prev) => prev.filter((member) => member.id !== userId));
-      await refreshDepartments();
-      toast({ title: "成员已移除" });
-    } catch (error: any) {
-      toast({
-        title: "移除失败",
-        description: error.message,
-        variant: "destructive",
-      });
-    }
-  };
-
-  const availableUsersToAdd = allUsers.filter(
-    (user) =>
-      !deptMembers.some((member) => member.id === user.id) &&
-      (addMemberSearch
-        ? user.name.includes(addMemberSearch) ||
-          user.username.includes(addMemberSearch) ||
-          (user.staffId || "").includes(addMemberSearch)
-        : true),
-  );
 
   // ─── 工作组 CRUD ────────────────────────────────
 
@@ -493,17 +411,6 @@ export function DepartmentManagement() {
                 className="h-8 w-8 p-0"
                 onClick={(e) => {
                   e.stopPropagation();
-                  void openMembersSheet(dept);
-                }}
-              >
-                <Users className="h-3.5 w-3.5" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-8 w-8 p-0"
-                onClick={(e) => {
-                  e.stopPropagation();
                   openDeptSheet(dept);
                 }}
               >
@@ -535,7 +442,7 @@ export function DepartmentManagement() {
 
   return (
     <>
-      <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)]">
+      <div className="grid items-start gap-4 xl:grid-cols-[360px_minmax(0,1fr)]">
         {/* ─── 左侧：部门树 ──────────────────────── */}
         <Card className="border-border/50 bg-white/80 shadow-sm dark:bg-black/20">
           <CardHeader className="border-b border-border/30 p-4 pb-3">
@@ -806,171 +713,6 @@ export function DepartmentManagement() {
               {editingDept ? "保存" : "创建"}
             </Button>
           </SheetFooter>
-        </SheetContent>
-      </Sheet>
-
-      {/* ─── 部门成员 Sheet ──────────────────────── */}
-      <Sheet open={isMembersSheetOpen} onOpenChange={setIsMembersSheetOpen}>
-        <SheetContent
-          side="right"
-          className="flex h-full w-full flex-col overflow-hidden p-0 sm:max-w-4xl"
-        >
-          <SheetHeader className="border-b border-border/50 px-6 py-5">
-            <SheetTitle className="flex items-center gap-2">
-              <Users className="h-5 w-5 text-primary" />
-              {selectedDept ? `${selectedDept.name} / 成员管理` : "成员管理"}
-            </SheetTitle>
-            <SheetDescription>
-              这里只用于把已有账号加入当前部门，不会创建新账号
-            </SheetDescription>
-          </SheetHeader>
-
-          {membersLoading ? (
-            <div className="flex flex-1 items-center justify-center">
-              <Loader2 className="h-6 w-6 animate-spin text-primary" />
-            </div>
-          ) : (
-            <>
-              <div className="flex-1 overflow-y-auto px-6 py-6">
-                <div className="grid gap-6 xl:grid-cols-[minmax(0,0.95fr)_minmax(0,1.25fr)]">
-                  <div className="min-w-0 space-y-3">
-                    <div className="flex items-center justify-between">
-                      <Label className="text-sm font-semibold">当前成员</Label>
-                      <span className="text-xs text-muted-foreground">
-                        {deptMembers.length} 人
-                      </span>
-                    </div>
-
-                    <div className="space-y-2">
-                      {deptMembers.length === 0 && (
-                        <div className="rounded-xl border border-dashed border-border/60 px-4 py-8 text-center text-sm text-muted-foreground">
-                          当前部门还没有成员
-                        </div>
-                      )}
-
-                      {deptMembers.map((member) => (
-                        <div
-                          key={member.id}
-                          className="flex items-center justify-between rounded-xl border border-border/50 bg-muted/10 px-3 py-3"
-                        >
-                          <div className="flex min-w-0 items-center gap-3">
-                            <Avatar className="h-9 w-9">
-                              <AvatarFallback
-                                className={avatarFallbackClassName}
-                              >
-                                {getAvatarLabel(member.name)}
-                              </AvatarFallback>
-                            </Avatar>
-                            <div className="min-w-0">
-                              <p className="truncate text-sm font-medium">
-                                {getDisplayName(member.name)}
-                              </p>
-                              <div className="mt-1 flex flex-wrap gap-1.5">
-                                <span className={metaBadgeClassName}>
-                                  {member.staffId ? "已设置工号" : "未设置工号"}
-                                </span>
-                                <span className={metaBadgeClassName}>
-                                  {member.email ? "已设置邮箱" : "未设置邮箱"}
-                                </span>
-                              </div>
-                            </div>
-                          </div>
-                          {canManageDepts && (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-8 px-2 text-xs text-destructive hover:text-destructive"
-                              onClick={() => void handleRemoveMember(member.id)}
-                            >
-                              移除
-                            </Button>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className="min-w-0 space-y-3">
-                    <div className="space-y-1">
-                      <Label className="text-sm font-semibold">
-                        加入已有用户
-                      </Label>
-                      <p className="text-xs text-muted-foreground">
-                        这里只调整部门归属，不会新增账号
-                      </p>
-                    </div>
-
-                    <Input
-                      placeholder="搜索姓名、账号或工号"
-                      value={addMemberSearch}
-                      onChange={(event) =>
-                        setAddMemberSearch(event.target.value)
-                      }
-                      className="h-10 rounded-lg text-sm"
-                    />
-
-                    <div className="space-y-2">
-                      {availableUsersToAdd.length === 0 && (
-                        <div className="rounded-xl border border-dashed border-border/60 px-4 py-8 text-center text-sm text-muted-foreground">
-                          没有可加入的用户
-                        </div>
-                      )}
-
-                      {availableUsersToAdd.slice(0, 24).map((user) => (
-                        <div
-                          key={user.id}
-                          className="flex items-center justify-between rounded-xl border border-border/50 bg-background px-3 py-3"
-                        >
-                          <div className="flex min-w-0 items-center gap-3">
-                            <Avatar className="h-9 w-9">
-                              <AvatarFallback
-                                className={avatarFallbackClassName}
-                              >
-                                {getAvatarLabel(user.name)}
-                              </AvatarFallback>
-                            </Avatar>
-                            <div className="min-w-0">
-                              <p className="truncate text-sm font-medium">
-                                {getDisplayName(user.name)}
-                              </p>
-                              <div className="mt-1 flex flex-wrap gap-1.5">
-                                <span className={metaBadgeClassName}>
-                                  {user.department?.trim() || "未分配部门"}
-                                </span>
-                                {!user.staffId && (
-                                  <span className={metaBadgeClassName}>
-                                    未设置工号
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="h-8 rounded-lg text-xs"
-                            onClick={() => void handleAddMember(user.id)}
-                          >
-                            加入
-                          </Button>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <SheetFooter className="border-t border-border/50 px-6 py-4">
-                <Button
-                  variant="ghost"
-                  onClick={() => setIsMembersSheetOpen(false)}
-                  className="rounded-lg"
-                >
-                  关闭
-                </Button>
-              </SheetFooter>
-            </>
-          )}
         </SheetContent>
       </Sheet>
 

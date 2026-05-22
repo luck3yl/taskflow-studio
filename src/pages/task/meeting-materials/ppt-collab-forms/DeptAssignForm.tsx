@@ -11,6 +11,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { useTaskContext } from "@/contexts/TaskContext";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
@@ -205,7 +215,7 @@ export function DeptAssignForm({ task, onSuccess, onError, totalPages: propTotal
   const [filteredUsers, setFilteredUsers] = useState<UserDto[]>([]);
   const [loadingData, setLoadingData] = useState(true);
 
-  // 加载部门和用户列表
+  // 仅加载部门列表，用户在选择部门后按需加载
   useEffect(() => {
     const loadData = async () => {
       setLoadingData(true);
@@ -230,13 +240,15 @@ export function DeptAssignForm({ task, onSuccess, onError, totalPages: propTotal
   ]);
   const [selectedDeptIndex, setSelectedDeptIndex] = useState(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [confirmSubmit, setConfirmSubmit] = useState(false);
+  const [unassignedWarning, setUnassignedWarning] = useState("");
 
   // 当选中行的部门变化时，按 departmentId 筛选用户
   const currentAssignment = deptAssignments[selectedDeptIndex];
 
   useEffect(() => {
     if (!currentAssignment?.departmentId) {
-      setFilteredUsers(allUsers);
+      setFilteredUsers([]);
       return;
     }
     const loadUsersForDept = async () => {
@@ -248,7 +260,7 @@ export function DeptAssignForm({ task, onSuccess, onError, totalPages: propTotal
       }
     };
     void loadUsersForDept();
-  }, [currentAssignment?.departmentId, allUsers]);
+  }, [currentAssignment?.departmentId]);
 
   const addRow = () => {
     const newAssignments = [
@@ -291,12 +303,17 @@ export function DeptAssignForm({ task, onSuccess, onError, totalPages: propTotal
     const uniqueAssignedPages = [...new Set(allAssignedPages)];
     if (uniqueAssignedPages.length < totalPagesNum) {
       const unassignedCount = totalPagesNum - uniqueAssignedPages.length;
-      const confirmed = window.confirm(
-        `还有 ${unassignedCount} 页未分配，确定要继续提交吗？`
-      );
-      if (!confirmed) return;
+      setUnassignedWarning(`还有 ${unassignedCount} 页未分配`);
+      setConfirmSubmit(true);
+      return;
     }
 
+    await doSubmit();
+  };
+
+  const doSubmit = async () => {
+    setConfirmSubmit(false);
+    setUnassignedWarning("");
     setIsSubmitting(true);
     try {
       const updatedTask = await completePptAction(task.id, {
@@ -445,11 +462,21 @@ export function DeptAssignForm({ task, onSuccess, onError, totalPages: propTotal
                         <SelectValue placeholder={currentAssignment.departmentId ? "选择负责人" : "请先选择部门"} />
                       </SelectTrigger>
                       <SelectContent>
-                        {filteredUsers.map((u) => (
-                          <SelectItem key={u.id} value={u.id}>
-                            {u.name || u.username}
-                          </SelectItem>
-                        ))}
+                        {filteredUsers
+                          .filter((u) => u.roles?.includes("team_leader") || u.roles?.includes("dept_leader"))
+                          .map((u) => {
+                          const roleLabel = u.roles?.includes("team_leader")
+                            ? "室主任"
+                            : u.roles?.includes("dept_leader")
+                              ? "部门领导"
+                              : "普通员工";
+                          return (
+                            <SelectItem key={u.id} value={u.id}>
+                              <span>{u.name || u.username}</span>
+                              <span className="ml-2 text-muted-foreground text-xs">({roleLabel})</span>
+                            </SelectItem>
+                          );
+                        })}
                       </SelectContent>
                     </Select>
                   </div>
@@ -499,6 +526,22 @@ export function DeptAssignForm({ task, onSuccess, onError, totalPages: propTotal
 
       {/* Footer: Submit */}
       <div className="shrink-0 pt-4">
+        <AlertDialog open={confirmSubmit} onOpenChange={setConfirmSubmit}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>页码未完全分配</AlertDialogTitle>
+              <AlertDialogDescription>
+                {unassignedWarning}，确定要继续提交吗？
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>取消</AlertDialogCancel>
+              <AlertDialogAction onClick={() => void doSubmit()}>
+                确认提交
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
         <Button
           className="w-full h-10 font-semibold"
           disabled={isSubmitting || totalPagesNum <= 0 || loadingData}

@@ -4,18 +4,15 @@ import type { FlowableTaskDto } from "@/services/apis/tasks";
  * 判断当前用户是否可操作该任务
  *
  * 规则：
- * - 所有用户都能看到所有任务
  * - 只有 assignee === currentUserId 的用户才能执行操作
- * - submit 任务没有 assignee（Flowable 层面不指定），需要从 my-todos 判断
+ * - 没有 assignee 的任务，任何人都不能在任务列表中直接操作
+ *   （这类任务通过 my-todos 接口判断归属）
  */
 export function canOperateTask(
   task: Pick<FlowableTaskDto, "assignee" | "formKey">,
   currentUserId: string
 ): boolean {
-  // submit 任务没有 assignee，需要从 my-todos 判断
-  if (task.formKey === "ppt_collab_submit") {
-    return task.assignee === currentUserId || !task.assignee;
-  }
+  if (!task.assignee) return false;
   return task.assignee === currentUserId;
 }
 

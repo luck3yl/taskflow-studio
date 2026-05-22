@@ -97,15 +97,32 @@ service.interceptors.request.use(
       config.headers.set("Authorization", `Bearer ${accessToken}`);
     }
 
-    config.headers.set("Accept", "application/json");
+    // blob 请求不设置 Accept: application/json
+    if (config.responseType !== "blob") {
+      config.headers.set("Accept", "application/json");
+    }
+
     return config;
   },
   error => Promise.reject(error)
 );
 
+// Token 刷新锁，防止并发刷新
+let isRefreshing = false;
+let refreshSubscribers: Array<(token: string) => void> = [];
+
+function onTokenRefreshed(token: string) {
+  refreshSubscribers.forEach(cb => cb(token));
+  refreshSubscribers = [];
+}
+
+function addRefreshSubscriber(cb: (token: string) => void) {
+  refreshSubscribers.push(cb);
+}
+
 service.interceptors.response.use(
   response => unpack(response),
-  (
+  async (
     error: AxiosError<{
       reason?: string;
       errorMessage?: string;
@@ -119,33 +136,85 @@ service.interceptors.response.use(
     }>
   ) => {
     const status = error.response?.status;
-    const payload = error.response?.data;
-    const message =
-      payload?.error?.message ||
-      payload?.errorMessage ||
-      payload?.message ||
-      (payload?.detail && typeof payload.detail === "string" ? payload.detail : null) ||
-      error.message ||
-      "网络连接故障";
+    const originalRequest = error.config;
+    const url = originalRequest?.url || "";
+    const isAuthEndpoint = url.includes("/auth/login") || url.includes("/auth/register") || url.includes("/auth/refresh");
 
-    // 401 时清除 token 并跳转登录页（排除登录/注册接口本身）
-    if (status === 401) {
-      const url = error.config?.url || "";
-      const isAuthEndpoint = url.includes("/auth/login") || url.includes("/auth/register");
-      if (!isAuthEndpoint) {
-        clearTokens();
-        // 使用 location.replace 避免循环
-        if (window.location.pathname !== "/login") {
-          window.location.replace("/login");
+    // 401 时尝试刷新 token
+    if (status === 401 && !isAuthEndpoint && originalRequest) {
+      const refreshToken = getRefreshToken();
+
+      if (refreshToken && !(originalRequest as any)._retry) {
+        (originalRequest as any)._retry = true;
+
+        if (!isRefreshing) {
+          isRefreshing = true;
+          try {
+            // 调用刷新接口
+            const response = await axios.post(
+              `${originalRequest.baseURL || ""}${url.split("/api/v1/")[0]}/api/v1/auth/refresh`,
+              null,
+              { headers: { Authorization: `Bearer ${refreshToken}` } }
+            );
+            const { access_token, refresh_token } = response.data;
+            setTokens(access_token, refresh_token);
+            isRefreshing = false;
+            onTokenRefreshed(access_token);
+
+            // 重试原始请求
+            originalRequest.headers.set("Authorization", `Bearer ${access_token}`);
+            return service(originalRequest);
+          } catch {
+            isRefreshing = false;
+            refreshSubscribers = [];
+            clearTokens();
+            if (window.location.pathname !== "/login") {
+              window.location.replace("/login");
+            }
+            return Promise.reject(error);
+          }
+        } else {
+          // 正在刷新中，排队等待
+          return new Promise((resolve) => {
+            addRefreshSubscriber((token: string) => {
+              originalRequest.headers.set("Authorization", `Bearer ${token}`);
+              resolve(service(originalRequest));
+            });
+          });
         }
       }
+
+      // 没有 refresh token，直接跳登录
+      clearTokens();
+      if (window.location.pathname !== "/login") {
+        window.location.replace("/login");
+      }
     }
+
+    // 解析错误信息（blob 响应需要特殊处理）
+    let payload = error.response?.data;
+    if (payload instanceof Blob) {
+      try {
+        const text = await payload.text();
+        payload = JSON.parse(text);
+      } catch {
+        payload = undefined;
+      }
+    }
+
+    const message =
+      (payload as any)?.error?.message ||
+      (payload as any)?.errorMessage ||
+      (payload as any)?.message ||
+      ((payload as any)?.detail && typeof (payload as any).detail === "string" ? (payload as any).detail : null) ||
+      error.message ||
+      "网络连接故障";
 
     return Promise.reject(
       new ApiRequestError(message, {
         status,
-        code: payload?.error?.code || payload?.code,
-        detail: payload?.error?.detail || payload?.detail,
+        code: (payload as any)?.error?.code || (payload as any)?.code,
+        detail: (payload as any)?.error?.detail || (payload as any)?.detail,
       })
     );
   }

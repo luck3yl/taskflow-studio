@@ -145,6 +145,11 @@ function ReviewItem({
       {mode === "approve" && (
         <div className="space-y-2 pt-1">
           <Label className="text-xs font-medium">审核意见（选填）</Label>
+          <div className="flex flex-wrap gap-1.5 mb-1.5">
+            {["内容完整，同意", "数据准确，通过", "格式规范，同意"].map((opt) => (
+              <button key={opt} type="button" className="px-2 py-1 rounded-md border border-border text-xs text-muted-foreground hover:border-primary hover:text-primary transition-colors" onClick={() => setFeedback(opt)}>{opt}</button>
+            ))}
+          </div>
           <Textarea
             className="resize-none text-sm"
             rows={2}
@@ -180,6 +185,11 @@ function ReviewItem({
           <Label className="text-xs font-medium">
             驳回原因 <span className="text-destructive">*</span>
           </Label>
+          <div className="flex flex-wrap gap-1.5 mb-1.5">
+            {["数据有误，请核实", "格式不符合要求", "内容不完整，请补充"].map((opt) => (
+              <button key={opt} type="button" className="px-2 py-1 rounded-md border border-border text-xs text-muted-foreground hover:border-destructive hover:text-destructive transition-colors" onClick={() => setFeedback(opt)}>{opt}</button>
+            ))}
+          </div>
           <Textarea
             className="resize-none text-sm"
             rows={2}

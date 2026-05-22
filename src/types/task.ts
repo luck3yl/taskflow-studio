@@ -76,6 +76,7 @@ export interface MeetingMaterialUserAssignment {
 export interface MeetingMaterialDeptAssignment {
   id: string;
   department: string;
+  departmentId?: string;
   pages: number[];
   requirement?: string;
   headUserId?: string;
@@ -160,7 +161,9 @@ export type TodoType =
   | "submit"
   | "review"
   | "final_approve"
-  | "mark_merged";
+  | "mark_merged"
+  | "waiting_review"
+  | "completed";
 
 export interface TodoItemTask {
   id: string;

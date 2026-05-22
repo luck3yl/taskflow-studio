@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useLocation } from "react-router-dom";
 import { ArrowLeft, Loader2, Upload, FileSpreadsheet } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -66,6 +66,8 @@ const FORM_KEY_NEEDS_PREVIEW = new Set<string>([
 export default function TaskDetail() {
   const { taskId } = useParams<{ taskId: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
+  const returnPath = (location.state as any)?.from || "/tasks";
   const { tasks, getTaskById, fetchTaskDetail, completePptAction } = useTaskContext();
   const { currentUser } = useUserContext();
   const { toast } = useToast();
@@ -169,9 +171,17 @@ export default function TaskDetail() {
   const needsPreview = resolvedFormKey ? FORM_KEY_NEEDS_PREVIEW.has(resolvedFormKey) : false;
 
   // 权限判断：当前用户是否可操作该任务
-  const canOperate = taskDetailResponse
-    ? canOperateTask(taskDetailResponse, currentUser.id)
-    : false;
+  // 从待办中心进入的任务（state.from === "/todos"）默认可操作
+  // 已结束的任务强制只读
+  const fromTodos = returnPath === "/todos";
+  const isEnded = taskDetailResponse?.ended === true;
+  const canOperate = isEnded
+    ? false
+    : fromTodos
+      ? true
+      : taskDetailResponse
+        ? canOperateTask(taskDetailResponse, currentUser.id)
+        : false;
 
   // 预览用的文件
   // 审核节点：展示员工提交的文件
@@ -248,12 +258,13 @@ export default function TaskDetail() {
 
   // 室主任分配员工时，只看自己部门负责的页码
   // 员工提交时，只看自己被分配的页码
+  // 如果找不到分配信息，返回空集合（不展示任何页面）
   const visiblePages = useMemo(() => {
     if (resolvedFormKey === TaskFormKeyEnum.PptCollabAssign) {
       const myDept = task?.meetingMaterialWorkflow?.deptAssignments.find(
         (d) => d.headUserId === currentUser.id
       );
-      return myDept ? new Set(myDept.pages) : undefined;
+      return myDept ? new Set(myDept.pages) : new Set<number>();
     }
 
     if (resolvedFormKey === TaskFormKeyEnum.PptCollabSubmit) {
@@ -267,7 +278,7 @@ export default function TaskDetail() {
           return new Set(myUa.pages);
         }
       }
-      return undefined;
+      return new Set<number>();
     }
 
     return undefined;
@@ -318,7 +329,7 @@ export default function TaskDetail() {
 
   const handleSuccess = () => {
     toast({ title: `${nodeLabel || "任务"}提交成功` });
-    navigate("/tasks", { state: { refresh: true } });
+    navigate(returnPath, { state: { refresh: true } });
   };
 
   /**
@@ -334,7 +345,7 @@ export default function TaskDetail() {
         payload: formValues,
       });
       toast({ title: "提交成功" });
-      navigate("/tasks", { state: { refresh: true } });
+      navigate(returnPath, { state: { refresh: true } });
     } catch (error) {
       toast({
         title: "提交失败",
@@ -364,7 +375,7 @@ export default function TaskDetail() {
       <div className="h-screen flex items-center justify-center bg-background">
         <div className="text-center space-y-4">
           <h2 className="text-xl font-semibold text-foreground">任务不存在或已被删除</h2>
-          <Button onClick={() => navigate("/tasks")} variant="outline">
+          <Button onClick={() => navigate(returnPath)} variant="outline">
             <ArrowLeft className="h-4 w-4 mr-2" />
             返回任务列表
           </Button>
@@ -387,7 +398,7 @@ export default function TaskDetail() {
               ? `${myDept.department} · 负责第 ${formatPageRange(myDept.pages)} 页`
               : undefined
           }
-          onBack={() => navigate("/tasks")}
+          onBack={() => navigate(returnPath)}
         />
 
         <div className="flex-1 overflow-hidden">
@@ -528,7 +539,7 @@ export default function TaskDetail() {
                 <div className="h-full overflow-auto p-6">
                   {!canOperate && (
                     <div className="mb-4 p-3 rounded-lg border border-amber-200 bg-amber-50 text-amber-800 text-sm">
-                      当前任务由其他人负责，您只能查看，无法操作。
+                      当前任务暂无可操作内容
                     </div>
                   )}
                   <FormComponent
@@ -545,7 +556,7 @@ export default function TaskDetail() {
             <div className="h-full overflow-auto p-6 max-w-4xl mx-auto w-full">
               {!canOperate && (
                 <div className="mb-4 p-3 rounded-lg border border-amber-200 bg-amber-50 text-amber-800 text-sm">
-                  当前任务由其他人负责，您只能查看，无法操作。
+                  当前任务暂无可操作内容
                 </div>
               )}
               <FormComponent task={task} onSuccess={handleSuccess} readOnly={!canOperate} />
@@ -565,13 +576,13 @@ export default function TaskDetail() {
           nodeLabel="填写表单"
           stageText={stageConfig?.text}
           stageClass={stageConfig?.className}
-          onBack={() => navigate("/tasks")}
+          onBack={() => navigate(returnPath)}
         />
         <div className="flex-1 overflow-auto p-6 max-w-2xl mx-auto w-full">
           <DynamicForm
             fields={resolvedFormData}
             onSubmit={handleDynamicFormSubmit}
-            onCancel={() => navigate("/tasks")}
+            onCancel={() => navigate(returnPath)}
           />
         </div>
       </div>
@@ -587,7 +598,7 @@ export default function TaskDetail() {
           nodeLabel={nodeLabel || "未知节点"}
           stageText={stageConfig?.text}
           stageClass={stageConfig?.className}
-          onBack={() => navigate("/tasks")}
+          onBack={() => navigate(returnPath)}
         />
         <div className="flex-1 flex items-center justify-center">
           <div className="text-center space-y-2">
@@ -611,7 +622,7 @@ export default function TaskDetail() {
         nodeLabel="任务详情"
         stageText={stageConfig?.text}
         stageClass={stageConfig?.className}
-        onBack={() => navigate("/tasks")}
+        onBack={() => navigate(returnPath)}
       />
       <div className="flex-1 flex items-center justify-center">
         <div className="text-center space-y-2">
@@ -662,7 +673,7 @@ function Header({
           variant="secondary"
           className={cn("text-xs font-semibold", stageClass)}
         >
-          {stageText}
+          {nodeLabel || stageText}
         </Badge>
       )}
     </header>

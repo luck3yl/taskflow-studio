@@ -39,11 +39,21 @@ function AssignmentInfo({
         </p>
       )}
       {ua.status === "rejected" && (
-        <div className="flex items-start gap-2 p-2 rounded-lg bg-destructive/10 border border-destructive/20 mt-2">
+        <div className="flex items-start gap-2 p-2.5 rounded-lg bg-destructive/10 border border-destructive/20 mt-2">
           <AlertTriangle className="h-3.5 w-3.5 text-destructive shrink-0 mt-0.5" />
-          <p className="text-xs text-destructive">
-            上次提交已被驳回，请修改后重新提交
-          </p>
+          <div className="space-y-1">
+            <p className="text-xs font-medium text-destructive">
+              上次提交已被驳回，请修改后重新提交
+            </p>
+            {(() => {
+              const rejectedSub = [...ua.submissions].reverse().find(s => s.status === "rejected");
+              return rejectedSub?.feedback ? (
+                <p className="text-xs text-destructive/80">
+                  驳回原因：{rejectedSub.feedback}
+                </p>
+              ) : null;
+            })()}
+          </div>
         </div>
       )}
     </div>

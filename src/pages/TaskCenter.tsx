@@ -64,7 +64,7 @@ export default function TaskCenter() {
     deleteProcessInstance,
     getProcessVariables,
   } = useTaskContext();
-  const { currentUser } = useUserContext();
+  const { currentUser, userDtos } = useUserContext();
   const canCreateTask = hasCapability(currentUser, "task.create");
 
   useEffect(() => {
@@ -140,6 +140,13 @@ export default function TaskCenter() {
   const handleDeleteInstance = async (instanceId: string) => { await deleteProcessInstance(instanceId); };
   const handleTaskClick = (task: FlowableTaskDto) => { navigate(`/tasks/detail/${task.id}`); };
 
+  // 解析 assignee userId 为姓名
+  const getAssigneeName = (assigneeId: string | null): string => {
+    if (!assigneeId) return "";
+    const user = userDtos.find(u => u.id === assigneeId);
+    return user?.name || user?.username || assigneeId;
+  };
+
   return (
     <AppLayout title={categoryName ? `任务中心 · ${categoryName}` : "任务中心"}>
       <div className="space-y-6">
@@ -202,7 +209,10 @@ export default function TaskCenter() {
                                 <div className="flex items-center gap-2 flex-wrap">
                                   <Badge variant="secondary" className="text-xs">{instance.processDefinitionName || processKey}</Badge>
                                   {instanceDepartment && <Badge variant="outline" className="text-xs">{instanceDepartment}</Badge>}
-                                  <Badge variant="outline" className="text-xs text-blue-600 border-blue-300 bg-blue-50">进行中</Badge>
+                                  {instance.ended
+                                    ? <Badge variant="outline" className="text-xs text-green-600 border-green-300 bg-green-50">已完成</Badge>
+                                    : <Badge variant="outline" className="text-xs text-blue-600 border-blue-300 bg-blue-50">进行中</Badge>
+                                  }
                                   {instanceDeadline && <span className="text-xs text-muted-foreground flex items-center gap-1"><Clock className="h-3 w-3" />截止: {instanceDeadline}</span>}
                                   {!instanceDeadline && instance.startTime && <span className="text-xs text-muted-foreground flex items-center gap-1"><Clock className="h-3 w-3" />{new Date(instance.startTime).toLocaleDateString()}</span>}
                                   {tasks && <span className="text-xs text-muted-foreground">{tasks.length} 个待处理任务</span>}
@@ -244,10 +254,12 @@ export default function TaskCenter() {
                                         </div>
                                       </div>
                                       <div className="flex items-center gap-3 shrink-0">
-                                        {task.assignee && <span className="text-xs text-muted-foreground hidden sm:block">负责人: {task.assignee}</span>}
-                                        <Button size="sm" variant={canOperate ? "default" : "outline"} className={cn("h-8 px-3 text-xs", !canOperate && "text-muted-foreground")} onClick={() => handleTaskClick(task)}>
-                                          {canOperate ? "处理" : "查看"}<ArrowRight className="h-3.5 w-3.5 ml-1" />
-                                        </Button>
+                                        {task.assignee && <span className="text-xs text-muted-foreground hidden sm:block">负责人: {getAssigneeName(task.assignee)}</span>}
+                                        {canOperate && (
+                                          <Button size="sm" className="h-8 px-3 text-xs" onClick={() => handleTaskClick(task)}>
+                                            处理<ArrowRight className="h-3.5 w-3.5 ml-1" />
+                                          </Button>
+                                        )}
                                       </div>
                                     </div>
                                   );

@@ -130,23 +130,21 @@ export function MeetingMaterialCreateForm({
       }
     }
 
-    const formattedDeadline = deadlineDate
-      ? `${format(deadlineDate, "yyyy-MM-dd")} ${deadlineTime}`
-      : format(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), "yyyy-MM-dd") +
-        " 18:00";
+    // 用户填了什么就传什么，未选择截止时间则不传该字段
+    const variables: Record<string, unknown> = {
+      title: title.trim(),
+      department: currentUser.department || "",
+      ...dynamicValues,
+    };
+    if (description.trim()) {
+      variables.description = description.trim();
+    }
+    if (deadlineDate) {
+      variables.deadline = `${format(deadlineDate, "yyyy-MM-dd")} ${deadlineTime}`;
+    }
 
     setIsSubmitting(true);
     try {
-      const variables: Record<string, unknown> = {
-        title: title.trim(),
-        department: currentUser.department || "",
-        deadline: formattedDeadline,
-        ...dynamicValues,
-      };
-      if (description.trim()) {
-        variables.description = description.trim();
-      }
-
       const instance = await startProcessInstanceApi({
         category_code: categoryCode,
         variables,
@@ -361,6 +359,7 @@ export function MeetingMaterialCreateForm({
                   mode="single"
                   selected={deadlineDate}
                   onSelect={setDeadlineDate}
+                  disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
                   initialFocus
                   className="p-3 pointer-events-auto"
                 />

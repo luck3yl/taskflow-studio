@@ -480,11 +480,6 @@ export default function Login() {
               </p>
             )}
           </div>
-
-          {/* 底部版权 */}
-          <p className="text-center text-xs text-muted-foreground/60 pt-4">
-            © 2024 TaskFlow Studio · 企业工作流管理平台
-          </p>
         </div>
       </div>
     </div>

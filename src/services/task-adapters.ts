@@ -202,6 +202,7 @@ function toMeetingDeptAssignment(item: Record<string, any>): MeetingMaterialDept
   return {
     id: item.id || "",
     department: item.department || "",
+    departmentId: item.departmentId || item.department_id || "",
     pages: Array.isArray(item.pages) ? item.pages.map((page: unknown) => Number(page)) : [],
     requirement: item.requirement,
     headUserId: item.headUserId || item.head_user_id,

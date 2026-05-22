@@ -9,6 +9,7 @@ import {
   Search,
   Clock,
   Filter,
+  History,
 } from "lucide-react";
 import {
   Select,
@@ -17,11 +18,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useNavigate } from "react-router-dom";
 import { TaskProcessDrawer } from "@/pages/task/components/drawers/TaskProcessDrawer";
 import { useTaskContext, type Assignee, type Task } from "@/contexts/TaskContext";
 import { useUserContext } from "@/contexts/UserContext";
-import { getMyTodosApi } from "@/services/apis/tasks";
+import { getMyTodosApi, getMyHistoryApi, type HistoryTodoItem } from "@/services/apis/tasks";
 
 const statusStyles = {
   pending: "bg-warning/10 text-warning border-warning/20",
@@ -87,6 +89,9 @@ export default function TodoCenter() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [todoItems, setTodoItems] = useState<TodoItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState("todos");
+  const [historyItems, setHistoryItems] = useState<HistoryTodoItem[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
 
   const { submitWork, submitMeetingMaterialWork } = useTaskContext();
   const { currentUser } = useUserContext();
@@ -204,6 +209,26 @@ export default function TodoCenter() {
     void loadTodos();
   }, [currentUser.id]);
 
+  // 切换到历史标签时加载历史数据
+  useEffect(() => {
+    if (activeTab === "history" && historyItems.length === 0) {
+      const loadHistory = async () => {
+        setHistoryLoading(true);
+        try {
+          const response = await getMyHistoryApi();
+          const items = Array.isArray(response) ? response : (response as any)?.data ?? [];
+          setHistoryItems(items);
+        } catch (error) {
+          console.error("Failed to load history", error);
+          setHistoryItems([]);
+        } finally {
+          setHistoryLoading(false);
+        }
+      };
+      void loadHistory();
+    }
+  }, [activeTab]);
+
   const filteredTasks = useMemo(() => {
     const normalizedSearch = searchQuery.toLowerCase();
 
@@ -222,7 +247,7 @@ export default function TodoCenter() {
     // 例会资料任务：统一跳到动态任务详情页，按 formKey 分发节点
     // 待办与任务中心使用同一个任务页（老板要求）
     if (task.type === "例会资料") {
-      navigate(`/tasks/detail/${task.id}`);
+      navigate(`/tasks/detail/${task.id}`, { state: { from: "/todos" } });
       return;
     }
 
@@ -320,6 +345,19 @@ export default function TodoCenter() {
   return (
     <AppLayout title="待办中心">
       <div className="space-y-6">
+        <Tabs value={activeTab} onValueChange={setActiveTab}>
+          <TabsList className="grid w-full max-w-xs grid-cols-2 h-10">
+            <TabsTrigger value="todos" className="text-sm">
+              <Clock className="h-4 w-4 mr-1.5" />
+              待办任务
+            </TabsTrigger>
+            <TabsTrigger value="history" className="text-sm">
+              <History className="h-4 w-4 mr-1.5" />
+              历史记录
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="todos" className="mt-4 space-y-6">
         <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
           <div>
             <p className="text-muted-foreground">
@@ -438,6 +476,95 @@ export default function TodoCenter() {
             )}
           </>
         )}
+      </TabsContent>
+
+          <TabsContent value="history" className="mt-4">
+            {historyLoading ? (
+              <div className="flex flex-col items-center justify-center py-16 text-center">
+                <div className="h-16 w-16 rounded-full bg-muted flex items-center justify-center mb-4">
+                  <History className="h-8 w-8 text-muted-foreground" />
+                </div>
+                <h3 className="font-medium text-foreground">加载中</h3>
+                <p className="text-sm text-muted-foreground mt-1">正在加载历史记录</p>
+              </div>
+            ) : historyItems.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-16 text-center">
+                <div className="h-16 w-16 rounded-full bg-muted flex items-center justify-center mb-4">
+                  <History className="h-8 w-8 text-muted-foreground" />
+                </div>
+                <h3 className="font-medium text-foreground">暂无历史记录</h3>
+                <p className="text-sm text-muted-foreground mt-1">您参与的流程完成后会显示在这里</p>
+              </div>
+            ) : (
+              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                {historyItems.map((item, index) => (
+                  <Card
+                    key={item.id}
+                    className="group relative overflow-hidden transition-all duration-200 border border-border/50 shadow-sm hover:shadow-md hover:border-primary/20 flex flex-col h-full bg-card"
+                    style={{ animationDelay: `${index * 50}ms` }}
+                  >
+                    <CardContent className="p-5 flex-1 flex flex-col">
+                      <div className="flex items-center justify-between mb-3 shrink-0">
+                        <Badge
+                          variant="outline"
+                          className={item.ended
+                            ? "text-xs text-green-600 border-green-300 bg-green-50 font-bold h-6 px-2.5 rounded"
+                            : "text-xs text-blue-600 border-blue-300 bg-blue-50 font-bold h-6 px-2.5 rounded"
+                          }
+                        >
+                          {item.ended ? "已完成" : "进行中"}
+                        </Badge>
+                        {item.status && (
+                          <div className="flex items-center gap-1.5 text-xs text-muted-foreground font-medium">
+                            <Clock className="h-3.5 w-3.5" />
+                            <span>{item.startTime ? item.startTime.split("T")[0] : ""}</span>
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="space-y-2.5 mb-4">
+                        <h3 className="font-bold text-lg leading-snug line-clamp-2">
+                          {item.name}
+                        </h3>
+                        <p className="text-sm text-muted-foreground/90 leading-relaxed">
+                          {item.category}{item.department ? ` · ${item.department}` : ""}
+                        </p>
+                      </div>
+
+                      <div className="mt-auto pt-4 border-t border-border/40 flex items-center justify-between">
+                        <div className="text-sm">
+                          {item.deadline ? (
+                            <>
+                              <span className="opacity-60">截止: </span>
+                              <span className="font-medium text-foreground/70">
+                                {item.deadline.split(" ")[0]}
+                              </span>
+                            </>
+                          ) : item.startTime ? (
+                            <>
+                              <span className="opacity-60">发起: </span>
+                              <span className="font-medium text-foreground/70">
+                                {item.startTime.split("T")[0]}
+                              </span>
+                            </>
+                          ) : null}
+                        </div>
+
+                        <Button
+                          size="sm"
+                          className="h-8 px-4 text-xs font-bold rounded bg-blue-600 hover:bg-blue-700 text-white"
+                          onClick={() => navigate(`/tasks/detail/${item.id}`, { state: { from: "/todos" } })}
+                        >
+                          查看详情
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
+          </TabsContent>
+        </Tabs>
       </div>
 
       <TaskProcessDrawer

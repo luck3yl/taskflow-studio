@@ -46,6 +46,16 @@ export interface FlowableTaskDto {
   deadline?: string;
   /** ⭐ 扩展：所属部门 */
   department?: string;
+  /** ⭐ 扩展：负责人姓名（后端可能返回，或前端从 assignee userId 解析） */
+  assigneeName?: string;
+  /** ⭐ 扩展：是否已结束 */
+  ended?: boolean;
+  /** ⭐ 扩展：结束时间 */
+  endTime?: string;
+  /** ⭐ 扩展：终止原因 */
+  deleteReason?: string;
+  /** ⭐ 扩展：任务状态（cancelled 等） */
+  status?: string;
 }
 
 /** 任务详情（原生 + ⭐扩展字段） */
@@ -166,4 +176,27 @@ export const getTaskBusinessVariablesApi = (taskId: string) => {
  */
 export const deleteTaskApi = (taskId: string) => {
   return http.delete<{ success: boolean }>(`${tasksURL}/${taskId}`);
+};
+
+/** 历史待办项 */
+export interface HistoryTodoItem {
+  id: string;
+  name: string;
+  category: string;
+  categoryCode: string;
+  processDefinitionKey: string;
+  deadline: string;
+  department: string;
+  startUserId: string;
+  startTime: string;
+  status: string;
+  ended: boolean;
+}
+
+/**
+ * 我的历史待办
+ * GET /api/v1/tasks/my-history
+ */
+export const getMyHistoryApi = () => {
+  return http.get<{ data: HistoryTodoItem[]; total: number }>(`${tasksURL}/my-history`);
 };
