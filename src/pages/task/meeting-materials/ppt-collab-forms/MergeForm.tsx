@@ -1,11 +1,11 @@
 import { useState } from "react";
-import { GitMerge, RefreshCcw, Loader2, CheckCircle2, Eye, Download } from "lucide-react";
+import { GitMerge, RefreshCcw, Loader2, CheckCircle2, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useTaskContext } from "@/contexts/TaskContext";
 import { useToast } from "@/hooks/use-toast";
 import { cn, formatPageRange } from "@/lib/utils";
-import { getFilePreviewUrl, getFileDownloadUrl } from "@/services/apis/files";
+import { getFileDownloadUrl } from "@/services/apis/files";
 import type { PptCollabFormProps } from "./types";
 import type { MeetingMaterialDeptAssignment, MeetingMaterialUserAssignment } from "@/types/task";
 
@@ -18,7 +18,6 @@ function SubmissionFileItem({ ua }: { ua: MeetingMaterialUserAssignment }) {
   if (!approvedSub) return null;
 
   const fileId = approvedSub.fileId;
-  const previewUrl = fileId ? getFilePreviewUrl(fileId) : undefined;
   const downloadUrl = fileId ? getFileDownloadUrl(fileId) : undefined;
 
   return (
@@ -37,17 +36,6 @@ function SubmissionFileItem({ ua }: { ua: MeetingMaterialUserAssignment }) {
         </p>
       </div>
       <div className="flex gap-0.5 shrink-0">
-        {previewUrl && (
-          <Button
-            size="sm"
-            variant="ghost"
-            className="h-7 w-7 p-0 rounded-full text-muted-foreground hover:text-primary hover:bg-primary/10"
-            onClick={() => window.open(previewUrl, "_blank", "noopener,noreferrer")}
-            title="预览"
-          >
-            <Eye className="h-3.5 w-3.5" />
-          </Button>
-        )}
         {downloadUrl && (
           <Button
             size="sm"

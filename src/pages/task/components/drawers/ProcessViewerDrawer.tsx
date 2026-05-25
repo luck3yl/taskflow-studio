@@ -22,7 +22,7 @@ interface ProcessViewerDrawerProps {
 }
 
 export function ProcessViewerDrawer({ open, onOpenChange, processId }: ProcessViewerDrawerProps) {
-    const { processes, getProcessXml } = useProcess();
+    const { definitions, getProcessXml } = useProcess();
     const { toast } = useToast();
 
     const containerRef = useRef<HTMLDivElement>(null);
@@ -32,7 +32,7 @@ export function ProcessViewerDrawer({ open, onOpenChange, processId }: ProcessVi
     const [xmlLoading, setXmlLoading] = useState(false);
     const [selectedNode, setSelectedNode] = useState<any>(null);
 
-    const process = processId ? processes.find(p => p.id === processId) : undefined;
+    const process = processId ? definitions.find(p => p.id === processId) : undefined;
 
     // 当 drawer 打开时，通过 API 获取 XML
     useEffect(() => {
