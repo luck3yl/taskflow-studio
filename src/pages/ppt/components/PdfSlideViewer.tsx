@@ -6,11 +6,8 @@ import { cn } from "@/lib/utils";
 import { fetchFilePreviewBlob } from "@/services/apis/files";
 import * as pdfjsLib from "pdfjs-dist";
 
-// 配置 worker
-pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
-  "pdfjs-dist/build/pdf.worker.min.mjs",
-  import.meta.url,
-).toString();
+// 配置 worker —— 使用 public 目录下的静态文件，避免 Vite 开发模式下动态 import 路径问题
+pdfjsLib.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs";
 
 interface PdfSlideViewerProps {
   /** 文件 ID */

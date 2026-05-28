@@ -10,6 +10,8 @@ import {
   Clock,
   Filter,
   History,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import {
   Select,
@@ -21,6 +23,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useNavigate } from "react-router-dom";
 import { TaskProcessDrawer } from "@/pages/task/components/drawers/TaskProcessDrawer";
+import { HistoryDetailSheet } from "@/pages/todo/components/HistoryDetailSheet";
 import { useTaskContext, type Assignee, type Task } from "@/contexts/TaskContext";
 import { useUserContext } from "@/contexts/UserContext";
 import { getMyTodosApi, getMyHistoryApi, type HistoryTodoItem } from "@/services/apis/tasks";
@@ -62,6 +65,7 @@ type TodoAssignee = Assignee & {
   isDeptHeadDistribution?: boolean;
   isCreatorMerge?: boolean;
   todoMode?: TodoMode;
+  todoType?: string; // 原始 todoType，用于跳转详情时透传 perspective
 };
 
 type TodoItem = {
@@ -92,6 +96,12 @@ export default function TodoCenter() {
   const [activeTab, setActiveTab] = useState("todos");
   const [historyItems, setHistoryItems] = useState<HistoryTodoItem[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyDetailOpen, setHistoryDetailOpen] = useState(false);
+  const [selectedHistoryItem, setSelectedHistoryItem] = useState<HistoryTodoItem | null>(null);
+  const [todoPage, setTodoPage] = useState(1);
+  const [historyPage, setHistoryPage] = useState(1);
+  const todoPageSize = 9;
+  const historyPageSize = 9;
 
   const { submitWork, submitMeetingMaterialWork } = useTaskContext();
   const { currentUser } = useUserContext();
@@ -153,6 +163,7 @@ export default function TodoCenter() {
             status: uaStatus as any,
             submissions: [],
             todoMode: "execute",
+            todoType: record.todoType,
           };
           nextItems.push({ task, assignee });
         } else if (deptAssignment?.id) {
@@ -167,6 +178,7 @@ export default function TodoCenter() {
             submissions: [],
             isDeptHeadDistribution: true,
             todoMode: (record.todoType === "review" ? "review" : "assign") as TodoMode,
+            todoType: record.todoType,
             deptId: String(deptAssignment.id),
           };
           nextItems.push({ task, assignee });
@@ -182,6 +194,7 @@ export default function TodoCenter() {
             status: uaStatus as any,
             submissions: [],
             todoMode: "execute",
+            todoType: record.todoType,
           };
           nextItems.push({ task, assignee });
         }
@@ -243,11 +256,27 @@ export default function TodoCenter() {
     });
   }, [todoItems, searchQuery, statusFilter]);
 
+  // 重置分页当筛选条件变化时
+  useEffect(() => { setTodoPage(1); }, [searchQuery, statusFilter]);
+
+  const todoTotalPages = Math.max(1, Math.ceil(filteredTasks.length / todoPageSize));
+  const paginatedTodos = useMemo(() => {
+    const start = (todoPage - 1) * todoPageSize;
+    return filteredTasks.slice(start, start + todoPageSize);
+  }, [filteredTasks, todoPage]);
+
+  const historyTotalPages = Math.max(1, Math.ceil(historyItems.length / historyPageSize));
+  const paginatedHistory = useMemo(() => {
+    const start = (historyPage - 1) * historyPageSize;
+    return historyItems.slice(start, start + historyPageSize);
+  }, [historyItems, historyPage]);
+
   const handleProcessTask = (task: Task, assignee: TodoAssignee) => {
     // 例会资料任务：统一跳到动态任务详情页，按 formKey 分发节点
     // 待办与任务中心使用同一个任务页（老板要求）
     if (task.type === "例会资料") {
-      navigate(`/tasks/detail/${task.id}`, { state: { from: "/todos" } });
+      const perspectiveParam = assignee.todoType ? `?perspective=${assignee.todoType}` : "";
+      navigate(`/tasks/detail/${task.id}${perspectiveParam}`, { state: { from: "/todos" } });
       return;
     }
 
@@ -402,7 +431,7 @@ export default function TodoCenter() {
         ) : (
           <>
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-              {filteredTasks.map(({ task, assignee }, index) => {
+              {paginatedTodos.map(({ task, assignee }, index) => {
                 const deadlineInfo = getDeadlineInfo(task.deadline);
 
                 return (
@@ -474,6 +503,55 @@ export default function TodoCenter() {
                 <p className="text-sm text-muted-foreground mt-1">当前筛选条件下没有找到待办任务</p>
               </div>
             )}
+
+            {/* 待办分页 */}
+            {filteredTasks.length > 0 && todoTotalPages > 1 && (
+              <div className="flex items-center justify-between pt-4">
+                <p className="text-sm text-muted-foreground">
+                  第 {todoPage} / {todoTotalPages} 页，共 {filteredTasks.length} 条
+                </p>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={todoPage <= 1}
+                    onClick={() => setTodoPage(p => p - 1)}
+                  >
+                    <ChevronLeft className="h-4 w-4 mr-1" />上一页
+                  </Button>
+                  {Array.from({ length: todoTotalPages }, (_, i) => i + 1)
+                    .filter(page => page === 1 || page === todoTotalPages || Math.abs(page - todoPage) <= 2)
+                    .reduce<(number | "ellipsis")[]>((acc, page, idx, arr) => {
+                      if (idx > 0 && page - (arr[idx - 1] as number) > 1) acc.push("ellipsis");
+                      acc.push(page);
+                      return acc;
+                    }, [])
+                    .map((item, idx) =>
+                      item === "ellipsis" ? (
+                        <span key={`ellipsis-${idx}`} className="px-2 text-muted-foreground">…</span>
+                      ) : (
+                        <Button
+                          key={item}
+                          variant={item === todoPage ? "default" : "outline"}
+                          size="sm"
+                          className="h-8 w-8 p-0"
+                          onClick={() => setTodoPage(item)}
+                        >
+                          {item}
+                        </Button>
+                      )
+                    )}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={todoPage >= todoTotalPages}
+                    onClick={() => setTodoPage(p => p + 1)}
+                  >
+                    下一页<ChevronRight className="h-4 w-4 ml-1" />
+                  </Button>
+                </div>
+              </div>
+            )}
           </>
         )}
       </TabsContent>
@@ -496,8 +574,9 @@ export default function TodoCenter() {
                 <p className="text-sm text-muted-foreground mt-1">您参与的流程完成后会显示在这里</p>
               </div>
             ) : (
+              <>
               <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-                {historyItems.map((item, index) => (
+                {paginatedHistory.map((item, index) => (
                   <Card
                     key={item.id}
                     className="group relative overflow-hidden transition-all duration-200 border border-border/50 shadow-sm hover:shadow-md hover:border-primary/20 flex flex-col h-full bg-card"
@@ -553,7 +632,10 @@ export default function TodoCenter() {
                         <Button
                           size="sm"
                           className="h-8 px-4 text-xs font-bold rounded bg-blue-600 hover:bg-blue-700 text-white"
-                          onClick={() => navigate(`/tasks/detail/${item.id}`, { state: { from: "/todos" } })}
+                          onClick={() => {
+                            setSelectedHistoryItem(item);
+                            setHistoryDetailOpen(true);
+                          }}
                         >
                           查看详情
                         </Button>
@@ -562,6 +644,56 @@ export default function TodoCenter() {
                   </Card>
                 ))}
               </div>
+
+              {/* 历史记录分页 */}
+              {historyTotalPages > 1 && (
+                <div className="flex items-center justify-between pt-4">
+                  <p className="text-sm text-muted-foreground">
+                    第 {historyPage} / {historyTotalPages} 页，共 {historyItems.length} 条
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={historyPage <= 1}
+                      onClick={() => setHistoryPage(p => p - 1)}
+                    >
+                      <ChevronLeft className="h-4 w-4 mr-1" />上一页
+                    </Button>
+                    {Array.from({ length: historyTotalPages }, (_, i) => i + 1)
+                      .filter(page => page === 1 || page === historyTotalPages || Math.abs(page - historyPage) <= 2)
+                      .reduce<(number | "ellipsis")[]>((acc, page, idx, arr) => {
+                        if (idx > 0 && page - (arr[idx - 1] as number) > 1) acc.push("ellipsis");
+                        acc.push(page);
+                        return acc;
+                      }, [])
+                      .map((item, idx) =>
+                        item === "ellipsis" ? (
+                          <span key={`ellipsis-${idx}`} className="px-2 text-muted-foreground">…</span>
+                        ) : (
+                          <Button
+                            key={item}
+                            variant={item === historyPage ? "default" : "outline"}
+                            size="sm"
+                            className="h-8 w-8 p-0"
+                            onClick={() => setHistoryPage(item)}
+                          >
+                            {item}
+                          </Button>
+                        )
+                      )}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={historyPage >= historyTotalPages}
+                      onClick={() => setHistoryPage(p => p + 1)}
+                    >
+                      下一页<ChevronRight className="h-4 w-4 ml-1" />
+                    </Button>
+                  </div>
+                </div>
+              )}
+              </>
             )}
           </TabsContent>
         </Tabs>
@@ -573,6 +705,12 @@ export default function TodoCenter() {
         task={selectedItem?.task}
         assignee={selectedItem?.assignee}
         onSubmit={handleSubmit}
+      />
+
+      <HistoryDetailSheet
+        open={historyDetailOpen}
+        onOpenChange={setHistoryDetailOpen}
+        item={selectedHistoryItem}
       />
     </AppLayout>
   );

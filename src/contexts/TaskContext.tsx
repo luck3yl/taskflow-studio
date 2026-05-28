@@ -95,8 +95,10 @@ interface TaskContextType {
   // ─── 流程实例（第一层） ─────────────────────────────────
   /** 流程实例列表 */
   processInstances: ProcessInstanceDto[];
+  /** 流程实例总数（用于分页） */
+  processInstancesTotal: number;
   /** 加载流程实例列表 */
-  refreshProcessInstances: (params?: { processDefinitionKey?: string; categoryCode?: string; keyword?: string }) => Promise<void>;
+  refreshProcessInstances: (params?: { processDefinitionKey?: string; categoryCode?: string; keyword?: string; size?: number; start?: number }) => Promise<void>;
   /** 启动流程实例 */
   startProcess: (processKey: string, variables?: Record<string, unknown>) => Promise<ProcessInstanceDto | undefined>;
   /** 终止流程实例 */
@@ -120,7 +122,7 @@ interface TaskContextType {
   refreshTasks: () => Promise<void>;
   addTask: (task: TaskDraft & { category?: string; extraVariables?: Record<string, unknown> }) => Promise<string>;
   getTaskById: (taskId: string) => Task | undefined;
-  fetchTaskDetail: (taskId: string) => Promise<TaskDetailDto | undefined>;
+  fetchTaskDetail: (taskId: string, perspective?: string) => Promise<TaskDetailDto | undefined>;
   getTasksForEmployee: (employeeName: string) => { task: Task; assignee: Assignee }[];
   submitWork: (taskId: string, assigneeId: string, submission: LocalSubmissionDraft) => Promise<void>;
   reviewSubmission: (
@@ -205,6 +207,7 @@ export function TaskProvider({ children }: { children: ReactNode }) {
 
   // ─── 流程实例状态 ──────────────────────────────────────
   const [processInstances, setProcessInstances] = useState<ProcessInstanceDto[]>([]);
+  const [processInstancesTotal, setProcessInstancesTotal] = useState<number>(0);
 
   // ─── 兼容旧逻辑的状态 ──────────────────────────────────
   const [remoteTasks, setRemoteTasks] = useState<Task[]>([]);
@@ -215,16 +218,19 @@ export function TaskProvider({ children }: { children: ReactNode }) {
 
   // ─── 流程实例操作 ──────────────────────────────────────
 
-  const refreshProcessInstances = async (params?: { processDefinitionKey?: string; categoryCode?: string; keyword?: string }) => {
+  const refreshProcessInstances = async (params?: { processDefinitionKey?: string; categoryCode?: string; keyword?: string; size?: number; start?: number }) => {
     try {
       const response = await getProcessInstancesApi({
         processDefinitionKey: params?.processDefinitionKey,
         categoryCode: params?.categoryCode,
         keyword: params?.keyword,
-        size: 100,
+        size: params?.size ?? 10,
+        start: params?.start ?? 0,
       });
       const list = Array.isArray(response) ? response : (response as any)?.data ?? [];
+      const total = (response as any)?.total ?? list.length;
       setProcessInstances(list);
+      setProcessInstancesTotal(total);
     } catch (error) {
       console.error("Failed to load process instances", error);
     }
@@ -273,9 +279,9 @@ export function TaskProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const getTaskDetail = async (taskId: string): Promise<TaskDetailDto | undefined> => {
+  const getTaskDetail = async (taskId: string, perspective?: string): Promise<TaskDetailDto | undefined> => {
     try {
-      return await getTaskDetailApi(taskId);
+      return await getTaskDetailApi(taskId, perspective);
     } catch (error) {
       console.error("Failed to get task detail", error);
       return undefined;
@@ -369,8 +375,8 @@ export function TaskProvider({ children }: { children: ReactNode }) {
 
   const getTaskById = (taskId: string) => tasks.find(task => task.id === taskId);
 
-  const fetchTaskDetail = async (taskId: string): Promise<TaskDetailDto | undefined> => {
-    return getTaskDetail(taskId);
+  const fetchTaskDetail = async (taskId: string, perspective?: string): Promise<TaskDetailDto | undefined> => {
+    return getTaskDetail(taskId, perspective);
   };
 
   const getTasksForEmployee = (employeeName: string) => {
@@ -572,6 +578,7 @@ export function TaskProvider({ children }: { children: ReactNode }) {
       value={{
         // 新接口
         processInstances,
+        processInstancesTotal,
         refreshProcessInstances,
         startProcess,
         deleteProcessInstance,

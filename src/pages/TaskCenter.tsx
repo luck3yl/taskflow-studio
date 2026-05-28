@@ -14,6 +14,7 @@ import {
   MoreHorizontal,
   Clock,
   ArrowRight,
+  ChevronLeft,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -50,6 +51,8 @@ export default function TaskCenter() {
   const [instanceTasks, setInstanceTasks] = useState<Record<string, FlowableTaskDto[]>>({});
   const [loadingTasks, setLoadingTasks] = useState<Set<string>>(new Set());
   const [instanceVars, setInstanceVars] = useState<Record<string, Record<string, unknown>>>({});
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 10;
 
   const navigate = useNavigate();
   const location = useLocation();
@@ -59,6 +62,7 @@ export default function TaskCenter() {
   const categoryName = searchParams.get("name") || categoryCode || "";
   const {
     processInstances,
+    processInstancesTotal,
     refreshProcessInstances,
     getTasksByProcessInstance,
     deleteProcessInstance,
@@ -67,23 +71,42 @@ export default function TaskCenter() {
   const { currentUser, userDtos } = useUserContext();
   const canCreateTask = hasCapability(currentUser, "task.create");
 
+  const totalPages = Math.max(1, Math.ceil(processInstancesTotal / pageSize));
+
+  const fetchPage = (page: number) => {
+    void refreshProcessInstances({
+      categoryCode,
+      keyword: searchQuery.trim() || undefined,
+      size: pageSize,
+      start: (page - 1) * pageSize,
+    });
+  };
+
   useEffect(() => {
-    void refreshProcessInstances({ categoryCode, keyword: searchQuery.trim() || undefined });
+    setCurrentPage(1);
+    fetchPage(1);
   }, [currentUser.id, categoryCode]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
-      void refreshProcessInstances({ categoryCode, keyword: searchQuery.trim() || undefined });
+      setCurrentPage(1);
+      fetchPage(1);
     }, 300);
     return () => clearTimeout(timer);
   }, [searchQuery]);
 
   useEffect(() => {
     if ((location.state as any)?.refresh) {
-      void refreshProcessInstances({ categoryCode, keyword: searchQuery.trim() || undefined });
+      fetchPage(currentPage);
       window.history.replaceState({}, document.title);
     }
   }, [location.state]);
+
+  const handlePageChange = (page: number) => {
+    if (page < 1 || page > totalPages) return;
+    setCurrentPage(page);
+    fetchPage(page);
+  };
 
   useEffect(() => {
     if (processInstances.length === 0) return;
@@ -183,7 +206,7 @@ export default function TaskCenter() {
         ) : (
           <>
             <div className="text-sm text-muted-foreground">
-              共 <span className="font-semibold text-foreground">{filteredInstances.length}</span> 个进行中的流程，展开可查看任务列表
+              共 <span className="font-semibold text-foreground">{processInstancesTotal}</span> 个进行中的流程，展开可查看任务列表
             </div>
             <div className="space-y-3">
               {filteredInstances.map((instance, index) => {
@@ -276,6 +299,54 @@ export default function TaskCenter() {
                 );
               })}
             </div>
+            {/* 分页控件 */}
+            {totalPages > 1 && (
+              <div className="flex items-center justify-between pt-4">
+                <p className="text-sm text-muted-foreground">
+                  第 {currentPage} / {totalPages} 页
+                </p>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={currentPage <= 1}
+                    onClick={() => handlePageChange(currentPage - 1)}
+                  >
+                    <ChevronLeft className="h-4 w-4 mr-1" />上一页
+                  </Button>
+                  {Array.from({ length: totalPages }, (_, i) => i + 1)
+                    .filter(page => page === 1 || page === totalPages || Math.abs(page - currentPage) <= 2)
+                    .reduce<(number | "ellipsis")[]>((acc, page, idx, arr) => {
+                      if (idx > 0 && page - (arr[idx - 1] as number) > 1) acc.push("ellipsis");
+                      acc.push(page);
+                      return acc;
+                    }, [])
+                    .map((item, idx) =>
+                      item === "ellipsis" ? (
+                        <span key={`ellipsis-${idx}`} className="px-2 text-muted-foreground">…</span>
+                      ) : (
+                        <Button
+                          key={item}
+                          variant={item === currentPage ? "default" : "outline"}
+                          size="sm"
+                          className="h-8 w-8 p-0"
+                          onClick={() => handlePageChange(item)}
+                        >
+                          {item}
+                        </Button>
+                      )
+                    )}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={currentPage >= totalPages}
+                    onClick={() => handlePageChange(currentPage + 1)}
+                  >
+                    下一页<ChevronRight className="h-4 w-4 ml-1" />
+                  </Button>
+                </div>
+              </div>
+            )}
           </>
         )}
       </div>

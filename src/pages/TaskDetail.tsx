@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate, useParams, useLocation } from "react-router-dom";
-import { ArrowLeft, Loader2, Upload, FileSpreadsheet } from "lucide-react";
+import { useNavigate, useParams, useLocation, useSearchParams } from "react-router-dom";
+import { ArrowLeft, Loader2, Upload, FileSpreadsheet, Download, Eye, FileText, CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -11,7 +11,7 @@ import {
 import { useTaskContext, type Task } from "@/contexts/TaskContext";
 import { useUserContext } from "@/contexts/UserContext";
 import { useToast } from "@/hooks/use-toast";
-import { uploadFileApi } from "@/services/apis/files";
+import { uploadFileApi, downloadFileApi } from "@/services/apis/files";
 import type { TaskDetailDto } from "@/services/apis/tasks";
 import { getTaskBusinessVariablesApi } from "@/services/apis/tasks";
 import type { FormDataField } from "@/services/apis/processes";
@@ -19,6 +19,7 @@ import { getTaskFormApi, type FormResponse } from "@/services/apis/forms";
 import { adaptBackendTask } from "@/services/task-adapters";
 import { canOperateTask } from "@/utils/task-permissions";
 import { PdfSlideViewer } from "@/pages/ppt/components/PdfSlideViewer";
+import { FilePreviewDialog } from "@/pages/ppt/components/FilePreviewDialog";
 import { DeptAssignForm } from "@/pages/task/meeting-materials/ppt-collab-forms/DeptAssignForm";
 import { AssignPagesForm } from "@/pages/task/meeting-materials/ppt-collab-forms/AssignPagesForm";
 import { SubmitForm } from "@/pages/task/meeting-materials/ppt-collab-forms/SubmitForm";
@@ -67,6 +68,8 @@ export default function TaskDetail() {
   const { taskId } = useParams<{ taskId: string }>();
   const navigate = useNavigate();
   const location = useLocation();
+  const [searchParams] = useSearchParams();
+  const perspective = searchParams.get("perspective") || undefined;
   const returnPath = (location.state as any)?.from || "/tasks";
   const { tasks, getTaskById, fetchTaskDetail, completePptAction } = useTaskContext();
   const { currentUser } = useUserContext();
@@ -86,8 +89,8 @@ export default function TaskDetail() {
   const [templatePageCount, setTemplatePageCount] = useState(0);
   const [isUploading, setIsUploading] = useState(false);
 
-  // 合并节点：当前选中预览的提交文件索引
-  const [mergePreviewIndex, setMergePreviewIndex] = useState(0);
+  // 合并节点：当前选中预览的提交文件 ID
+  const [mergePreviewFileId, setMergePreviewFileId] = useState<string>("");
 
   // 优先使用从流程变量构建的 task，其次用旧的 getTaskById
   const task = processTask || (taskId ? getTaskById(taskId) : undefined);
@@ -100,7 +103,7 @@ export default function TaskDetail() {
 
     const loadDetail = async () => {
       // 获取任务详情（含 formKey / formData）
-      const detail = await fetchTaskDetail(taskId);
+      const detail = await fetchTaskDetail(taskId, perspective);
       setTaskDetailResponse(detail ?? null);
 
       // 调用 forms 接口获取表单信息（优先使用此接口的结果）
@@ -113,7 +116,8 @@ export default function TaskDetail() {
       }
 
       // 如果任务属于某个流程实例，获取业务变量来构建业务数据
-      if (detail?.processInstanceId) {
+      // 历史任务（ended）也需要加载业务变量来展示详情
+      if (detail?.processInstanceId || detail?.ended) {
         try {
           const rawResponse = await getTaskBusinessVariablesApi(detail.id);
 
@@ -127,7 +131,7 @@ export default function TaskDetail() {
             title: (varsMap.title as string) || detail.name || "",
             description: (varsMap.description as string) || detail.description || "",
             formKey: detail.formKey,
-            processKey: detail.processDefinitionId?.split(":")[0] || "",
+            processKey: detail.processDefinitionId?.split(":")[0] || (varsMap.deptAssignments ? "ppt_collab" : ""),
             department: (varsMap.department as string) || "",
             deadline: (varsMap.deadline as string) || detail.dueDate || "",
             createdBy: (varsMap.createdBy as string) || detail.owner || "",
@@ -138,6 +142,7 @@ export default function TaskDetail() {
               templateFileId: varsMap.templateFileId,
               deptAssignments: varsMap.deptAssignments || [],
               pageVersions: varsMap.pageVersions || {},
+              mergedFileId: varsMap.mergedFileId,
             },
           };
           const adapted = adaptBackendTask(taskData);
@@ -234,12 +239,15 @@ export default function TaskDetail() {
 
     if (resolvedFormKey === TaskFormKeyEnum.PptCollabMerge && mergeSubmissions.length > 0) {
       // 合并节点：展示当前选中的员工提交文件
-      const idx = Math.min(mergePreviewIndex, mergeSubmissions.length - 1);
-      const selected = mergeSubmissions[idx];
-      return {
-        previewFileId: selected.fileId,
-        previewFileName: `${selected.userName} · 第${selected.pages.join(",")}页`,
-      };
+      const selected = mergePreviewFileId
+        ? mergeSubmissions.find((s) => s.fileId === mergePreviewFileId)
+        : mergeSubmissions[0];
+      if (selected) {
+        return {
+          previewFileId: selected.fileId,
+          previewFileName: `${selected.userName} · 第${selected.pages.join(",")}页`,
+        };
+      }
     }
 
     // 默认：展示模板文件
@@ -247,7 +255,7 @@ export default function TaskDetail() {
       previewFileId: task?.templateFileId || task?.meetingMaterialWorkflow?.templateFileId || templateFileId,
       previewFileName: task?.templateFileName || templateFile?.name,
     };
-  }, [task, currentUser.id, resolvedFormKey, templateFileId, templateFile, mergePreviewIndex, mergeSubmissions]);
+  }, [task, currentUser.id, resolvedFormKey, templateFileId, templateFile, mergePreviewFileId, mergeSubmissions]);
 
   const previewFileName = resolvedPreviewFileName;
   const previewPageCount = task?.templatePageCount || templatePageCount;
@@ -328,7 +336,6 @@ export default function TaskDetail() {
   };
 
   const handleSuccess = () => {
-    toast({ title: `${nodeLabel || "任务"}提交成功` });
     navigate(returnPath, { state: { refresh: true } });
   };
 
@@ -384,7 +391,213 @@ export default function TaskDetail() {
     );
   }
 
-  // 3) formKey 有值 → 加载预制组件
+  // 3) 已结束的历史任务 → 根据 stage 适配展示内容（历史任务没有 formKey）
+  if (isEnded) {
+    const workflow = task.meetingMaterialWorkflow;
+    const stage = workflow?.stage;
+    const mergedFileId = workflow?.mergedFileId;
+    const mergedFileName = `${task.title}_合并版.pptx`;
+    const deptAssignments = workflow?.deptAssignments ?? [];
+
+    // 找当前用户的提交记录（如果有）
+    const mySubmission = (() => {
+      for (const dept of deptAssignments) {
+        const myUa = dept.userAssignments.find((ua) => ua.userId === currentUser.id);
+        if (myUa && myUa.submissions.length > 0) {
+          return { ua: myUa, dept };
+        }
+      }
+      return null;
+    })();
+
+    // 找当前用户作为室主任负责的部门（如果有）
+    const myManagedDept = deptAssignments.find((d) => d.headUserId === currentUser.id);
+
+    return (
+      <div className="h-screen flex flex-col bg-background">
+        <Header
+          task={task}
+          nodeLabel="任务详情"
+          stageText={stageConfig?.text}
+          stageClass={stageConfig?.className}
+          onBack={() => navigate(returnPath)}
+        />
+        <div className="flex-1 overflow-auto p-6 max-w-3xl mx-auto w-full">
+          <div className="space-y-6">
+            {/* 任务基本信息 */}
+            <div className="rounded-lg border border-border bg-card p-6 space-y-4">
+              <h2 className="text-base font-semibold text-foreground">基本信息</h2>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-3 text-sm">
+                <div className="flex">
+                  <span className="text-muted-foreground w-20 shrink-0">任务名称</span>
+                  <span className="text-foreground">{task.title}</span>
+                </div>
+                {task.description && (
+                  <div className="flex sm:col-span-2">
+                    <span className="text-muted-foreground w-20 shrink-0">任务描述</span>
+                    <span className="text-foreground">{task.description}</span>
+                  </div>
+                )}
+                {task.department && (
+                  <div className="flex">
+                    <span className="text-muted-foreground w-20 shrink-0">所属部门</span>
+                    <span className="text-foreground">{task.department}</span>
+                  </div>
+                )}
+                {taskDetailResponse?.category && (
+                  <div className="flex">
+                    <span className="text-muted-foreground w-20 shrink-0">任务类别</span>
+                    <span className="text-foreground">{taskDetailResponse.category}</span>
+                  </div>
+                )}
+                {task.createdBy && task.createdBy !== "系统" && (
+                  <div className="flex">
+                    <span className="text-muted-foreground w-20 shrink-0">创建人</span>
+                    <span className="text-foreground">{task.createdBy}</span>
+                  </div>
+                )}
+                {taskDetailResponse?.assigneeName && (
+                  <div className="flex">
+                    <span className="text-muted-foreground w-20 shrink-0">处理人</span>
+                    <span className="text-foreground">{taskDetailResponse.assigneeName}</span>
+                  </div>
+                )}
+                {task.deadline && (
+                  <div className="flex">
+                    <span className="text-muted-foreground w-20 shrink-0">截止时间</span>
+                    <span className="text-foreground">{task.deadline}</span>
+                  </div>
+                )}
+                {taskDetailResponse?.createTime && (
+                  <div className="flex">
+                    <span className="text-muted-foreground w-20 shrink-0">创建时间</span>
+                    <span className="text-foreground">
+                      {new Date(taskDetailResponse.createTime).toLocaleString("zh-CN")}
+                    </span>
+                  </div>
+                )}
+                {taskDetailResponse?.endTime && (
+                  <div className="flex">
+                    <span className="text-muted-foreground w-20 shrink-0">完成时间</span>
+                    <span className="text-foreground">
+                      {new Date(taskDetailResponse.endTime).toLocaleString("zh-CN")}
+                    </span>
+                  </div>
+                )}
+                <div className="flex">
+                  <span className="text-muted-foreground w-20 shrink-0">任务状态</span>
+                  <Badge variant="secondary" className="text-xs">已完成</Badge>
+                </div>
+              </div>
+            </div>
+
+            {/* 合并文件（stage 为 merged 时展示） */}
+            {mergedFileId && (
+              <HistoryMergedFileCard
+                mergedFileId={mergedFileId}
+                fileName={mergedFileName}
+              />
+            )}
+
+            {/* 我的提交（当前用户作为员工有提交记录时展示） */}
+            {mySubmission && (
+              <div className="rounded-lg border border-border bg-card p-6 space-y-4">
+                <h2 className="text-base font-semibold text-foreground">我的提交</h2>
+                <div className="text-sm text-muted-foreground mb-3">
+                  负责页码：第 {formatPageRange(mySubmission.ua.pages)} 页
+                  {mySubmission.dept && ` · ${mySubmission.dept.department}`}
+                </div>
+                <div className="space-y-2">
+                  {mySubmission.ua.submissions.map((sub, idx) => (
+                    <HistoryFileItem
+                      key={sub.id || idx}
+                      fileId={sub.fileId}
+                      fileName={sub.fileName || `提交文件 v${sub.version || idx + 1}`}
+                      note={sub.note}
+                      submittedAt={sub.submittedAt}
+                      status={sub.status}
+                      feedback={sub.feedback}
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* 我审核的部门（当前用户作为室主任时展示） */}
+            {myManagedDept && !mySubmission && (
+              <div className="rounded-lg border border-border bg-card p-6 space-y-4">
+                <h2 className="text-base font-semibold text-foreground">
+                  审核记录 · {myManagedDept.department}
+                </h2>
+                <div className="space-y-3">
+                  {myManagedDept.userAssignments.map((ua) => (
+                    <div key={ua.id} className="space-y-2">
+                      <div className="flex items-center gap-2 text-sm">
+                        <div className="h-6 w-6 rounded-full bg-primary/10 flex items-center justify-center">
+                          <span className="text-[10px] font-semibold text-primary">{ua.userName.charAt(0)}</span>
+                        </div>
+                        <span className="font-medium">{ua.userName}</span>
+                        <span className="text-muted-foreground text-xs">第 {formatPageRange(ua.pages)} 页</span>
+                      </div>
+                      {ua.submissions.length > 0 ? (
+                        <div className="pl-8 space-y-1.5">
+                          {ua.submissions.map((sub, idx) => (
+                            <HistoryFileItem
+                              key={sub.id || idx}
+                              fileId={sub.fileId}
+                              fileName={sub.fileName || `提交文件 v${sub.version || idx + 1}`}
+                              note={sub.note}
+                              submittedAt={sub.submittedAt}
+                              status={sub.status}
+                              feedback={sub.feedback}
+                            />
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="pl-8 text-xs text-muted-foreground">未提交</p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* 各部门提交记录（stage 进入 approved/merged 等后期阶段，且当前用户不是员工也不是室主任时展示全局视图） */}
+            {!mySubmission && !myManagedDept && deptAssignments.length > 0 && deptAssignments.some(d => d.userAssignments.length > 0) && (
+              <div className="rounded-lg border border-border bg-card p-6 space-y-4">
+                <h2 className="text-base font-semibold text-foreground">各部门提交记录</h2>
+                <div className="space-y-4">
+                  {deptAssignments.map((dept) => (
+                    <HistoryDeptCard key={dept.id} dept={dept} />
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* 部门分配信息（如果有分配但还没有员工提交） */}
+            {deptAssignments.length > 0 && !deptAssignments.some(d => d.userAssignments.length > 0) && (
+              <div className="rounded-lg border border-border bg-card p-6 space-y-4">
+                <h2 className="text-base font-semibold text-foreground">部门分配</h2>
+                <div className="space-y-2 text-sm">
+                  {deptAssignments.map((dept) => (
+                    <div key={dept.id} className="flex items-center gap-3 px-3 py-2 rounded-md border border-border/30 bg-secondary/5">
+                      <span className="font-medium text-foreground">{dept.department}</span>
+                      <span className="text-muted-foreground">第 {formatPageRange(dept.pages)} 页</span>
+                      {dept.headUserName && (
+                        <span className="text-xs text-muted-foreground">负责人: {dept.headUserName}</span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // 4) formKey 有值 → 加载预制组件
   if (hasFormKey && FormComponent) {
     return (
       <div className="h-screen flex flex-col bg-background">
@@ -448,38 +661,6 @@ export default function TaskDetail() {
                       )}
                     </div>
                   </div>
-
-                  {/* 合并节点：员工提交文件切换标签 */}
-                  {resolvedFormKey === TaskFormKeyEnum.PptCollabMerge && mergeSubmissions.length > 0 && (
-                    <div className="shrink-0 px-3 py-2.5 border-b border-border/60 bg-gradient-to-b from-card/80 to-card/40">
-                      <div className="flex items-center gap-1 overflow-x-auto scrollbar-none">
-                        {mergeSubmissions.map((sub, idx) => (
-                          <button
-                            key={sub.fileId}
-                            type="button"
-                            onClick={() => setMergePreviewIndex(idx)}
-                            className={cn(
-                              "relative flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-all",
-                              idx === mergePreviewIndex
-                                ? "bg-primary/10 text-primary ring-1 ring-primary/30 shadow-sm"
-                                : "text-muted-foreground hover:bg-secondary/60 hover:text-foreground"
-                            )}
-                          >
-                            <span className={cn(
-                              "inline-flex items-center justify-center h-5 w-5 rounded-full text-[10px] font-bold shrink-0",
-                              idx === mergePreviewIndex
-                                ? "bg-primary text-white"
-                                : "bg-muted-foreground/20 text-muted-foreground"
-                            )}>
-                              {sub.userName.charAt(0)}
-                            </span>
-                            <span>{sub.userName}</span>
-                            <span className="text-[10px] opacity-70">P{sub.pages[0]}-{sub.pages[sub.pages.length - 1]}</span>
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  )}
 
                   <div className="flex-1 overflow-auto">
                     {previewFileId ? (
@@ -548,6 +729,7 @@ export default function TaskDetail() {
                     templateFileId={previewFileId}
                     onSuccess={handleSuccess}
                     readOnly={!canOperate}
+                    onPreviewFile={resolvedFormKey === TaskFormKeyEnum.PptCollabMerge ? setMergePreviewFileId : undefined}
                   />
                 </div>
               </ResizablePanel>
@@ -567,7 +749,7 @@ export default function TaskDetail() {
     );
   }
 
-  // 4) formData 有值 → 动态渲染字段
+  // 5) formData 有值 → 动态渲染字段
   if (hasFormData) {
     return (
       <div className="h-screen flex flex-col bg-background">
@@ -589,7 +771,7 @@ export default function TaskDetail() {
     );
   }
 
-  // 5) formKey 有值但没有匹配的预制组件
+  // 6) formKey 有值但没有匹配的预制组件
   if (hasFormKey && !FormComponent) {
     return (
       <div className="h-screen flex flex-col bg-background">
@@ -614,7 +796,7 @@ export default function TaskDetail() {
     );
   }
 
-  // 6) 两者都为空 → 当前用户无需操作
+  // 7) 两者都为空 → 当前用户无需操作
   return (
     <div className="h-screen flex flex-col bg-background">
       <Header
@@ -677,5 +859,240 @@ function Header({
         </Badge>
       )}
     </header>
+  );
+}
+
+// ---- 历史详情：文件条目（带预览） ----
+function HistoryFileItem({
+  fileId,
+  fileName,
+  note,
+  submittedAt,
+  status,
+  feedback,
+}: {
+  fileId?: string;
+  fileName: string;
+  note?: string;
+  submittedAt?: string;
+  status?: string;
+  feedback?: string;
+}) {
+  const [previewOpen, setPreviewOpen] = useState(false);
+
+  const statusLabel = status === "approved" || status === "dept_approved" || status === "final_approved"
+    ? "已通过"
+    : status === "rejected"
+      ? "已驳回"
+      : status === "submitted"
+        ? "已提交"
+        : "";
+
+  const statusClass = status === "approved" || status === "dept_approved" || status === "final_approved"
+    ? "text-emerald-600 border-emerald-200"
+    : status === "rejected"
+      ? "text-red-600 border-red-200"
+      : "text-muted-foreground border-border";
+
+  return (
+    <>
+      <div className="flex items-center gap-3 px-3 py-2.5 rounded-lg border border-border/40 bg-secondary/5">
+        <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+          <FileText className="h-4 w-4 text-primary" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-[13px] font-medium text-foreground truncate">{fileName}</p>
+          <div className="flex items-center gap-2 text-[11px] text-muted-foreground mt-0.5">
+            {submittedAt && <span>{new Date(submittedAt).toLocaleString("zh-CN")}</span>}
+            {note && <span>· {note}</span>}
+            {feedback && <span className="text-amber-600">· 反馈: {feedback}</span>}
+          </div>
+        </div>
+        <div className="flex items-center gap-2 shrink-0">
+          {statusLabel && (
+            <Badge variant="outline" className={cn("text-[10px] h-5 px-1.5", statusClass)}>
+              {statusLabel}
+            </Badge>
+          )}
+          {fileId && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 px-2 text-xs"
+              onClick={() => setPreviewOpen(true)}
+            >
+              <Eye className="h-3.5 w-3.5 mr-1" />
+              预览
+            </Button>
+          )}
+        </div>
+      </div>
+
+      {fileId && (
+        <FilePreviewDialog
+          open={previewOpen}
+          onOpenChange={setPreviewOpen}
+          fileId={fileId}
+          fileName={fileName}
+        />
+      )}
+    </>
+  );
+}
+
+// ---- 历史详情：合并文件卡片 ----
+function HistoryMergedFileCard({
+  mergedFileId,
+  fileName,
+}: {
+  mergedFileId: string;
+  fileName: string;
+}) {
+  const { toast } = useToast();
+  const [previewOpen, setPreviewOpen] = useState(false);
+
+  const handleDownload = async () => {
+    try {
+      const blob = await downloadFileApi(mergedFileId);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = fileName;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch {
+      toast({ title: "下载失败", description: "请稍后重试", variant: "destructive" });
+    }
+  };
+
+  return (
+    <>
+      <div className="rounded-lg border border-border bg-card p-5">
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+              <FileText className="h-5 w-5 text-primary" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-sm text-muted-foreground">最终合并文件</p>
+              <p className="text-sm font-medium text-foreground truncate">{fileName}</p>
+            </div>
+          </div>
+          <div className="flex gap-2 shrink-0">
+            <Button variant="outline" size="sm" onClick={() => setPreviewOpen(true)}>
+              <Eye className="h-3.5 w-3.5 mr-1.5" />
+              预览
+            </Button>
+            <Button size="sm" onClick={handleDownload}>
+              <Download className="h-3.5 w-3.5 mr-1.5" />
+              下载
+            </Button>
+          </div>
+        </div>
+      </div>
+
+      <FilePreviewDialog
+        open={previewOpen}
+        onOpenChange={setPreviewOpen}
+        fileId={mergedFileId}
+        fileName={fileName}
+      />
+    </>
+  );
+}
+
+// ---- 历史详情：部门提交记录卡片 ----
+function HistoryDeptCard({ dept }: { dept: import("@/types/task").MeetingMaterialDeptAssignment }) {
+  const total = dept.userAssignments.length;
+  const completed = dept.userAssignments.filter(
+    (ua) => ua.status === "dept_approved" || ua.status === "final_approved"
+  ).length;
+
+  return (
+    <div className="rounded-lg border border-border/50 bg-secondary/5 p-4 space-y-3">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-semibold text-foreground">{dept.department}</span>
+          {dept.headUserName && (
+            <span className="text-xs text-muted-foreground">({dept.headUserName})</span>
+          )}
+        </div>
+        <Badge
+          variant="outline"
+          className={cn(
+            "text-xs",
+            completed === total
+              ? "bg-emerald-50 text-emerald-600 border-emerald-200"
+              : "bg-amber-50 text-amber-600 border-amber-200"
+          )}
+        >
+          {completed === total ? (
+            <span className="flex items-center gap-1">
+              <CheckCircle2 className="h-3 w-3" />
+              全部通过
+            </span>
+          ) : (
+            `${completed}/${total} 已通过`
+          )}
+        </Badge>
+      </div>
+
+      {dept.userAssignments.length > 0 && (
+        <div className="space-y-2">
+          {dept.userAssignments.map((ua) => {
+            const latestSub = ua.submissions[ua.submissions.length - 1];
+            return (
+              <div
+                key={ua.id}
+                className="flex items-center gap-3 px-3 py-2 rounded-md border border-border/30 bg-card/50"
+              >
+                <div className="h-7 w-7 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                  <span className="text-[11px] font-semibold text-primary">
+                    {ua.userName.charAt(0)}
+                  </span>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[13px] font-medium text-foreground">{ua.userName}</span>
+                    <span className="text-[11px] text-muted-foreground">
+                      第 {formatPageRange(ua.pages)} 页
+                    </span>
+                  </div>
+                  {latestSub && (
+                    <p className="text-[11px] text-muted-foreground mt-0.5">
+                      {latestSub.submittedAt
+                        ? new Date(latestSub.submittedAt).toLocaleString("zh-CN")
+                        : ""}
+                      {latestSub.note && ` · ${latestSub.note}`}
+                    </p>
+                  )}
+                </div>
+                <Badge
+                  variant="outline"
+                  className={cn(
+                    "text-[10px] h-5 px-1.5 shrink-0",
+                    ua.status === "dept_approved" || ua.status === "final_approved"
+                      ? "text-emerald-600 border-emerald-200"
+                      : ua.status === "rejected"
+                        ? "text-red-600 border-red-200"
+                        : "text-muted-foreground border-border"
+                  )}
+                >
+                  {ua.status === "dept_approved" || ua.status === "final_approved"
+                    ? "已通过"
+                    : ua.status === "rejected"
+                      ? "已驳回"
+                      : ua.status === "submitted"
+                        ? "已提交"
+                        : "待提交"}
+                </Badge>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
   );
 }

@@ -34,6 +34,8 @@ interface MeetingMaterialCreateFormProps {
   onCancel: () => void;
 }
 
+
+
 export function MeetingMaterialCreateForm({
   categoryCode,
   categoryName,
@@ -122,19 +124,20 @@ export function MeetingMaterialCreateForm({
       return;
     }
 
-    // 校验动态表单必填字段
+    // 校验动态表单中可写的必填字段
     for (const field of dynamicFields) {
+      if (!field.writable) continue;
       if (field.required && !dynamicValues[field.id]?.trim()) {
         toast({ title: `请填写「${field.name}」`, variant: "destructive" });
         return;
       }
     }
 
-    // 用户填了什么就传什么，未选择截止时间则不传该字段
+    // 构建提交变量：内置字段 + 动态额外字段
     const variables: Record<string, unknown> = {
+      ...dynamicValues,
       title: title.trim(),
       department: currentUser.department || "",
-      ...dynamicValues,
     };
     if (description.trim()) {
       variables.description = description.trim();
@@ -169,11 +172,7 @@ export function MeetingMaterialCreateForm({
   /** 根据 FormDataField 渲染对应的表单控件 */
   const renderDynamicField = (field: FormDataField) => {
     const value = dynamicValues[field.id] || "";
-
-    // 跳过 title/department/deadline 等已有内置字段
-    if (["title", "department", "deadline", "description"].includes(field.id)) {
-      return null;
-    }
+    const disabled = !field.writable;
 
     // 枚举类型 → 下拉选择
     if (field.type === "enum" && field.enumValues?.length > 0) {
@@ -186,8 +185,9 @@ export function MeetingMaterialCreateForm({
           <Select
             value={value}
             onValueChange={(v) => handleDynamicFieldChange(field.id, v)}
+            disabled={disabled}
           >
-            <SelectTrigger>
+            <SelectTrigger className={cn(disabled && "opacity-60 cursor-not-allowed")}>
               <SelectValue placeholder={`选择${field.name}`} />
             </SelectTrigger>
             <SelectContent>
@@ -215,9 +215,11 @@ export function MeetingMaterialCreateForm({
             <PopoverTrigger asChild>
               <Button
                 variant="outline"
+                disabled={disabled}
                 className={cn(
                   "w-full justify-start text-left font-normal",
-                  !dateValue && "text-muted-foreground"
+                  !dateValue && "text-muted-foreground",
+                  disabled && "opacity-60 cursor-not-allowed"
                 )}
               >
                 <CalendarIcon className="mr-2 h-4 w-4" />
@@ -256,8 +258,9 @@ export function MeetingMaterialCreateForm({
           <Select
             value={value}
             onValueChange={(v) => handleDynamicFieldChange(field.id, v)}
+            disabled={disabled}
           >
-            <SelectTrigger>
+            <SelectTrigger className={cn(disabled && "opacity-60 cursor-not-allowed")}>
               <SelectValue placeholder={`选择${field.name}`} />
             </SelectTrigger>
             <SelectContent>
@@ -281,6 +284,8 @@ export function MeetingMaterialCreateForm({
             type="number"
             placeholder={`输入${field.name}`}
             value={value}
+            disabled={disabled}
+            className={cn(disabled && "opacity-60 cursor-not-allowed")}
             onChange={(e) => handleDynamicFieldChange(field.id, e.target.value)}
           />
         </div>
@@ -297,6 +302,8 @@ export function MeetingMaterialCreateForm({
         <Input
           placeholder={`输入${field.name}`}
           value={value}
+          disabled={disabled}
+          className={cn(disabled && "opacity-60 cursor-not-allowed")}
           onChange={(e) => handleDynamicFieldChange(field.id, e.target.value)}
         />
       </div>
@@ -312,7 +319,7 @@ export function MeetingMaterialCreateForm({
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-5">
-        {/* 流程名称 */}
+        {/* 流程名称（内置） */}
         <div className="space-y-1.5">
           <Label>
             流程名称 <span className="text-destructive">*</span>
@@ -324,7 +331,7 @@ export function MeetingMaterialCreateForm({
           />
         </div>
 
-        {/* 描述 */}
+        {/* 描述（内置） */}
         <div className="space-y-1.5">
           <Label>描述</Label>
           <Textarea
@@ -335,7 +342,7 @@ export function MeetingMaterialCreateForm({
           />
         </div>
 
-        {/* 截止时间 */}
+        {/* 截止时间（内置） */}
         <div className="space-y-1.5">
           <Label>截止时间</Label>
           <div className="flex gap-3">
@@ -374,7 +381,7 @@ export function MeetingMaterialCreateForm({
           </div>
         </div>
 
-        {/* 动态表单字段 */}
+        {/* 动态额外字段（后端返回的非内置字段） */}
         {loadingForm && (
           <div className="flex items-center gap-2 text-muted-foreground text-sm py-2">
             <Loader2 className="h-4 w-4 animate-spin" />
@@ -384,10 +391,7 @@ export function MeetingMaterialCreateForm({
         {!loadingForm && dynamicFields.length > 0 && (
           <div className="space-y-4 border-t pt-4">
             <p className="text-sm text-muted-foreground">流程附加字段：</p>
-            {dynamicFields
-              .filter((f) => f.writable)
-              .map(renderDynamicField)
-              .filter(Boolean)}
+            {dynamicFields.map(renderDynamicField)}
           </div>
         )}
 

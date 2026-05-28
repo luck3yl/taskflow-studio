@@ -10,4 +10,6 @@ export interface PptCollabFormProps {
   templateFileId?: string;
   /** 只读模式：当前用户不是 assignee，不能操作 */
   readOnly?: boolean;
+  /** 切换左侧预览文件（合并节点用，传入 fileId） */
+  onPreviewFile?: (fileId: string) => void;
 }

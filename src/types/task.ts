@@ -71,6 +71,12 @@ export interface MeetingMaterialUserAssignment {
   taskDescription?: string;
   status: MeetingMaterialUserAssignmentStatus;
   submissions: MeetingMaterialPageSubmission[];
+  // 发起人审核字段
+  initiatorReviewStatus?: "pending" | "approved" | "rejected";
+  initiatorReviewFeedback?: string | null;
+  initiatorReviewedAt?: string | null;
+  initiatorReviewedBy?: string | null;
+  version?: number;
 }
 
 export interface MeetingMaterialDeptAssignment {
@@ -101,6 +107,9 @@ export interface MeetingMaterialWorkflow {
   mergedAt?: string;
   finalApprovedAt?: string;
   finalFeedback?: string;
+  // 发起人审核整体字段
+  initiatorReviewedAt?: string | null;
+  initiatorFeedback?: string | null;
 }
 
 export interface Submission {

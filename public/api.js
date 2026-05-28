@@ -1,6 +1,6 @@
 ; (function (factory) {
     // var ip = '192.168.193.4'
-    var ip = '192.168.0.115'
+    var ip = '192.168.0.100'
     var baseURL = 'http://' + ip + ':8000'
 
     Object.defineProperty(factory, '__requestConfig', {

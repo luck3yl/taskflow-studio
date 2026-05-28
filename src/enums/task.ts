@@ -29,15 +29,15 @@ export enum MeetingMaterialDeptAssignmentStatusEnum {
 }
 
 export enum MeetingMaterialStageEnum {
-  Created        = "created",         // 已创建，等待发起人分配部门
-  DeptAssignment = "dept_assignment",
-  // UserAssignment = "user_assignment", // 废弃：后端不再使用
-  InProgress     = "in_progress",
-  DeptReviewing  = "dept_reviewing",
-  FinalReviewing = "final_reviewing",
-  FinalApproved  = "final_approved",  // 终审通过，等待发起人合并
-  Approved       = "approved",
-  Merged         = "merged",
+  Created            = "created",              // 已创建，等待发起人分配部门
+  DeptAssignment     = "dept_assignment",
+  // UserAssignment = "user_assignment",       // 废弃：后端不再使用
+  InProgress         = "in_progress",
+  DeptReviewing      = "dept_reviewing",
+  FinalReviewing     = "final_reviewing",
+  FinalApproved      = "final_approved",       // 终审通过，等待发起人合并
+  Approved           = "approved",
+  Merged             = "merged",
 }
 
 export enum TaskTypeEnum {

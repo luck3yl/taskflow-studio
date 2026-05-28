@@ -136,9 +136,15 @@ export const getTasksApi = (params?: {
 /**
  * 查询任务详情（含 formKey / ⭐formData）
  * GET /api/v1/tasks/{taskId}
+ *
+ * @param perspective 可选，指定用户视角（与 my-todos 的 todoType 一一对应），
+ *   解决同一用户在同一流程中身兼多角色时视角错乱的问题。
+ *   取值: submit | review | assign_pages | dept_assign | mark_merged | reject_all
  */
-export const getTaskDetailApi = (taskId: string) => {
-  return http.get<TaskDetailDto>(`${tasksURL}/${taskId}`);
+export const getTaskDetailApi = (taskId: string, perspective?: string) => {
+  return http.get<TaskDetailDto>(`${tasksURL}/${taskId}`, {
+    params: perspective ? { perspective } : undefined,
+  });
 };
 
 /**

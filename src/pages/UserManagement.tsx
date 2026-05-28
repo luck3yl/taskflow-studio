@@ -226,7 +226,7 @@ export default function UserManagement() {
         });
         toast({ title: "用户已添加" });
       }
-      await refreshUsers();
+      await Promise.all([refreshUsers(), refreshDepartments()]);
       setIsUserDialogOpen(false);
     } catch (error: any) {
       toast({ title: "操作失败", description: error.message, variant: "destructive" });
@@ -236,7 +236,7 @@ export default function UserManagement() {
   const handleDeleteUser = async (userId: string) => {
     try {
       await deleteUserApi(userId);
-      await refreshUsers();
+      await Promise.all([refreshUsers(), refreshDepartments()]);
       toast({ title: "用户已删除" });
     } catch (error: any) {
       toast({ title: "删除失败", description: error.message, variant: "destructive" });

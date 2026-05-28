@@ -42,16 +42,34 @@ function AssignmentInfo({
         <div className="flex items-start gap-2 p-2.5 rounded-lg bg-destructive/10 border border-destructive/20 mt-2">
           <AlertTriangle className="h-3.5 w-3.5 text-destructive shrink-0 mt-0.5" />
           <div className="space-y-1">
-            <p className="text-xs font-medium text-destructive">
-              上次提交已被驳回，请修改后重新提交
-            </p>
             {(() => {
               const rejectedSub = [...ua.submissions].reverse().find(s => s.status === "rejected");
-              return rejectedSub?.feedback ? (
-                <p className="text-xs text-destructive/80">
-                  驳回原因：{rejectedSub.feedback}
-                </p>
-              ) : null;
+              const feedback = rejectedSub?.feedback || "";
+              const isInitiatorReject = feedback.startsWith("[发起人驳回] ");
+              const reasonText = isInitiatorReject ? feedback.slice("[发起人驳回] ".length) : feedback;
+              const sourceBadge = isInitiatorReject ? "发起人驳回" : "室主任驳回";
+              return (
+                <>
+                  <div className="flex items-center gap-1.5">
+                    <Badge variant="outline" className={cn(
+                      "text-[10px] h-4 px-1.5",
+                      isInitiatorReject
+                        ? "bg-violet-50 text-violet-700 border-violet-200"
+                        : "bg-destructive/10 text-destructive border-destructive/20"
+                    )}>
+                      {sourceBadge}
+                    </Badge>
+                    <p className="text-xs font-medium text-destructive">
+                      上次提交已被驳回，请修改后重新提交
+                    </p>
+                  </div>
+                  {reasonText && (
+                    <p className="text-xs text-destructive/80">
+                      驳回原因：{reasonText}
+                    </p>
+                  )}
+                </>
+              );
             })()}
           </div>
         </div>
